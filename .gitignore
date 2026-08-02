@@ -1,0 +1,52 @@
+# Secrets
+.env
+.env.*
+!.env.example
+*.pem
+*.p12
+*.pfx
+*.key
+credentials.local.json
+secrets.local.json
+
+# Python virtual environments
+.venv/
+venv/
+
+# Python cache
+__pycache__/
+**/__pycache__/
+*.py[cod]
+*.egg-info/
+
+# Test and analysis cache
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+coverage.xml
+htmlcov/
+
+# Build output
+build/
+dist/
+
+# Superpowers worktrees
+.worktrees/
+
+# Local runtime data
+runtime/
+logs/
+*.log
+*.db
+*.sqlite3
+
+# IDE and OS
+.idea/
+.vscode/
+.DS_Store
+Thumbs.db
+Desktop.ini
+*.swp
+*.swo
+*~

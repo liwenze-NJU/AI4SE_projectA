@@ -1,0 +1,1 @@
+- [project-repo](memory/project-repo.md) — Project repository URL and remote configuration
