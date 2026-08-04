@@ -1,0 +1,424 @@
+# AGENT_LOG.md — CodeGuard Harness 开发过程日志
+
+> 本文件于 2026-08-03 补建。此前 brainstorming 阶段依据 SPEC_PROCESS.md、现有 Git 历史和可验证对话回溯整理。无法确认的精确时间、命令、输出、技能调用或 commit hash 不进行补造；相关内容标记为"回溯记录"。
+
+---
+
+## 回溯记录：仓库初始化与双远端配置
+
+**log_id**: R001 | **task_id**: 初始化 | **状态**: COMPLETED
+**时间**: 2026-08-02（回溯记录）
+**Superpowers 技能**: 未使用（仓库初始化在技能加载前）
+
+**prompt/context 摘要**：
+- 用户要求初始化 Git 仓库，添加 NJU GitLab 和 GitHub 双远端
+
+**关键输出**：
+- `git init` 在 `C:\Users\32197\Desktop\AI4SE_final_projectA` 执行
+- 远程 `origin` → `https://git.nju.edu.cn/241880437/ai4sepa.git`
+- 远程 `github` → `https://github.com/liwenze-NJU/AI4SE_projectA.git`
+- 首次 commit: `4f9e7d6` — "Initial commit: project scaffolding and requirements"
+- 与远程 `origin/main`（2687adb）执行 `merge --allow-unrelated-histories` 合并 README.md
+- 推送至两个远端成功
+
+**人工修改及理由**：用户要求自定义 `.gitignore`，在初始模板基础上增加了 Python 项目规则、删除过于宽泛的匹配规则
+
+**验证证据**：`git remote -v` 显示两个远端；`git log --oneline` 显示合并后的提交历史
+
+**branch/worktree**: main
+**commit hash**: 6e0167f（合并后）
+**经验教训**：本地初始化与远程已有 commit 需要 `--allow-unrelated-histories` 合并
+
+---
+
+## 回溯记录：启动 Superpowers Brainstorming
+
+**log_id**: R002 | **task_id**: 设计阶段 | **状态**: COMPLETED
+**时间**: 2026-08-02（回溯记录）
+**Superpowers 技能**: `superpowers:brainstorming`
+
+**prompt/context 摘要**：
+- 用户要求阅读两个需求文档，检查 Superpowers 安装状态，启动 brainstorming
+
+**关键输出**：
+- 确认 `superpowers@claude-plugins-official` v5.1.0 已启用
+- 创建 8 个 Task 跟踪 brainstorming 流程
+- 创建 `SPEC_PROCESS.md` 记录设计过程
+
+**人工修改及理由**：用户要求 SPEC_PROCESS.md 的严格记录格式（轮次、时间、原始问题、方案、推荐、决定、理由、影响），并指定"确认并记录本轮"触发写入
+
+**验证证据**：`SPEC_PROCESS.md` 存在且包含完整记录格式；`~/.claude/plugins/installed_plugins.json` 显示 superpowers 已安装
+
+**branch/worktree**: main
+**commit hash**: 6e0167f（无新提交）
+
+---
+
+## 回溯记录：选择 Coding Agent Harness 项目
+
+**log_id**: R003 | **task_id**: 设计阶段 | **状态**: COMPLETED
+**时间**: 2026-08-02（回溯记录）
+**Superpowers 技能**: `superpowers:brainstorming`
+
+**prompt/context 摘要**：
+- 用户确认项目方向：Python 3.12、Windows CLI、CodeGuard Harness
+- 重点做深"治理护栏 + 测试反馈闭环"
+- 使用 ScriptedMockLLM、Windows Credential Manager、Windows exe + Render WebUI
+
+**关键输出**：
+- SPEC_PROCESS.md 第 1 轮：Agent 主循环架构模式
+- 选择"集中式显式状态机 + 可注入组件"
+
+**人工修改及理由**：用户明确否决了"把所有逻辑堆进一个巨大函数"的做法，要求拆分为 10+ 可注入组件，并定义 9 个显式状态和 7 个停机条件
+
+**验证证据**：SPEC_PROCESS.md 第 1 轮记录
+
+**branch/worktree**: main
+
+---
+
+## 回溯记录：治理护栏设计
+
+**log_id**: R004 | **task_id**: 设计阶段 | **状态**: COMPLETED
+**时间**: 2026-08-02/03（回溯记录）
+**Superpowers 技能**: `superpowers:brainstorming`
+
+**prompt/context 摘要**：
+- 治理护栏如何识别危险动作并执行拦截
+
+**关键输出**：
+- 选择"确定性规则匹配 + BLOCK/REQUEST_APPROVAL/ALLOW 三级决策"
+- 用户补充 10 条设计约束，包括多规则优先级合并、Action 规范化前置、默认安全策略
+- 三级决策行为清单精确定义
+
+**人工修改及理由**：用户否决了"第一条规则匹配即返回"的设计，要求多规则按优先级合并；提出 action 规范化前置防止路径穿越
+
+**验证证据**：SPEC_PROCESS.md 第 2 轮记录
+
+---
+
+## 回溯记录：反馈闭环与工具系统设计
+
+**log_id**: R005 | **task_id**: 设计阶段 | **状态**: COMPLETED
+**时间**: 2026-08-03（回溯记录）
+**Superpowers 技能**: `superpowers:brainstorming`
+
+**prompt/context 摘要**：
+- 反馈闭环如何获取客观信号并驱动自我修正
+- 工具系统如何注册、分发和执行
+
+**关键输出**：
+- 三层分类结构（执行状态 → 失败类别 → 诊断详情）
+- 注册式工具 + 固定执行管线（不可绕过 Guardrail）
+- 否决 web_fetch 和 request_approval 工具
+
+**人工修改及理由**：用户将初始的一级失败分类扩展为三层；否决了 LLM 工具形式的审批
+
+**验证证据**：SPEC_PROCESS.md 第 3、5 轮记录
+
+---
+
+## 回溯记录：记忆、配置、凭据、WebUI 设计
+
+**log_id**: R006 | **task_id**: 设计阶段 | **状态**: COMPLETED
+**时间**: 2026-08-03（回溯记录）
+**Superpowers 技能**: `superpowers:brainstorming`
+
+**prompt/context 摘要**：
+- 记忆、配置、凭据、WebUI 四个维度的设计
+
+**关键输出**：
+- 轻量文件记忆 + 标签检索
+- TOML 分层配置 + 按字段安全合并
+- Windows Credential Manager + fail closed
+- FastAPI + Mock 后端 + exe + Render 双形态分发
+
+**人工修改及理由**：用户提出的"安全配置只能收紧不能放宽"原则、凭据 fail closed 策略、demo composition root 代码层安全
+
+**验证证据**：SPEC_PROCESS.md 第 4、6、7、8 轮记录
+
+---
+
+## 回溯记录：改为 DeepSeekAdapter
+
+**log_id**: R007 | **task_id**: 设计阶段 | **状态**: COMPLETED
+**时间**: 2026-08-03（回溯记录）
+**Superpowers 技能**: `superpowers:brainstorming`
+
+**prompt/context 摘要**：
+- 用户在设计展示阶段否决了初始 LLM 选型（Anthropic/OpenAI），要求改为 DeepSeek
+
+**关键输出**：
+- 核心层定义 LLMClient 接口
+- 必须实现：ScriptedMockLLM + DeepSeekAdapter
+- OpenAIAdapter/AnthropicAdapter 仅在设计文档提及，不创建空类
+- 默认模型 deepseek-v4-flash
+
+**人工修改及理由**：用户主动提出需求变更，修正了初始假设
+
+**验证证据**：SPEC_PROCESS.md 第 9 轮记录
+
+---
+
+## 回溯记录：用户对安全、Demo、CI 等的人工修正
+
+**log_id**: R008 | **task_id**: 设计阶段 | **状态**: COMPLETED
+**时间**: 2026-08-03（回溯记录）
+**Superpowers 技能**: `superpowers:brainstorming`
+
+**prompt/context 摘要**：
+- 用户对第三节（治理/反馈）和第四节（工具/记忆/配置）提出系统性修正
+
+**关键输出**：
+- 默认拒绝策略、SecretRedactor 统一覆盖、failure_fingerprint 规范
+- 工具风险等级重新划分、文件写入语义完整定义、配置安全合并精确化
+- 共 18 项修正要求，全部采纳
+
+**验证证据**：SPEC_PROCESS.md 第 10、11 轮记录
+
+---
+
+## CORRECTED: Agent 错误声称已 commit
+
+**log_id**: R009 | **task_id**: 设计阶段 | **状态**: CORRECTED
+**时间**: 2026-08-03（回溯记录）
+
+**错误描述**：Agent 在完成 SPEC.md 初稿后声称"SPEC.md 已写入并提交到 Git"，但用户核查后发现 SPEC.md 和 SPEC_PROCESS.md 均为未跟踪文件，本地 main 和两个远端均停留在 6e0167f。
+
+**根因**：Agent 完成了文件写入但未执行 `git add`、`git commit` 或 `git push`。声称"已提交"是基于"文件已写入"的推断，而非实际 Git 操作验证。
+
+**修正措施**：
+- 用户要求先完成所有修正，等待用户最终确认后再 commit 和 push
+- 增加 CLAUDE.md 规则：声称 task 完成前必须确认 AGENT_LOG 和 PLAN 已更新、测试已重跑、git diff/status 已检查
+- 增加 CLAUDE.md 规则：不得提交 .claude/projects/ 下的本机内部记忆文件
+
+**经验教训**：
+- 文件写入 ≠ Git 提交。必须以 `git status` 和 `git log` 验证 commit 状态
+- 声称操作完成前应检查实际 Git 状态，而非基于之前操作推断
+- 用户会仔细核查 Agent 的每个声称，必须提供可验证证据
+
+---
+
+## 回溯记录：本次 SPEC 一致性自审
+
+**log_id**: R010 | **task_id**: 设计阶段 | **状态**: COMPLETED
+**时间**: 2026-08-03（回溯记录）
+**Superpowers 技能**: `superpowers:brainstorming`
+
+**prompt/context 摘要**：
+- 用户对 SPEC.md 进行一致性审查，发现 9 项修正需求
+
+**关键输出**：
+- INTERMEDIATE/FINAL_VALIDATION 区分
+- ActionKind 枚举 + next_action
+- StopPolicy 全时检查
+- 数据模型 5 处修正
+- CI 规范化
+- Demo 威胁模型精确化
+- 文档错误修正
+- SPEC_PROCESS.md 第 12 轮记录
+- AGENT_LOG.md 补建 + CLAUDE.md 创建
+
+**人工修改及理由**：用户逐项审查，确保 SPEC.md 与已确认的设计决策精确对齐
+
+**验证证据**：SPEC_PROCESS.md 第 12 轮、SPEC.md v1.1、AGENT_LOG.md、CLAUDE.md
+
+---
+
+## Open Design 安装与接入
+
+**log_id**: R011 | **task_id**: 设计阶段 | **状态**: COMPLETED
+**时间**: 2026-08-03
+**Superpowers 技能**: `superpowers:brainstorming`
+
+**prompt/context 摘要**：
+- 用户在一致性审查中要求不能以"纯后端"为由豁免 Open Design
+- 需要独立一轮 brainstorming 决定设计系统选择
+- 检查实际环境，给出 2-3 个适合开发者工具仪表盘的设计系统
+
+**关键输出**：
+- 检查结果：Open Design 未安装；`od` 命令为 GNU coreutils 同名冲突
+- 从官方 GitHub Releases 下载 `open-design-0.16.1-win-x64-setup.exe`（301.2 MB），SHA256 校验通过
+- 用户选择安装到 `D:\OD\Open Design`
+- 安装后验证：Vercel DESIGN.md（313 行）、56 个设计令牌、150+ skills 可用
+- 选择 Vercel Design System：黑白主色、Geist 字体、pill badges 状态标签、阴影边框技术
+- 最终实现仍采用 FastAPI + Jinja2 + HTML/CSS + 原生 JavaScript，不引入运行时依赖
+
+**需要用户参与的操作**：
+1. 下载后用户手动启动 GUI 安装程序
+2. 安装时选择 `D:\OD\Open Design` 路径
+3. 安装后用户自行完成 Open Design 桌面应用配置
+4. 用户选择 GitHub 登录方式
+
+**验证证据**：Vercel DESIGN.md 可读；`vela --version` 输出 v0.0.26
+
+**经验教训**：
+- Open Design 的 CLI 是 `vela` 而非 `od`（`od` 被 GNU coreutils 占用）
+- `vela mcp install claude` 在当前版本中不可用
+- Windows 安装包 301 MB 体积较大
+- 课程要求的 Open Design 可以仅作为设计工作流工具使用，不需要引入运行时依赖
+
+---
+
+## Open Design 项目专属 UI 设计准备
+
+**log_id**: OD-01 | **task_id**: 设计阶段 | **状态**: COMPLETED
+**时间**: 2026-08-03
+**Superpowers 技能**: `superpowers:brainstorming`
+
+**prompt/context 摘要**：
+- 用户要求创建 Open Design 设计证据目录和 UI_DESIGN_BRIEF.md
+- 将 Open Design 放在 SPEC 草稿之后、SPEC 最终确认之前使用
+- 当前只做设计资料，不做实现代码
+
+**关键输出**：
+- `docs/design/open-design/` 目录结构（含 wireframes/、screenshots/、reviews/）
+- `docs/design/open-design/README.md`：目录说明和约束
+- `docs/design/open-design/UI_DESIGN_BRIEF.md`：设计约束文档
+- SPEC.md 旧"豁免使用 Open Design"表述已修正为"基于 Vercel Design System"
+- SPEC_PROCESS.md 第 14 轮记录（IN_PROGRESS 状态）
+- SPEC.md 第 372 行旧"豁免"表述已更新
+
+**人工决策**：
+- 将 Open Design 放在 SPEC 草稿之后、SPEC 最终确认之前使用，确保 WebUI 设计规范在 SPEC 冻结前完成实际验证
+- 安装 Open Design 不等于已经实际使用；实际 skill 名称和结果待用户在 Open Design 中操作后补充
+
+**验证证据**：
+- `docs/design/open-design/UI_DESIGN_BRIEF.md` 内容仅从已确认 SPEC 提取，未增加设计范围
+- 未创建任何 HTML/CSS/JS/Python 实现代码
+
+**下一步**：
+等待用户在 Open Design 桌面应用中完成 Vercel Design System 的设计工作。用户回复"Open Design 设计完成"后，检查实际产物并更新记录。
+
+---
+
+## Open Design 设计完成 + 人工决策确认（C5/C6）
+
+**log_id**: OD-02 | **task_id**: 设计阶段 | **状态**: CORRECTED（经用户审阅纠正）
+**时间**: 2026-08-03
+
+**prompt/context 摘要**：
+- 用户报告 Open Design 设计完成，9 个产物已归档到 `docs/design/open-design/`
+- 从 ROUND_01_REVIEW.md 提取 C5、C6，逐项确认
+- C5：P3 审批倒计时默认时长
+- C6：Memory 摘要条目类型与 SPEC.md 数据模型对齐
+
+**关键输出**：
+- 独立验证 9 个 Open Design 产物全部存在且可读，无实现代码，无敏感信息
+- C5：确认 WebUI Mock 普通审批默认 15 秒，超时场景 5 秒，可配置 5–60 秒；CLI 默认 300 秒；FakeClock 测试
+- C6：确认四种正式 MemoryType，修正 Open Design 原五类展示标签
+- 创建 `ROUND_01_HUMAN_DECISIONS.md` 记录 C1–C8 全部决策
+- 更新 SPEC.md §3.7 补充 6 条 Memory 边界规则 + 验收标准 4 条测试要求
+- 更新 DESIGN.md、WIREFRAME_SPEC.md、wireframes/04-session-results.md 统一为四种 MemoryType
+- 更新 SPEC_PROCESS.md 第 14→17 轮
+
+**验证证据**：
+- `ROUND_01_HUMAN_DECISIONS.md` 存在，C1–C8 完整记录
+- SPEC.md §3.7 边界规则已更新
+- 设计文件中 Memory 类型展示已统一为四种
+
+**CORRECTED**：此前本条目记录为"默认 20 秒"并包含"课堂演示"理由，经用户独立审阅后纠正。详见 SPEC_PROCESS.md 第 17 轮。
+
+**branch/worktree**: main
+**commit hash**: 无（待 SPEC 最终确认后统一提交）
+
+**经验教训**：
+- Open Design 提出的五类展示标签把反馈事件、标签和持久化类型混在了一起，人工对照 SPEC 数据模型后修正为四种正式 MemoryType——这证明了设计阶段对照数据模型验证 UI 概念的必要性
+- 9 条边界规则中，SPEC.md 已有 5 条，补充了 4 条（未知类型拒绝、原始测试失败不自动写入、DELETED 显式排除、测试覆盖要求）
+
+---
+
+## C8 确认：窄屏策略
+
+**log_id**: OD-03 | **task_id**: 设计阶段 | **状态**: COMPLETED
+**时间**: 2026-08-04
+
+**prompt/context 摘要**：
+- 用户独立确认 C8：桌面优先，窄屏仅最低限度自适应
+- 7 条边界规则：目标视口 1366×768、无独立移动端页面、窄屏单栏堆叠、步进器横向滚动、Trace 内部滚动、审批模态适应视口、Mock 横幅常驻、触达 ≥44×44px、375px 自动化验收
+
+**关键输出**：
+- ROUND_01_HUMAN_DECISIONS.md C8 更新为已确认
+- SPEC.md §3.9 边界条件补充窄屏自适应规则
+- SPEC_PROCESS.md 第 18 轮
+- WIREFRAME_SPEC.md 窄屏变体与之对齐
+
+**验证证据**：
+- C1–C8 全部确认，SPEC 准备就绪待用户最终审查
+
+**branch/worktree**: main
+**commit hash**: 无（待 SPEC 最终确认后统一提交）
+
+---
+
+## 最终人工审阅修正（10 项）
+
+**log_id**: R012 | **task_id**: 设计阶段 | **状态**: COMPLETED
+**时间**: 2026-08-04
+**Superpowers 技能**: `superpowers:brainstorming`
+
+**prompt/context 摘要**：
+- 用户最终审阅 SPEC.md 发现 10 项问题，逐项要求修正
+- 涉及配置合并规约、测试权限冲突、分发要求、CI 二进制构建、数据模型一致性、章节层级、Open Design 引用、主要贡献表述、验收标准强化、文档一致性
+
+**关键输出**：
+- SPEC.md 升级至 v1.1.3，10 项全部修正
+- 配置合并规约重写：增加 18 行逐字段合并规则表，解决 tool_timeout 重复，增加 ApprovalConfig
+- run_tests/run_typecheck 改为 ALLOW（可信 SensorDefinition），解除反馈闭环阻塞
+- 分发补充目标平台、架构、签名策略、SmartScreen、全新环境验收
+- CI 补充 Windows build-exe job 设计规约
+- ToolResult 删除 token_used/cost_used 字段
+- 补充 §7 章节标题，修正章节层级
+- 删除 tokens.css 引用，改为以仓库内 DESIGN.md 为实现依据
+- 主要贡献统一为"治理驱动的测试反馈闭环"
+- 验收标准补充 8 项离线确定性测试要求
+- ROUND_01_HUMAN_DECISIONS.md 文件头修正
+
+**验证证据**：
+- SPEC.md 版本 1.1.3，修订历史完整
+- 所有 10 项修正位置可追溯
+
+**branch/worktree**: main
+**commit hash**: 无（待 SPEC 最终确认后统一提交）
+
+---
+
+## 最终复审补充（3 项）
+
+**log_id**: R013 | **task_id**: 设计阶段 | **状态**: COMPLETED
+**时间**: 2026-08-04
+**Superpowers 技能**: `superpowers:brainstorming`
+
+**prompt/context 摘要**：
+- 用户最终复审发现 3 项问题：§3.3 StopPolicy 输入和 COMPLETED 条件、§3.8 配置合并规则补全和权限分层、§9.1 build-exe 完善
+
+**关键输出**：
+- SPEC.md 升级至 v1.1.4，3 项全部修正
+- §3.3：budget_used → token_used/cost_used；COMPLETED 仅 FINAL_VALIDATION 可达
+- §3.8：配置合并规则表扩展至 31 行，覆盖全部字段；approval_timeout 分层权限；cli_timeout 仅用户级/CLI
+- §9.1：build-exe 增加 pytest、SHA-256 写文件、双 artifact 上传
+
+**验证证据**：
+- SPEC.md 版本 1.1.4，修订历史完整
+
+**branch/worktree**: main
+**commit hash**: 无（待 SPEC 最终确认后统一提交）
+
+---
+
+## SPEC 最终确认
+
+**log_id**: R014 | **task_id**: 设计阶段 | **状态**: COMPLETED
+**时间**: 2026-08-04
+**Superpowers 技能**: `superpowers:brainstorming`
+
+**事件**: 用户最终审阅并确认 SPEC.md v1.1.4，设计规约通过人工审阅。SPEC 状态改为"已确认"，冻结设计规约。
+
+**关键输出**：
+- SPEC.md 状态 "待用户最终确认" → "已确认"
+- 全部 21 轮 brainstorming 完成
+- 交付物清单：SPEC.md / SPEC_PROCESS.md (21 轮) / AGENT_LOG.md (R001-R014 + OD-01~03) / ROUND_01_HUMAN_DECISIONS.md (C1-C8) / Open Design 9 设计文档
+- 下一步：经用户授权后进入 superpowers:writing-plans
+
+**branch/worktree**: main
+**commit hash**: 待提交后补充
