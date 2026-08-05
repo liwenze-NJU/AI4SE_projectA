@@ -1594,3 +1594,200 @@ SPEC.md 正式定义的 `MemoryType` 枚举只有四种：
 - 不完整实现类 Task：2（Task 1.1 scaffold 无测试代码；Task 22.5 REFLECTION.md 文档）
 
 **PLAN.md 最终规模**：7583 行，63 个 Task，22 个 Phase，SPEC 覆盖矩阵 31 行
+
+---
+
+## 第 25 轮：Codex 陌生 Agent 冷启动验证
+
+**状态**：COMPLETED
+
+**时间**：2026-08-05
+
+**背景**：根据课程通用要求 §4.5，正式实现前必须先进行"陌生智能体冷启动试运行"。本轮使用 Codex（OpenAI Codex CLI）作为陌生 Agent，在独立 worktree 中仅凭 SPEC.md 和 PLAN.md 完成冷启动验证。
+
+### Agent 类型与上下文约束
+
+- **Agent**：Codex（OpenAI Codex CLI），未接触过本项目任何历史会话、memory、AGENT_LOG 或 SPEC_PROCESS.md
+- **独立 session**：全新会话，不读取任何 `.claude/` 配置或项目 memory
+- **上下文约束**：仅提供 `SPEC.md`（v1.1.4，1147 行）和 `PLAN.md`（7583 行，63 Task）
+- **禁止读取**：CLAUDE.md、AGENT_LOG.md、SPEC_PROCESS.md、课程要求原文、`.claude/`、其他 worktree、主仓库资料
+- **禁止访问**：网络、真实 LLM API、真实 API Key
+- **工作环境**：独立 worktree `validation/codex-cold-start`，基于 `6f08156`，预置 `.venv`（Python 3.12.13 + pytest 8.3.2）
+
+### 第一次尝试：Python 环境阻塞
+
+Codex 首次启动后，按顺序完成以下操作：
+
+1. 完整读取 SPEC.md 和 PLAN.md
+2. 自主选择 Task 1.1（Scaffold）和 Task 3.1（SecretRedactor），合计估时约 75 分钟
+3. 正确识别 Task 1.1 依赖为 None，Task 3.1 依赖为 Task 1.1
+4. 正确识别 Task 2.1 不可选（其前置 Task 1.3 产物 `codeguard/action.py` 不存在）
+
+**阻塞点**：运行环境 PATH 中没有 `python` 命令，`py -3.12` 返回 `No installed Python found!`。Codex 按照用户要求（"首次遇到缺失依赖后立即暂停，不自行安装 Python"）停止，产出 `COLD_START_REPORT_ATTEMPT_01.md`。
+
+**人工判断**：阻塞原因不是 SPEC/PLAN 需求歧义，而是 PLAN 未覆盖"目标机无 Python 3.12"这一冷启动条件。Codex 正确遵守了停止规则，没有猜测或绕过。
+
+### 第二次尝试：成功完成两个 Task
+
+用户在 worktree 中预置了 `.venv`（Python 3.12.13 + pytest 8.3.2），Codex 恢复后：
+
+1. 完成环境检查（Python 版本、pytest 版本、分支、HEAD、git status）
+2. 重新确认 Task 选择（1.1 + 3.1）
+3. 严格按 TDD 流程执行：RED → GREEN → REFACTOR → 验证
+
+### RED/GREEN 证据
+
+#### Task 1.1 — RED
+
+- **命令**：`.\.venv\Scripts\python.exe -m pytest tests/test_scaffold.py -v`
+- **预期失败**：`codeguard` 包不存在，模块启动失败
+- **实际失败**：1 collected, 1 failed；子进程退出码 1，stderr：`No module named codeguard`
+- **失败原因**：功能缺失（正确的 RED）
+
+#### Task 1.1 — GREEN
+
+- **命令**：`.\.venv\Scripts\python.exe -m pytest tests/test_scaffold.py -v`
+- **实际结果**：`1 passed in 0.12s`
+- **CLI 验证**：`python -m codeguard --help` 显示 `{chat,demo,web,key,config}` 及子命令
+- **Commit**：`4f98b00` — `feat: scaffold project package and CLI entry point`
+
+#### Task 3.1 — RED
+
+- **命令**：`.\.venv\Scripts\python.exe -m pytest tests/test_secret_redactor.py -v`
+- **预期失败**：`codeguard.secret` / `SecretRedactor` 不存在
+- **实际失败**：收集阶段 1 error，`ModuleNotFoundError: No module named 'codeguard.secret'`
+- **注意**：PLAN 写的是 `ImportError: cannot import name 'SecretRedactor'`，实际因整个模块不存在而为 `ModuleNotFoundError`。两者均为功能缺失导致的预期 RED，语义等价。
+
+#### Task 3.1 — GREEN
+
+- **命令**：`.\.venv\Scripts\python.exe -m pytest tests/test_secret_redactor.py -v`
+- **实际结果**：`6 passed in 0.02s`
+- **全量回归**：`7 passed in 0.13s`
+- **Commit**：`34c3238` — `feat: add SecretRedactor for output redaction`
+
+### Codex 暴露的 SPEC/PLAN 问题
+
+| # | 问题 | 严重程度 | 涉及文档 |
+|---|------|---------|---------|
+| 1 | Task 1.1 局部步骤无测试文件，直接创建实现后运行 help，与 PLAN 全局 TDD 规则冲突 | 中 | PLAN.md Task 1.1 |
+| 2 | Task 3.1 示例正则 `sk-\w{10,}` 要求至少 10 个字符，但同段测试明确要求匹配 `sk-abc`（6 字符）和 `sk-xyz`（6 字符） | 高 | PLAN.md Task 3.1 Step 3 |
+| 3 | 截断伪代码 `text[:max_length] + "...[truncated]"` 使返回值长度超过 `max_length`，违反测试 `assert len(result) <= 50` | 高 | PLAN.md Task 3.1 Step 3 |
+| 4 | 通用 `api_key=` 模式无条件替换所有值（包括已脱敏的 `sk-***`），会二次脱敏删除测试要求保留的 `sk-` 前缀 | 高 | PLAN.md Task 3.1 Step 3 |
+| 5 | PLAN 为每个 Task 给出的 branch/worktree 名和 push 命令与冷启动验证场景的固定 worktree/分支 + "不 push、不 merge" 约束冲突 | 低 | PLAN.md 各 Task 的 commit 步骤 |
+| 6 | PLAN 验收命令使用裸 `pytest` / `python`，冷启动环境需明确解释器路径 | 低 | PLAN.md 各 Task 的 RED/GREEN 步骤 |
+
+### Codex 的解释与原设计是否一致
+
+| 解释 | 是否一致 | 分析 |
+|------|---------|------|
+| 新增 `tests/test_scaffold.py` 满足 TDD，不扩展 CLI 需求 | 一致 | 符合 PLAN 全局 TDD 规则精神；Task 1.1 局部步骤缺少测试是 PLAN 的遗漏，不是 SPEC 的设计意图 |
+| 以验收测试为准，接受 `sk-{1,}` 替代 `sk-\w{10,}` | 一致 | 测试中的 `sk-abc` 和 `sk-xyz` 明确要求短 key 支持；PLAN 正则与自身测试冲突，Codex 选择测试优先是正确的 |
+| 截断提示计入 `max_length` 内 | 一致 | 测试 `assert len(result) <= 50` 是显式约束；PLAN 伪代码的 bug 是显而易见的 |
+| 通用 `api_key=` 对 `sk-` 值输出 `sk-***` 而非 `***` | 一致 | 测试 `assert "sk-" in result` 要求保留前缀；PLAN 的二次替换会删除它，Codex 的修正符合 SPEC §3.5/§3.6 的脱敏后保留可识别前缀原则 |
+| 不遵循 PLAN 的独立分支/push 指令 | 一致（在约束下） | 上层用户指令"固定 worktree、不 push、不 merge"覆盖 PLAN 的 Task 级指令，Codex 正确识别了优先级 |
+| 使用 `.\.venv\Scripts\python.exe -m pytest` 而非裸 `pytest` | 一致（在约束下） | 用户明确指定了解释器路径，Codex 正确遵循 |
+
+### 修订前/后文本与关键 diff
+
+#### 修订 1：Task 1.1 增加 TDD 测试
+
+**修订前**（PLAN.md Task 1.1 Step 2）：
+```
+- [ ] **Step 2: Run help to verify CLI works**
+Run: `python -m codeguard --help`
+Expected: shows usage with chat/demo/web/key/config subcommands
+```
+
+**修订后**：增加 Step 1（RED 测试）、Step 2（RED 验证）、Step 3（实现）、Step 4（GREEN 验证）。详见下方 PLAN.md 修订。
+
+#### 修订 2：Task 3.1 API key 正则
+
+**修订前**（PLAN.md Task 3.1 Step 3 示例）：
+```python
+(re.compile(r'(sk-\w{10,})\w*'), lambda m: m.group(0)[:12] + "..."),
+```
+
+**修订后**：
+```python
+(re.compile(r'(sk-)\w+'), lambda m: m.group(1) + "***"),
+```
+保留 `sk-` 前缀，接受一个或多个合法 key 字符，替换为 `sk-***`。
+
+#### 修订 3：截断逻辑
+
+**修订前**（PLAN.md Task 3.1 Step 3 示例）：
+```python
+text = text[:self._max_length] + "...[truncated]"
+```
+
+**修订后**：
+```python
+if len(text) > self._max_length:
+    suffix = "...[truncated]"
+    text = text[:self._max_length - len(suffix)] + suffix
+```
+确保 `len(result) <= max_length`。
+
+#### 修订 4：通用 api_key= 与 sk- 优先级
+
+**修订前**：通用 `api_key=` 模式无条件替换值，可能在 `sk-` 替换后二次脱敏。
+
+**修订后**：明确 `sk-` 专用模式先执行，通用 `api_key=` 模式仅在值不以 `sk-` 开头时替换；或以 `sk-***` 保留前缀。
+
+#### 修订 5：统一 python -m pytest
+
+**修订前**：PLAN 中 RED/GREEN 命令混合使用 `pytest` 和 `python -m pytest`。
+
+**修订后**：全部统一为 `python -m pytest`，并在 Cold Start Recommendation 中说明冷启动环境应使用哪个解释器。
+
+#### 修订 6：冷启动约束覆盖说明
+
+**修订前**：无。
+
+**修订后**：在 PLAN 全局约束和 Cold Start Recommendation 中增加说明：冷启动验证场景中，上层用户指令（固定 worktree、不 push、不 merge）覆盖各 Task 内 branch/worktree/push 指令。
+
+### 对 SPEC/PLAN 清晰度的反思
+
+1. **PLAN 的全局 TDD 规则与局部 Task 步骤不一致**是最大的可执行性障碍。Task 1.1 缺少测试文件，迫使 Codex 自行判断：是遵循全局 TDD 规则（先写测试）还是遵循局部步骤（直接实现）。Codex 正确选择了前者，但不应依赖 Agent 的判断来弥合文档内部矛盾。
+
+2. **PLAN 示例代码与自身测试的冲突**（正则、截断）是第二严重的障碍。测试是需求的可执行形式，示例代码只是示意。当两者冲突时，Agent 必须以测试为准——但 PLAN 应确保示例代码至少通过自身测试，否则示例代码的存在本身就是误导。
+
+3. **环境依赖的隐式假设**（`python` 在 PATH 中、pytest 已安装）在第一次尝试中直接阻断了 Codex。PLAN 的"Cold Start"推荐应包含环境检查清单，而不仅仅是 Task 选择建议。
+
+4. **SPEC 层面的规格在本次冷启动中未暴露歧义**。所有 Codex 解释和修正都针对 PLAN 的示例实现细节，而非 SPEC 的行为语义。这验证了 SPEC.md v1.1.4 的规格质量。
+
+5. **PLAN 过度指定了操作细节**（branch 名、worktree 名、push 命令），这些细节在冷启动验证场景中全部被上层约束覆盖。验证/课程场景的 Task 级指令应声明为可被覆盖的默认值。
+
+### 结论
+
+Codex 仅凭 SPEC.md 和 PLAN.md 成功完成了两个 Task 的 TDD 实现，但过程中暴露了 PLAN 的 6 个问题，其中 4 个（正则冲突、截断 bug、api_key 二次脱敏、TDD 步骤缺失）如果不修正将使后续实现 Task 的 Agent 走入歧途。本轮冷启动验证的价值在于：在正式实现前发现并修正了这些 PLAN 级别的可执行性缺陷，而没有在实现代码中积累技术债务。
+
+Codex 的两份原始报告已归档至 `docs/cold-start/COLD_START_REPORT_ATTEMPT_01.md` 和 `docs/cold-start/COLD_START_REPORT.md`。两个 commit（`4f98b00`、`34c3238`）仅存在于 `validation/codex-cold-start` worktree 分支，未 merge 到 main。
+
+**下一步**：根据本轮发现修订 PLAN.md 和 SPEC.md（如需要），完成规约闭环后进入正式实现。
+
+### 额外人工审查发现：冷启动 .gitignore 回归
+
+**发现时间**：2026-08-05（人工审查）
+
+**问题**：冷启动提交 `4f98b00`（Task 1.1 scaffold）修改 `.gitignore` 时覆盖了原有规则，删除了以下重要忽略项：
+
+| 类别 | 被删除的忽略规则 |
+|------|-----------------|
+| 敏感文件 | `.env`、`.env.*`（应保留 `!.env.example`） |
+| 凭据/密钥 | `*.pem`、`*.p12`、`*.pfx`、`*.key` |
+| 本地凭据配置 | `credentials.local.json`、`secrets.local.json` |
+| 缓存目录 | `.pytest_cache/`、`.mypy_cache/`、`.ruff_cache/` |
+| 覆盖率产物 | `.coverage`、`coverage.xml`、`htmlcov/` |
+| 工作树 | `.worktrees/` |
+| 运行时产物 | `runtime/`、`logs/`、`*.log`、`*.db`、`*.sqlite3` |
+| 系统/编辑器 | `Desktop.ini`、编辑器临时文件等 |
+
+**判断**：
+- 这是**冷启动产出的实现质量问题**，不是 SPEC/PLAN 规格缺陷。Codex 仅被提供了 PLAN.md Task 1.1 中的 `.gitignore` 内容，按其原样创建；PLAN 中该 `.gitignore` 模板本身不完整，Codex 没有独立发现缺失规则的能力。
+- **不影响冷启动作为"陌生 Agent 检验 SPEC/PLAN"的证据成立**。冷启动验证的核心目标是检验 SPEC/PLAN 的可执行性和清晰度，而非产出的代码质量。Codex 完成了两个 Task 的 TDD 流程，暴露了 PLAN 的 6 个可执行性问题，目标已达成。
+- **冷启动提交 `4f98b00` 和 `34c3238` 暂时不得直接 merge 或 cherry-pick 到 main**。它们仅作为冷启动证据保留在 `validation/codex-cold-start` 分支。
+- **正式复用代码前，必须先经过"规格合规评审 → 代码质量评审"**。冷启动代码是陌生 Agent 的独立产出，未经人工审查，不能直接作为正式实现。
+- **集成 Task 1.1 时必须恢复并合并原有 `.gitignore` 规则**，不能直接采用冷启动版本。PLAN.md Task 1.1 的 `.gitignore` 模板也需补充上述缺失规则。
+
+**修正措施**：PLAN.md Task 1.1 的 `.gitignore` 模板已在本轮修订中补充上述所有忽略规则（见下方 PLAN.md 修订）。

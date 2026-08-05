@@ -548,3 +548,105 @@
 
 **branch/worktree**: main
 **commit hash**: 无（待用户审阅后统一提交）
+
+---
+
+## Codex 冷启动验证 — 第一次尝试（Python 环境阻塞）
+
+**log_id**: CS-01 | **task_id**: 冷启动验证 | **状态**: BLOCKED
+**时间**: 2026-08-05
+**Superpowers 技能**: 无（Codex 独立 session，不使用 Superpowers 技能）
+
+**prompt/context 摘要**：
+- 课程要求 §4.5：正式实现前必须先进行"陌生智能体冷启动试运行"
+- 使用 Codex（OpenAI Codex CLI）作为陌生 Agent
+- 在独立 worktree `validation/codex-cold-start`（基于 `6f08156`）中仅凭 SPEC.md 和 PLAN.md 工作
+- 禁止读取 CLAUDE.md、AGENT_LOG.md、SPEC_PROCESS.md、`.claude/`、memory
+
+**关键输出**：
+- Codex 完整读取 SPEC.md（1147 行）和 PLAN.md（7583 行）
+- 自主选择 Task 1.1（Scaffold）和 Task 3.1（SecretRedactor），合计估时约 75 分钟
+- 正确识别 Task 1.1 依赖为 None，Task 3.1 依赖为 Task 1.1
+- 正确识别 Task 2.1 不可选（前置 Task 1.3 产物不存在）
+
+**阻塞**：运行环境 PATH 中无 `python` 命令，`py -3.12` 返回 `No installed Python found!`。Codex 按要求停止，未自行安装 Python。
+
+**人工判断**：阻塞原因不是 SPEC/PLAN 需求歧义，而是 PLAN 未覆盖"目标机无 Python 3.12"这一冷启动条件。Codex 正确遵守了停止规则。
+
+**产出**：`COLD_START_REPORT_ATTEMPT_01.md`（未提交）
+
+**branch/worktree**: validation/codex-cold-start
+**commit hash**: 无
+
+---
+
+## Codex 冷启动验证 — 第二次尝试（成功完成两个 Task）
+
+**log_id**: CS-02 | **task_id**: 冷启动验证 | **状态**: COMPLETED
+**时间**: 2026-08-05
+**Superpowers 技能**: 无（Codex 独立 session）
+
+**prompt/context 摘要**：
+- 用户在 worktree 中预置了 `.venv`（Python 3.12.13 + pytest 8.3.2）
+- Codex 恢复后完成环境检查，重新确认 Task 选择，严格按 TDD 流程执行
+
+**关键输出**：
+
+**Task 1.1 — RED**：
+- 命令：`.\.venv\Scripts\python.exe -m pytest tests/test_scaffold.py -v`
+- 结果：1 collected, 1 failed；`No module named codeguard`
+- 失败原因：功能缺失（正确 RED）
+
+**Task 1.1 — GREEN**：
+- 命令：`.\.venv\Scripts\python.exe -m pytest tests/test_scaffold.py -v`
+- 结果：`1 passed in 0.12s`
+- CLI 验证：`python -m codeguard --help` 显示 `{chat,demo,web,key,config}`
+- Commit：`4f98b00` — `feat: scaffold project package and CLI entry point`
+
+**Task 3.1 — RED**：
+- 命令：`.\.venv\Scripts\python.exe -m pytest tests/test_secret_redactor.py -v`
+- 结果：1 error，`ModuleNotFoundError: No module named 'codeguard.secret'`
+- 注意：PLAN 预期 `ImportError`，实际为 `ModuleNotFoundError`（整个模块不存在），两者均为功能缺失导致的预期 RED，语义等价
+
+**Task 3.1 — GREEN**：
+- 命令：`.\.venv\Scripts\python.exe -m pytest tests/test_secret_redactor.py -v`
+- 结果：`6 passed in 0.02s`
+- 全量回归：`7 passed in 0.13s`
+- Commit：`34c3238` — `feat: add SecretRedactor for output redaction`
+
+**两个 commit 仅存在于 `validation/codex-cold-start` worktree 分支，未 push、未 merge。**
+
+**人工判断与学到的教训**：
+
+1. **PLAN 全局 TDD 规则与 Task 1.1 局部步骤不一致**：Task 1.1 缺少测试文件，Codex 必须自行判断是遵循全局 TDD（先写测试）还是局部步骤（直接实现）。Codex 正确选择了前者并新增了 `tests/test_scaffold.py`。修正：PLAN.md Task 1.1 已补入 `test_scaffold.py`、RED 命令和预期失败。
+
+2. **PLAN Task 3.1 示例正则 `sk-\w{10,}` 与自身测试冲突**：正则要求至少 10 个字符，但同段测试明确要求匹配 `sk-abc`（6 字符）。Codex 以测试为准，修正为 `sk-\w+`。修正：PLAN.md Task 3.1 Step 3 已修正正则，明确无最小长度限制，接受一个或多个合法 key 字符。
+
+3. **PLAN Task 3.1 截断伪代码使返回值超过 max_length**：`text[:max_length] + "...[truncated]"` 违反测试 `assert len(result) <= 50`。Codex 将截断提示计入总长度。修正：PLAN.md Task 3.1 Step 3 已修正截断逻辑，suffix 计入 max_length 内。
+
+4. **PLAN Task 3.1 通用 api_key= 模式会二次脱敏删除 sk- 前缀**：若 `sk-` 替换后无条件再次替换，会删除测试要求保留的 `sk-` 前缀。Codex 使通用模式在值以 `sk-` 开头时输出 `sk-***`。修正：PLAN.md Task 3.1 Step 3 已明确优先级和保留逻辑。
+
+5. **PLAN 的 branch/worktree/push 指令与冷启动场景冲突**：Codex 正确识别上层用户约束（固定 worktree、不 push、不 merge）覆盖 Task 级指令。修正：PLAN.md Cold Start Recommendation 增加约束覆盖说明；Task 1.1 和 Task 3.1 增加 cold start note。
+
+6. **PLAN 验收命令使用裸 `pytest`/`python`**：冷启动环境需明确解释器路径。Codex 使用用户指定的 `.\.venv\Scripts\python.exe -m pytest`。修正：PLAN.md Task 1.1、Task 3.1 和 Cold Start Recommendation 统一为 `python -m pytest`。
+
+7. **SPEC.md 未在冷启动中暴露规格歧义**：所有 Codex 解释和修正均针对 PLAN 的示例实现细节，而非 SPEC 的行为语义。这验证了 SPEC.md v1.1.4 的规格质量。SPEC.md 无需修改。
+
+8. **PLAN 过度指定了操作细节**（branch 名、worktree 名、push 命令），这些细节在验证场景中全部被上层约束覆盖。后续 Task 的此类指令应声明为可被覆盖的默认值。
+
+**对后续工作的影响**：
+- PLAN.md 已按上述 6 项修正，后续实现 Agent 不会再遇到同样的示例代码冲突
+- Cold Start Recommendation 增加了环境预检查清单和约束覆盖说明
+- SPEC.md 确认无需修改
+- 两个冷启动 commit 保留在 `validation/codex-cold-start` 分支作为证据，不 merge 到 main
+
+**额外人工审查发现：.gitignore 回归**：
+- 冷启动提交 `4f98b00` 修改 `.gitignore` 时覆盖了原有规则，删除了 `.env`、`*.pem`、`*.key`、`.pytest_cache/`、`.worktrees/`、`*.log`、`*.db` 等重要忽略项
+- 这是冷启动产出的实现质量问题，不影响冷启动作为"陌生 Agent 检验 SPEC/PLAN"的证据成立
+- 正式复用代码前必须先经"规格合规评审 → 代码质量评审"
+- 集成 Task 1.1 时必须恢复并合并原有 `.gitignore` 规则，不能直接采用冷启动版本
+- PLAN.md Task 1.1 的 `.gitignore` 模板需补充上述缺失规则（见本轮修订）
+- 详见 SPEC_PROCESS.md 第 25 轮"额外人工审查发现"
+
+**branch/worktree**: validation/codex-cold-start（冷启动 worktree）；main（本次归档）
+**commit hash**: `4f98b00`（Task 1.1）、`34c3238`（Task 3.1）

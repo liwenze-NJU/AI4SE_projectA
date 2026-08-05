@@ -195,13 +195,14 @@ CLAUDE.md
 - Create: `codeguard/__main__.py`
 - Create: `tests/__init__.py`
 - Create: `tests/conftest.py`
+- Create: `tests/test_scaffold.py`
 - Create: `requirements/runtime.txt`
 - Create: `requirements/dev.txt`
 - Create: `.gitignore`
 
 **Consumes:** SPEC.md §5.3 (external dependencies), §9 (tech stack)
 
-**Produces:** Runnable `python -m codeguard --help`; installable deps via `pip install -r requirements/dev.txt`
+**Produces:** Runnable `python -m codeguard --help`; installable deps via `pip install -r requirements/dev.txt`; `tests/test_scaffold.py` as automated CLI acceptance test
 
 **Dependency:** None (first task)
 
@@ -209,7 +210,35 @@ CLAUDE.md
 
 **Worktree:** main, branch `task-1.1-scaffold`
 
-- [ ] **Step 1: Create package structure**
+> **Cold start note:** The worktree/branch/push commands in this task are defaults. In validation/course scenarios (e.g., cold-start verification), upper-level constraints (fixed worktree, fixed branch, "no push, no merge") override these Task-level instructions.
+
+- [ ] **Step 1: Write failing test (RED)**
+
+Write `tests/test_scaffold.py`:
+```python
+import subprocess
+import sys
+
+def test_codeguard_help_shows_subcommands():
+    """python -m codeguard --help exits 0 and lists the five planned subcommands."""
+    result = subprocess.run(
+        [sys.executable, "-m", "codeguard", "--help"],
+        capture_output=True, text=True,
+    )
+    assert result.returncode == 0
+    assert "chat" in result.stdout
+    assert "demo" in result.stdout
+    assert "web" in result.stdout
+    assert "key" in result.stdout
+    assert "config" in result.stdout
+```
+
+- [ ] **Step 2: Run to verify RED failure**
+
+Run: `python -m pytest tests/test_scaffold.py -v`
+Expected: 1 collected, 1 failed. `codeguard` package does not exist yet; subprocess exits with non-zero, stderr contains `No module named codeguard`.
+
+- [ ] **Step 3: Create package structure (GREEN)**
 
 Create `codeguard/__init__.py`:
 ```python
@@ -301,6 +330,39 @@ build/
 venv/
 .venv/
 
+# Sensitive files
+.env
+.env.*
+!.env.example
+
+# Credentials & keys
+*.pem
+*.p12
+*.pfx
+*.key
+credentials.local.json
+secrets.local.json
+
+# Cache directories
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# Coverage
+.coverage
+coverage.xml
+htmlcov/
+
+# Worktrees
+.worktrees/
+
+# Runtime artifacts
+runtime/
+logs/
+*.log
+*.db
+*.sqlite3
+
 # Project
 .claude/projects/
 *.local/
@@ -312,14 +374,15 @@ venv/
 # OS
 Thumbs.db
 .DS_Store
+Desktop.ini
 ```
 
-- [ ] **Step 2: Run help to verify CLI works**
+- [ ] **Step 4: Run to verify GREEN pass**
 
-Run: `python -m codeguard --help`
-Expected: shows usage with chat/demo/web/key/config subcommands
+Run: `python -m pytest tests/test_scaffold.py -v` and `python -m codeguard --help`
+Expected: `1 passed`; help shows usage with `{chat,demo,web,key,config}` subcommands.
 
-- [ ] **Step 3: Commit**
+- [ ] **Step 5: Commit**
 
 ```bash
 git add codeguard/__init__.py codeguard/__main__.py tests/__init__.py tests/conftest.py requirements/ .gitignore
@@ -2285,6 +2348,8 @@ git push github task-2.5-action-parser
 
 **File boundary:** Only `codeguard/secret.py` and `tests/test_secret_redactor.py`
 
+> **Cold start note:** The worktree/branch/push commands in this task are defaults. In validation/course scenarios, upper-level constraints override them.
+
 - [ ] **Step 1: Write failing tests**
 
 Write `tests/test_secret_redactor.py`:
@@ -2326,10 +2391,10 @@ def test_redact_multiple_api_keys():
     assert "sk-xyz" not in result
 ```
 
-- [ ] **Step 2: Run to verify failure**
+- [ ] **Step 2: Run to verify RED failure**
 
-Run: `pytest tests/test_secret_redactor.py -v`
-Expected: `ImportError: cannot import name 'SecretRedactor' from 'codeguard.secret'`
+Run: `python -m pytest tests/test_secret_redactor.py -v`
+Expected: `ModuleNotFoundError: No module named 'codeguard.secret'` (or `ImportError` — both indicate the module/class does not exist yet, which is the correct RED state)
 
 - [ ] **Step 3: Implement SecretRedactor**
 
@@ -2342,39 +2407,65 @@ class SecretRedactor:
 
     Applied before storing in logs, traces, ToolResult, Feedback, Memory.
     Implemented early so all output components use it from first version.
+
+    Redaction rules (applied in order):
+    1. sk- API keys: preserve "sk-" prefix, redact the key body.
+       Matches one or more word characters after "sk-" (no minimum length,
+       so short test keys like sk-abc are covered).
+    2. Generic credential patterns (api_key=, password=, secret=, token=):
+       if the value starts with "sk-", output "sk-***" (preserving the
+       already-redacted prefix from step 1); otherwise output "***".
+    3. Workspace root path: replaced with "." for portability.
+    4. Length limit: if result exceeds max_length, truncate and append
+       "...[truncated]". The suffix is counted within max_length so the
+       final output never exceeds max_length.
     """
 
     def __init__(self, workspace_root: str = "", max_length: int = 10000):
         self._workspace_root = workspace_root
         self._max_length = max_length
-        self._patterns = [
-            # API keys: sk-... (DeepSeek, OpenAI, etc.)
-            (re.compile(r'(sk-\w{10,})\w*'), lambda m: m.group(0)[:12] + "..."),
-            # Generic credential patterns
-            (re.compile(r'(password\s*[=:]\s*)\S+'), lambda m: m.group(1) + "***"),
-            (re.compile(r'(api_key\s*[=:]\s*)\S+'), lambda m: m.group(1) + "***"),
-            (re.compile(r'(secret\s*[=:]\s*)\S+'), lambda m: m.group(1) + "***"),
-            (re.compile(r'(token\s*[=:]\s*)\S+'), lambda m: m.group(1) + "***"),
-        ]
+
+    def _redact_sk_key(self, match):
+        return match.group(1) + "***"
+
+    def _redact_generic_value(self, match):
+        value = match.group(2)
+        if value.startswith("sk-"):
+            return match.group(1) + "sk-***"
+        return match.group(1) + "***"
 
     def redact(self, text: str) -> str:
         if not text:
             return text
-        for pattern, replacer in self._patterns:
-            text = pattern.sub(replacer, text)
+        # Step 1: sk- API keys (prefix preserved, key body redacted)
+        text = re.sub(r'(sk-)\w+', self._redact_sk_key, text)
+        # Step 2: Generic credential patterns
+        for field in ['api_key', 'password', 'secret', 'token']:
+            text = re.sub(
+                rf'({field}\s*[=:]\s*)(\S+)',
+                self._redact_generic_value,
+                text,
+            )
+        # Step 3: Workspace root normalization
         if self._workspace_root:
             text = text.replace(self._workspace_root, ".")
+        # Step 4: Length limit (suffix counted within max_length)
         if len(text) > self._max_length:
-            text = text[:self._max_length] + "...[truncated]"
+            suffix = "...[truncated]"
+            text = text[:self._max_length - len(suffix)] + suffix
         return text
 ```
 
-- [ ] **Step 4: Run to verify pass**
+- [ ] **Step 4: Run to verify GREEN pass**
 
-Run: `pytest tests/test_secret_redactor.py -v`
+Run: `python -m pytest tests/test_secret_redactor.py -v`
 Expected: 6 passed
 
-- [ ] **Step 5: Refactor** — check that patterns don't produce false positives on normal code. The `sk-\w{10,}` pattern could match variables named `sk_something` — consider adding boundary checks. For first version, this is acceptable per SPEC YAGNI.
+- [ ] **Step 5: Refactor** — verify the implementation against the 6 explicit tests. Key design decisions:
+  - `sk-` regex uses `\w+` (one or more) — no minimum length, so short test keys (`sk-abc`, `sk-xyz`) are covered.
+  - Generic `api_key=` (and `password=`, `secret=`, `token=`) patterns preserve `sk-***` prefix when the value starts with `sk-`, preventing double-redaction from stripping the `sk-` prefix.
+  - Truncation suffix `"...[truncated]"` is counted within `max_length`, so `len(result) <= max_length` always holds.
+  - `redact()` is idempotent: applying twice produces the same result. No external dependencies.
 
 - [ ] **Step 6: SPEC compliance review**
 
@@ -2382,7 +2473,7 @@ Check: SPEC §4.1 — SecretRedactor uses regex patterns. Applied before storing
 
 - [ ] **Step 7: Code quality review**
 
-Check: `redact()` is idempotent (applying twice produces same result). No external dependencies. Simple regex-based approach (no ML/heuristics).
+Check: `redact()` is idempotent (applying twice produces same result). No external dependencies. Simple regex-based approach (no ML/heuristics). Generic credential patterns do not double-redact `sk-` prefixed values.
 
 - [ ] **Step 8: Commit**
 
@@ -7521,10 +7612,15 @@ git push github main
 
 ## Cold Start Recommendation
 
+**Environment pre-check (required before any task):**
+1. `python --version` must report Python 3.12.x. If `python` is not in PATH, try `py -3.12 --version` or a project-local venv path (e.g., `.\.venv\Scripts\python.exe --version`).
+2. `python -m pytest --version` must report pytest ≥ 8.3. If not installed, run `pip install -r requirements/dev.txt` (requires network) or use a pre-built venv.
+3. If neither Python 3.12 nor pytest is available, STOP. Do not install Python yourself. Report the missing dependency and wait for the user to provide a working environment.
+
 **Task 1.1 (Scaffold)** is the best cold-start task:
 - **Self-contained:** No dependencies on any other code. Creates package structure, CLI entry point, test infrastructure, and requirements.
 - **Time estimate:** ~45 minutes for a prepared agent.
-- **Verification:** `python -m codeguard --help` shows usage with subcommands.
+- **Verification:** `python -m pytest tests/test_scaffold.py -v` → 1 passed; `python -m codeguard --help` shows usage with subcommands.
 - **Why it's first:** Every other task depends on the package structure. Completing 1.1 unblocks all subsequent work.
 
 **Task 2.1 (ScriptedMockLLM)** is the second-best cold-start:
@@ -7540,6 +7636,12 @@ git push github main
 - **Why it's third:** SecretRedactor must be implemented before any output-producing component. Getting it done early prevents security debt.
 
 These tasks are recommended because they have zero dependencies on other implementation modules, produce immediately verifiable output, and establish the foundation that all other tasks build upon. An agent with only SPEC.md, PLAN.md, and Python 3.12 knowledge can complete them independently.
+
+**Cold-start constraint override:** In validation/course scenarios (e.g., cold-start verification by an unfamiliar agent), upper-level user instructions take precedence over Task-level defaults. Specifically:
+- **Worktree:** The user may specify a fixed worktree and branch (e.g., `validation/codex-cold-start`). Do not create additional worktrees or branches per task.
+- **Push:** The user may disallow `git push` and `git merge`. All commits remain local to the specified branch.
+- **Python interpreter:** The user may specify an explicit interpreter path (e.g., `.\.venv\Scripts\python.exe`). Use that path in all `python -m pytest` and `python -m codeguard` commands.
+- When in doubt, follow the user's more specific instructions over the Task-level defaults below.
 
 ---
 
