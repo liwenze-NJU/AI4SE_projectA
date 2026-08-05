@@ -827,4 +827,62 @@
 **人工干预**：subagent 在 `LLMClient` 上添加 `@runtime_checkable` 以支持 `isinstance` 检查（测试需要）。
 
 **branch/worktree**: feature/mvp-core
+
+---
+
+## Task 2.2 评审修复
+
+**log_id**: T2.2-FIX | **task_id**: Task 2.2 评审修复 | **状态**: COMPLETED
+**时间**: 2026-08-05
+**Superpowers 技能**: `superpowers:receiving-code-review`, `superpowers:test-driven-development`
+
+**评审发现**：
+- Reviewer 报告 2 Major: None-guard 缺失、多记录测试覆盖不足
+- 核实结果: None-guard 为误报（`if memory_records:` 已处理 None），多记录覆盖确认为缺失
+
+**RED 阶段**：
+- 命令：`.\.venv\Scripts\python.exe -m pytest tests/test_context.py::test_context_builder_none_inputs -v`
+- 结果：1 passed（代码已正确处理 None，评审误报确认）
+
+**GREEN 阶段**：
+- 命令：`.\.venv\Scripts\python.exe -m pytest tests/test_context.py -v`
+- 结果：5 passed（新增 2 tests: None 回归 + 多记录顺序/格式验证）
+
+**修改文件**：`tests/test_context.py`
+
+**commit hash**: `f50ab8e`
+
+**复审结果**: PASS — 0 Critical, 0 Major
+
+**branch/worktree**: feature/mvp-core
+
+---
+
+## Task 2.3 评审修复
+
+**log_id**: T2.3-FIX | **task_id**: Task 2.3 评审修复 | **状态**: COMPLETED
+**时间**: 2026-08-05
+**Superpowers 技能**: `superpowers:receiving-code-review`, `superpowers:test-driven-development`
+
+**评审发现**：
+- 2 Critical: 无 max_steps 保护（无限循环风险）、stop_policy "COMPLETED" 绕过 FINAL_VALIDATION
+- 5 Major: 验证失败覆盖、BLOCK 恢复短路、缺少不可恢复 BLOCK 测试、缺少无限循环测试、_build_context 步数计数
+- 核实结果: 7 项中 5 项确认，2 项误报（_build_context 步数正确反映已执行步数、None-guard 已在 T2.2 中确认误报）
+
+**RED 阶段**：
+- 命令：`.\.venv\Scripts\python.exe -m pytest tests/test_loop.py::test_loop_max_steps_limit_reached tests/test_loop.py::test_loop_stop_policy_completed_ignored -v`
+- 结果：2 failed（TypeError: max_steps 参数不存在、AssertionError: COMPLETED 来自 FEEDING_BACK 而非 FINAL_VALIDATION）
+
+**GREEN 阶段**：
+- 命令：`.\.venv\Scripts\python.exe -m pytest tests/test_loop.py -v`
+- 结果：13 passed（新增 3 tests: max_steps 限制、stop_policy COMPLETED 忽略、不可恢复 BLOCK → FAILED）
+- 全量回归：`.\.venv\Scripts\python.exe -m pytest -q` → 48 passed
+
+**修改文件**：`codeguard/loop.py`, `tests/test_loop.py`
+
+**commit hash**: `731ed8f`
+
+**复审结果**: PASS — 0 Critical, 0 Major
+
+**branch/worktree**: feature/mvp-core
 **commit hash**: `4f98b00`（Task 1.1）、`34c3238`（Task 3.1）

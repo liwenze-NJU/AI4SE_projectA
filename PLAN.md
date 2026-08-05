@@ -2070,7 +2070,7 @@ Check: SPEC §3.1 — All 13 states are reachable. SPEC §7.1 — State transiti
 
 Check: `run()` is a single loop with clear stages. Each stage is gated by `if component:` to allow gradual assembly. No Fake components referenced in production code — all Fakes are in test code only. `_check_stop()` is a separate method for testability.
 
-- [ ] **Step 8: Commit**
+- [x] **Step 8: Commit** — `a33e880` (fix: `731ed8f`)
 
 ```bash
 git add codeguard/loop.py tests/test_loop.py
@@ -2197,7 +2197,7 @@ Check: SPEC §3.1 — ContextBuilder produces structured context from system pro
 
 Check: `build()` returns a single formatted string. No side effects. No external dependencies beyond `MemoryRecord` dataclass.
 
-- [x] **Step 8: Commit** — `55174c8`
+- [x] **Step 8: Commit** — `55174c8` (fix: `f50ab8e`)
 
 ```bash
 git add codeguard/context.py tests/test_context.py
