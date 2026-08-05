@@ -38,3 +38,15 @@ def test_search_text(temp_workspace):
     (temp_workspace / "main.py").write_text("def hello(): pass")
     result = search_text({"pattern": "hello", "base_dir": str(temp_workspace)}, workspace_root=str(temp_workspace))
     assert "main.py" in result["matches"]
+
+
+def test_resolve_path_prefix_bypass(tmp_path):
+    """Path traversal via prefix collision: workspace vs workspace-extra."""
+    workspace = tmp_path / "workspace"
+    workspace.mkdir()
+    sibling = tmp_path / "workspace-extra"
+    sibling.mkdir()
+    (sibling / "secret.txt").write_text("secret")
+    # Try to access workspace-extra/secret via ../workspace-extra/secret
+    with pytest.raises(PermissionError, match="outside workspace"):
+        read_file({"path": "../workspace-extra/secret.txt"}, workspace_root=str(workspace))

@@ -6,7 +6,9 @@ def _resolve_path(requested: str, workspace_root: str) -> Path:
     """Resolve and validate path is within workspace."""
     root = Path(workspace_root).resolve()
     target = (root / requested).resolve()
-    if not str(target).startswith(str(root)):
+    root_str = str(root)
+    target_str = str(target)
+    if target_str != root_str and not target_str.startswith(root_str + os.sep):
         raise PermissionError(f"Path '{requested}' is outside workspace '{workspace_root}'")
     if not target.exists():
         raise FileNotFoundError(f"Path not found: {target}")
