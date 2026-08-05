@@ -39,3 +39,21 @@ def test_redact_multiple_api_keys():
     result = redactor.redact("key1=sk-abc key2=sk-xyz")
     assert "sk-abc" not in result
     assert "sk-xyz" not in result
+
+
+def test_redact_preserves_false_positives():
+    """sk- embedded in words (flask, disk, risk) must not be redacted."""
+    redactor = SecretRedactor()
+    result = redactor.redact("flask-app disk-usage risk-assessment task-force")
+    assert "flask-app" in result
+    assert "disk-usage" in result
+    assert "risk-assessment" in result
+
+
+def test_redact_idempotent():
+    """Applying redact twice produces the same result as once."""
+    redactor = SecretRedactor()
+    text = "api_key = sk-1234567890abcdef password = mypass"
+    once = redactor.redact(text)
+    twice = redactor.redact(once)
+    assert once == twice

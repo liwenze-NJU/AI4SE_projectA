@@ -37,7 +37,7 @@ class SecretRedactor:
         if not text:
             return text
         # Step 1: sk- API keys (prefix preserved, key body redacted)
-        text = re.sub(r'(sk-)\w+', self._redact_sk_key, text)
+        text = re.sub(r'\b(sk-)\w+', self._redact_sk_key, text)
         # Step 2: Generic credential patterns
         for field in ['api_key', 'password', 'secret', 'token']:
             text = re.sub(
