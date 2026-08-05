@@ -22,6 +22,7 @@ from datetime import datetime
 from decimal import Decimal
 from typing import Optional, Any
 from codeguard.action import NormalizedAction
+from codeguard.guardrail import GuardrailResult
 
 
 @dataclass
@@ -29,7 +30,7 @@ class SessionState:
     session_id: str
     current_state: AgentState
     pending_action: Optional[NormalizedAction] = None
-    guardrail_decision: Optional[Any] = None
+    guardrail_decision: Optional[GuardrailResult] = None
     approval_request_id: Optional[str] = None
     steps_used: int = 0
     llm_calls_used: int = 0
@@ -49,7 +50,7 @@ class SessionResult:
     token_total: int
     cost_total: Decimal
     duration: float
-    guardrail_decisions: list[Any]
+    guardrail_decisions: list[GuardrailResult]
     feedback_results: list[Any]
     trace: list[Any]
     error: Optional[str] = None
