@@ -888,9 +888,11 @@
 
 ---
 
-## Task 2.4: ActionParser
+## Task 2.5: ActionParser
 
-**log_id**: T2.4 | **task_id**: Task 2.4 (ActionParser) | **状态**: COMPLETED
+> **CORRECTED** (2026-08-05): 原始记录错误标注为 "Task 2.4"。正确映射：Task 2.4 = ContextBuilder，Task 2.5 = ActionParser。见末尾编号纠正记录。
+
+**log_id**: T2.5 | **task_id**: Task 2.5 (ActionParser) | **状态**: COMPLETED
 **时间**: 2026-08-05
 **Superpowers 技能**: `superpowers:test-driven-development`
 
@@ -921,4 +923,27 @@
 **复审结果**: PASS — 0 Critical, 0 Major
 
 **branch/worktree**: feature/mvp-core
-**commit hash**: `4f98b00`（Task 1.1）、`34c3238`（Task 3.1）
+
+---
+
+## 编号纠正记录
+
+**log_id**: CORRECTION-001 | **状态**: COMPLETED
+**时间**: 2026-08-05
+
+**纠正内容**：Phase 2 Task 编号映射修正。
+
+**正确映射**：
+| Task | 内容 | 实现 commit | 修复 commit |
+|------|------|------------|------------|
+| Task 2.1 | LLMClient protocol + ScriptedMockLLM | `7411ec0` | — |
+| Task 2.2 | AgentLoop — initialization and first transitions | `a33e880`（与 2.3 合并） | `731ed8f` |
+| Task 2.3 | AgentLoop — full state machine with Fake components | `a33e880`（与 2.2 合并） | `731ed8f` |
+| Task 2.4 | ContextBuilder | `55174c8` | `f50ab8e` |
+| Task 2.5 | ActionParser | `646f002` | `acdef42` |
+
+**过程偏差**：Task 2.2 与 2.3 因执行恢复过程合并在 `a33e880` 中完成。独立 Task 2.2 commit 未产生，但 `codeguard/loop.py` 和 `tests/test_loop.py` 同时覆盖了初始化 / `_transition`（Task 2.2）和完整状态机 / Fake 组件（Task 2.3）的全部功能与测试。
+
+**此前错误**：AGENT_LOG.md 中 ActionParser 条目原始标注为 "Task 2.4"，PLAN.md 中 Task 2.2 Step 8 未标记完成。均已修正，原始过程证据保留不删除。
+
+**branch/worktree**: feature/mvp-core

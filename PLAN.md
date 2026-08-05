@@ -1637,7 +1637,9 @@ Check: SPEC §3.1 — AgentLoop is the central state machine driver. SPEC §7.1 
 
 Check: `AgentLoop.__init__` takes only `session_id` and `llm` as required args. All other components are injected later or via composition root. `_transition` is a private method. `trace` is a list of dicts (will be replaced by Tracer later).
 
-- [ ] **Step 8: Commit**
+- [x] **Step 8: Commit** — `a33e880`（与 Task 2.3 合并；修复: `731ed8f`）
+
+> **过程偏差**: Task 2.2 与 2.3 因执行恢复过程合并在 `a33e880` 中完成。独立 Task 2.2 commit 未产生，但功能和测试已覆盖。
 
 ```bash
 git add codeguard/loop.py tests/test_loop.py
