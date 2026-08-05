@@ -29,12 +29,13 @@ class AgentLoop:
       stop_policy        — Stop condition evaluator
     """
 
-    def __init__(self, session_id: str, llm):
+    def __init__(self, session_id: str, llm, max_steps: int = 50):
         self.state = SessionState(
             session_id=session_id,
             current_state=AgentState.INITIALIZING,
         )
         self.llm = llm
+        self._max_steps = max_steps
         self._trace: list[dict] = []
         self._guardrail_decisions: list = []
         self._feedback_results: list = []
@@ -71,7 +72,9 @@ class AgentLoop:
         # BUILDING_CONTEXT → DECIDING
         self._transition(AgentState.DECIDING)
 
-        while True:
+        _iteration = 0
+        while _iteration < self._max_steps:
+            _iteration += 1
             # ----- DECIDING: call LLM -----
             context = self._build_context()
             llm_response = self.llm.generate(self.state.session_id, context)
@@ -164,6 +167,15 @@ class AgentLoop:
             # Loop back to DECIDING
             self._transition(AgentState.DECIDING)
 
+        # ----- Max steps exhausted -----
+        if self.state.current_state not in (
+            AgentState.COMPLETED,
+            AgentState.FAILED,
+            AgentState.CANCELLED,
+            AgentState.LIMIT_REACHED,
+        ):
+            self._transition(AgentState.LIMIT_REACHED)
+
         # ----- Build result -----
         duration = (datetime.now() - self._started_at).total_seconds()
         return SessionResult(
@@ -218,7 +230,6 @@ class AgentLoop:
         elif decision == "FAILED":
             self._transition(AgentState.FAILED)
             return True
-        elif decision == "COMPLETED":
-            self._transition(AgentState.COMPLETED)
-            return True
+        # "COMPLETED" is NOT a valid stop_policy decision —
+        # COMPLETED is only reachable via FINAL_VALIDATION + ObjectiveVerifier
         return False

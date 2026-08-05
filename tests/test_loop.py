@@ -36,9 +36,10 @@ def _r(action: Action) -> LLMResponse:
 class FakeGuardrail:
     """Scriptable guardrail that returns pre-configured decisions in order."""
 
-    def __init__(self, decisions=None):
+    def __init__(self, decisions=None, recoverable=True):
         self._decisions = decisions or ["ALLOW"]
         self._index = 0
+        self._recoverable = recoverable
 
     def evaluate(self, action):
         d = self._decisions[self._index % len(self._decisions)]
@@ -57,7 +58,7 @@ class FakeGuardrail:
             rule_ids=[],
             reason_codes=[],
             human_readable_message="",
-            recoverable=True,
+            recoverable=self._recoverable,
             normalized_action=na,
             action_fingerprint="fp",
         )
@@ -291,3 +292,60 @@ def test_loop_complete_request_goes_to_final_validation():
     loop.stop_policy = FakeStopPolicy()
     result = loop.run()
     assert result.terminal_state == AgentState.COMPLETED
+
+
+def test_loop_max_steps_limit_reached():
+    """Without stop_policy, max_steps limit terminates loop as LIMIT_REACHED."""
+    # LLM only returns TOOL_CALL — never COMPLETE_REQUEST
+    mock = ScriptedMockLLM(responses=[
+        _r(Action(kind=ActionKind.TOOL_CALL, tool_name="read_file",
+                  parameters={"path": "x"}, raw=""))
+    ] * 10)  # more than max_steps
+    loop = AgentLoop(session_id="s1", llm=mock, max_steps=3)
+    loop.rule_engine = FakeGuardrail(decisions=["ALLOW"])
+    loop.tool_dispatcher = FakeToolDispatcher()
+    loop.sensor_runner = FakeSensorRunner()
+    loop.feedback_classifier = FakeFeedbackClassifier()
+    loop.objective_verifier = FakeObjectiveVerifier(passed=True)
+    # No stop_policy injected — protection comes from max_steps
+    result = loop.run()
+    assert result.terminal_state == AgentState.LIMIT_REACHED
+    assert result.steps_total == 3
+
+
+def test_loop_stop_policy_completed_ignored():
+    """stop_policy 'COMPLETED' does NOT bypass FINAL_VALIDATION."""
+    mock = ScriptedMockLLM(responses=[
+        _r(Action(kind=ActionKind.TOOL_CALL, tool_name="read_file",
+                  parameters={"path": "x"}, raw="")),
+        _r(Action(kind=ActionKind.COMPLETE_REQUEST, summary="done", raw="")),
+    ])
+    loop = AgentLoop(session_id="s1", llm=mock)
+    loop.rule_engine = FakeGuardrail(decisions=["ALLOW"])
+    loop.tool_dispatcher = FakeToolDispatcher()
+    loop.sensor_runner = FakeSensorRunner()
+    loop.feedback_classifier = FakeFeedbackClassifier()
+    loop.objective_verifier = FakeObjectiveVerifier(passed=True)
+    # stop_policy returns "COMPLETED" — but this should be ignored;
+    # only FINAL_VALIDATION can produce COMPLETED
+    loop.stop_policy = FakeStopPolicy(decision="COMPLETED")
+    result = loop.run()
+    # COMPLETED must come from FINAL_VALIDATION, not stop_policy shortcut
+    assert result.terminal_state == AgentState.COMPLETED
+    # Verify the trace shows FINAL_VALIDATION before COMPLETED
+    states = [t["to"] for t in loop._trace]
+    final_idx = states.index(AgentState.COMPLETED)
+    assert states[final_idx - 1] == AgentState.FINAL_VALIDATION
+
+
+def test_loop_non_recoverable_block():
+    """Non-recoverable BLOCK → FAILED (no retry path)."""
+    mock = ScriptedMockLLM(responses=[
+        _r(Action(kind=ActionKind.TOOL_CALL, tool_name="delete_file",
+                  parameters={"path": "/etc/passwd"}, raw="")),
+    ])
+    loop = AgentLoop(session_id="s1", llm=mock)
+    loop.rule_engine = FakeGuardrail(decisions=["BLOCK"], recoverable=False)
+    loop.stop_policy = FakeStopPolicy()
+    result = loop.run()
+    assert result.terminal_state == AgentState.FAILED
