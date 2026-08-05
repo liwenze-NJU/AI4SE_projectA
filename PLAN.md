@@ -382,7 +382,7 @@ Desktop.ini
 Run: `python -m pytest tests/test_scaffold.py -v` and `python -m codeguard --help`
 Expected: `1 passed`; help shows usage with `{chat,demo,web,key,config}` subcommands.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit** — `9a2c066`
 
 ```bash
 git add codeguard/__init__.py codeguard/__main__.py tests/__init__.py tests/conftest.py requirements/ .gitignore
@@ -493,7 +493,7 @@ Check: SPEC §6.2 AgentState enum — 13 values match. FINALIZING is lifecycle c
 
 Check: `AgentState` is a plain `Enum`, no methods, no dataclass, no extra fields. Single responsibility: define state names.
 
-- [ ] **Step 8: Commit**
+- [x] **Step 8: Commit** — `22faa6e`
 
 ```bash
 git add codeguard/state.py tests/test_state.py
@@ -637,7 +637,7 @@ Check: SPEC §6.3 — ActionKind has TOOL_CALL and COMPLETE_REQUEST. Action has 
 
 Check: All dataclasses use `@dataclass` decorator. No methods on data objects. Optional fields use `Optional` type hint. `action_fingerprint` is a plain string hash.
 
-- [ ] **Step 8: Commit**
+- [x] **Step 8: Commit** — `6651c04`
 
 ```bash
 git add codeguard/action.py tests/test_action.py

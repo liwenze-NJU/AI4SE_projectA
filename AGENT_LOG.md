@@ -649,4 +649,99 @@
 - 详见 SPEC_PROCESS.md 第 25 轮"额外人工审查发现"
 
 **branch/worktree**: validation/codex-cold-start（冷启动 worktree）；main（本次归档）
+
+---
+
+## Task 1.1: Project scaffolding, package structure, requirements
+
+**log_id**: T1.1 | **task_id**: Task 1.1 | **状态**: COMPLETED
+**时间**: 2026-08-05
+**Superpowers 技能**: `superpowers:executing-plans`
+
+**prompt/context 摘要**：
+- 正式实现阶段第一个 Task。在 mvp-core worktree（`feature/mvp-core`）执行。
+- 依赖：None。文件边界：`codeguard/__init__.py`, `__main__.py`, `tests/`, `requirements/`。
+
+**RED 阶段**：
+- 命令：`.\.venv\Scripts\python.exe -m pytest tests/test_scaffold.py -v`
+- 结果：1 collected, 1 failed。`No module named codeguard.__main__; 'codeguard' is a package and cannot be directly executed`
+- 失败原因：功能缺失（正确 RED）
+
+**GREEN 阶段**：
+- 命令：`.\.venv\Scripts\python.exe -m pytest tests/test_scaffold.py -v`
+- 结果：`1 passed in 0.12s`
+- CLI 验证：`python -m codeguard --help` 显示 `{chat,demo,web,key,config}`
+
+**两阶段评审**：
+- 规格合规：PASS（无 Critical/Major 问题）
+- 代码质量：Ready to proceed（无 Critical 问题；Major 问题均为已知延期项或 PLAN 设计决策）
+
+**修改文件**：`codeguard/__init__.py`, `codeguard/__main__.py`, `tests/__init__.py`, `tests/conftest.py`, `tests/test_scaffold.py`, `requirements/runtime.txt`, `requirements/dev.txt`
+
+**commit hash**: `9a2c066`
+
+**人工干预**：无。subagent 产出直接采用。
+
+**偏离及理由**：无。
+
+**学到的教训**：
+- 隔离 worktree 的 subagent 产出需要手动复制到目标 worktree
+- httpx 在 runtime.txt 和 dev.txt 中重复声明是 PLAN.md 明确记录的设计决策（`-r runtime.txt` 确保版本一致性），不属于问题
+- 代码质量评审中关于 pyproject.toml 和扩展测试覆盖的建议超出 Task 1.1 范围，记录但不阻塞
+
+**branch/worktree**: feature/mvp-core
+
+---
+
+## Task 1.2: Enum data models — AgentState
+
+**log_id**: T1.2 | **task_id**: Task 1.2 | **状态**: COMPLETED
+**时间**: 2026-08-05
+**Superpowers 技能**: `superpowers:executing-plans`
+
+**RED 阶段**：
+- 命令：`.\.venv\Scripts\python.exe -m pytest tests/test_state.py -v`
+- 结果：1 error，`ModuleNotFoundError: No module named 'codeguard.state'`
+
+**GREEN 阶段**：
+- 命令：`.\.venv\Scripts\python.exe -m pytest tests/test_state.py tests/test_scaffold.py -v`
+- 结果：4 passed（3 test_state + 1 regression）
+
+**两阶段评审**：
+- 规格合规：PASS
+- 代码质量：Ready to proceed（无任何问题）
+
+**修改文件**：`codeguard/state.py`, `tests/test_state.py`
+
+**commit hash**: `22faa6e`
+
+**人工干预**：无。直接实现，未使用 subagent（Task 规模小，直接实现效率更高）。
+
+**学到的教训**：Task 1.2 标题列出多个枚举但实际只实现 AgentState，符合 PLAN 的分 Task 设计（1.3-1.5 处理其余枚举）。
+
+**branch/worktree**: feature/mvp-core
+
+---
+
+## Task 1.3: Action, NormalizedAction, ActionKind, LLMResponse
+
+**log_id**: T1.3 | **task_id**: Task 1.3 | **状态**: COMPLETED
+**时间**: 2026-08-05
+**Superpowers 技能**: `superpowers:executing-plans`
+
+**RED 阶段**：
+- 命令：`.\.venv\Scripts\python.exe -m pytest tests/test_action.py -v`
+- 结果：1 error，`ModuleNotFoundError: No module named 'codeguard.action'`
+
+**GREEN 阶段**：
+- 命令：`.\.venv\Scripts\python.exe -m pytest tests/test_action.py tests/test_state.py tests/test_scaffold.py -v`
+- 结果：9 passed（5 test_action + 3 test_state + 1 test_scaffold）
+
+**修改文件**：`codeguard/action.py`, `tests/test_action.py`
+
+**commit hash**: `6651c04`
+
+**人工干预**：无。
+
+**branch/worktree**: feature/mvp-core
 **commit hash**: `4f98b00`（Task 1.1）、`34c3238`（Task 3.1）
