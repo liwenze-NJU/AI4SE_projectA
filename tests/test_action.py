@@ -2,7 +2,7 @@ import pytest
 from datetime import datetime
 from decimal import Decimal
 from dataclasses import FrozenInstanceError
-from codeguard.action import ActionKind, Action, NormalizedAction, LLMResponse
+from codeguard.action import ActionKind, Action, NormalizedAction, LLMResponse, ActionParser
 
 
 def test_action_kind_enum():
@@ -50,3 +50,46 @@ def test_llm_response_creation():
     )
     assert response.finish_reason == "stop"
     assert response.next_action.kind == ActionKind.COMPLETE_REQUEST
+
+
+# ---------------------------------------------------------------------------
+# ActionParser tests (Task 2.4)
+# ---------------------------------------------------------------------------
+
+import json
+
+
+def test_action_parser_tool_call():
+    parser = ActionParser()
+    raw = json.dumps({"action": "tool_call", "tool": "read_file",
+                      "parameters": {"path": "main.py"}})
+    action = parser.parse(raw)
+    assert action.kind == ActionKind.TOOL_CALL
+    assert action.tool_name == "read_file"
+    assert action.parameters == {"path": "main.py"}
+
+
+def test_action_parser_complete_request():
+    parser = ActionParser()
+    raw = json.dumps({"action": "complete", "summary": "Task finished"})
+    action = parser.parse(raw)
+    assert action.kind == ActionKind.COMPLETE_REQUEST
+    assert action.summary == "Task finished"
+
+
+def test_action_parser_invalid_json():
+    parser = ActionParser()
+    with pytest.raises(ValueError, match="Failed to parse action"):
+        parser.parse("not json")
+
+
+def test_action_parser_missing_action_field():
+    parser = ActionParser()
+    with pytest.raises(ValueError, match="Missing 'action' field"):
+        parser.parse(json.dumps({"tool": "read_file"}))
+
+
+def test_action_parser_unknown_action_type():
+    parser = ActionParser()
+    with pytest.raises(ValueError, match="Unknown action type"):
+        parser.parse(json.dumps({"action": "delete_file", "path": "/x"}))

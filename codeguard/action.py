@@ -38,3 +38,40 @@ class LLMResponse:
     token_used: int
     cost_used: Decimal
     raw_response: str
+
+
+# ---------------------------------------------------------------------------
+# ActionParser
+# ---------------------------------------------------------------------------
+
+import json as _json
+
+
+class ActionParser:
+    """Parses LLM output string into Action."""
+
+    def parse(self, raw: str) -> Action:
+        try:
+            data = _json.loads(raw)
+        except _json.JSONDecodeError as e:
+            raise ValueError(f"Failed to parse action: {e}")
+
+        if "action" not in data:
+            raise ValueError("Missing 'action' field in LLM output")
+
+        action_type = data["action"]
+        if action_type == "complete":
+            return Action(
+                kind=ActionKind.COMPLETE_REQUEST,
+                summary=data.get("summary", ""),
+                raw=raw,
+            )
+        elif action_type == "tool_call":
+            return Action(
+                kind=ActionKind.TOOL_CALL,
+                tool_name=data.get("tool", ""),
+                parameters=data.get("parameters", {}),
+                raw=raw,
+            )
+        else:
+            raise ValueError(f"Unknown action type: {action_type}")
