@@ -744,4 +744,87 @@
 **人工干预**：无。
 
 **branch/worktree**: feature/mvp-core
+
+---
+
+## Task 1.4: SessionState, SessionResult, GuardrailResult, ApprovalRequest, ApprovalResult
+
+**log_id**: T1.4 | **task_id**: Task 1.4 | **状态**: COMPLETED
+**时间**: 2026-08-05
+**Superpowers 技能**: `superpowers:executing-plans`
+
+**RED 阶段**：
+- 命令：`.\.venv\Scripts\python.exe -m pytest tests/test_data_models_core.py -v`
+- 结果：1 error，`ModuleNotFoundError: No module named 'codeguard.guardrail'`
+
+**GREEN 阶段**：
+- 命令：`.\.venv\Scripts\python.exe -m pytest tests/test_data_models_core.py tests/test_state.py tests/test_action.py tests/test_scaffold.py -v`
+- 结果：14 passed（5 new + 9 regression）
+
+**两阶段评审**：
+- 规格合规：FAIL（C1: `guardrail_decision` 使用 `Optional[Any]` 而非 `Optional[GuardrailResult]`；C2: `guardrail_decisions` 使用 `list[Any]` 而非 `list[GuardrailResult]`）
+- 修复：`e496434` — 导入 GuardrailResult 并修正类型标注
+- 修复后 14 passed
+
+**修改文件**：`codeguard/state.py`（追加）, `codeguard/guardrail/__init__.py`, `codeguard/guardrail/approval.py`, `tests/test_data_models_core.py`
+
+**commit hash**: `d57c058`（实现）, `e496434`（修复 C1/C2）
+
+**人工干预**：直接在 mvp-core 中实现（subagent 无隔离）。
+
+**学到的教训**：类型标注应与 SPEC 对齐，`Any` 仅在没有可用类型时使用。当同一 Task 中已定义目标类型时，必须使用具体类型。
+
+**branch/worktree**: feature/mvp-core
+
+---
+
+## Task 1.5: Remaining data models — ToolResult, FeedbackResult, MemoryRecord, Config
+
+**log_id**: T1.5 | **task_id**: Task 1.5 | **状态**: COMPLETED
+**时间**: 2026-08-05
+**Superpowers 技能**: `superpowers:executing-plans`
+
+**RED 阶段**：
+- 命令：`.\.venv\Scripts\python.exe -m pytest tests/test_data_models_remaining.py -v`
+- 结果：12 errors，`ModuleNotFoundError`
+
+**GREEN 阶段**：
+- 命令：`.\.venv\Scripts\python.exe -m pytest tests/test_data_models_remaining.py tests/test_data_models_core.py tests/test_state.py tests/test_action.py tests/test_scaffold.py -v`
+- 结果：26 passed（12 new + 14 regression）
+
+**两阶段评审**：
+- 规格合规：PASS
+- 代码质量：PASS（M1: 7 个字段使用 `str` 而非枚举类型，但 SPEC 未提供完整枚举定义，建议后续补充）
+
+**修改文件**：`codeguard/tool/__init__.py`, `codeguard/feedback/__init__.py`, `codeguard/memory/__init__.py`, `codeguard/memory/models.py`, `codeguard/config/models.py`, `tests/test_data_models_remaining.py`
+
+**commit hash**: `d72617a`
+
+**人工干预**：无。
+
+**branch/worktree**: feature/mvp-core
+
+---
+
+## Task 2.1: ScriptedMockLLM (LLMClient protocol)
+
+**log_id**: T2.1 | **task_id**: Task 2.1 | **状态**: COMPLETED
+**时间**: 2026-08-05
+**Superpowers 技能**: `superpowers:executing-plans`
+
+**RED 阶段**：
+- 命令：`.\.venv\Scripts\python.exe -m pytest tests/test_llm_mock.py -v`
+- 结果：1 error，`ModuleNotFoundError: No module named 'codeguard.llm.client'`
+
+**GREEN 阶段**：
+- 命令：`.\.venv\Scripts\python.exe -m pytest tests/test_llm_mock.py tests/test_data_models_remaining.py tests/test_data_models_core.py tests/test_state.py tests/test_action.py tests/test_scaffold.py -v`
+- 结果：30 passed（4 new + 26 regression）
+
+**修改文件**：`codeguard/llm/__init__.py`, `codeguard/llm/client.py`, `codeguard/llm/mock.py`, `tests/test_llm_mock.py`
+
+**commit hash**: `7411ec0`
+
+**人工干预**：subagent 在 `LLMClient` 上添加 `@runtime_checkable` 以支持 `isinstance` 检查（测试需要）。
+
+**branch/worktree**: feature/mvp-core
 **commit hash**: `4f98b00`（Task 1.1）、`34c3238`（Task 3.1）

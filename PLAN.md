@@ -886,7 +886,7 @@ Check: SPEC §6.4 GuardrailResult uses GuardrailDecision enum (BLOCK/REQUEST_APP
 
 Check: SessionState uses `field(default_factory=...)` for mutable defaults. GuardrailResult uses GuardrailDecision enum, not plain string. ApprovalRequest uses ApprovalStatus enum, not plain string. FakeClock is a simple class with `is_expired()` method.
 
-- [ ] **Step 8: Commit**
+- [x] **Step 8: Commit** — `d57c058`
 
 ```bash
 git add codeguard/state.py codeguard/guardrail/__init__.py codeguard/guardrail/approval.py tests/test_data_models_core.py
@@ -1363,7 +1363,7 @@ Check: SPEC §6.5 ToolResult — status, output_summary, diagnostics, exit_code,
 
 Check: All config models use `field(default_factory=...)` for mutable defaults (list, dict, set). `EffectiveConfig` has defaults for all fields, making it constructable without arguments. `ToolResult` has no `token_used`/`cost_used` per SPEC.
 
-- [ ] **Step 8: Commit**
+- [x] **Step 8: Commit** — `d72617a`
 
 ```bash
 git add codeguard/tool/__init__.py codeguard/feedback/__init__.py codeguard/memory/__init__.py codeguard/memory/models.py codeguard/config/models.py tests/test_data_models_remaining.py
@@ -1503,7 +1503,7 @@ Check: SPEC §5.3 — LLMClient protocol with generate(session_id, context) -> L
 
 Check: ScriptedMockLLM is a simple class, not a mock framework. No external dependencies. `call_count` is a public attribute for test assertions. Uses `StopIteration` (built-in) for exhaustion.
 
-- [ ] **Step 8: Commit**
+- [x] **Step 8: Commit** — `7411ec0`
 
 ```bash
 git add codeguard/llm/ tests/test_llm_mock.py
