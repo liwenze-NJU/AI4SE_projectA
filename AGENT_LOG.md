@@ -947,3 +947,93 @@
 **此前错误**：AGENT_LOG.md 中 ActionParser 条目原始标注为 "Task 2.4"，PLAN.md 中 Task 2.2 Step 8 未标记完成。均已修正，原始过程证据保留不删除。
 
 **branch/worktree**: feature/mvp-core
+
+---
+
+## Task 3.1: SecretRedactor
+
+**log_id**: T3.1 | **task_id**: Task 3.1 (SecretRedactor) | **状态**: COMPLETED
+**时间**: 2026-08-05
+**Superpowers 技能**: `superpowers:test-driven-development`
+
+**RED 阶段**：
+- 命令：`.\.venv\Scripts\python.exe -m pytest tests/test_secret_redactor.py -v`
+- 结果：ModuleNotFoundError: No module named 'codeguard.secret'
+
+**GREEN 阶段**：
+- 命令：`.\.venv\Scripts\python.exe -m pytest tests/test_secret_redactor.py -v`
+- 结果：6 passed（api_key, credential, path, length, normal, multiple）
+- 全量回归：62 passed
+
+**评审发现**：
+- Critical: `r'(sk-)\w+'` 缺少 `\b` 词边界，匹配 flask-app/disk-usage/risk-assessment 中的 sk-
+
+**修复 RED**：1 failed（test_redact_preserves_false_positives）
+**修复 GREEN**：8 passed（新增 false-positive + idempotency tests）
+- 全量回归：74 passed
+
+**修改文件**：`codeguard/secret.py`, `tests/test_secret_redactor.py`
+
+**commit hash**: `2614421`（实现）、`d79c434`（修复）
+
+**复审结果**: PASS — 0 Critical, 0 Major
+
+**branch/worktree**: feature/mvp-core
+
+---
+
+## Task 4.1: ToolRegistry
+
+**log_id**: T4.1 | **task_id**: Task 4.1 (ToolRegistry) | **状态**: COMPLETED
+**时间**: 2026-08-05
+**Superpowers 技能**: `superpowers:test-driven-development`
+
+**RED 阶段**：
+- 命令：`.\.venv\Scripts\python.exe -m pytest tests/test_tool_registry.py -v`
+- 结果：ModuleNotFoundError: No module named 'codeguard.tool.registry'
+
+**GREEN 阶段**：
+- 4 passed（register+lookup, duplicate, unknown, list）
+- 全量回归：66 passed
+
+**修改文件**：`codeguard/tool/registry.py`, `tests/test_tool_registry.py`
+
+**commit hash**: `ca3e3ad`
+
+**复审结果**: PASS — 0 Critical, 0 Major
+
+**branch/worktree**: feature/mvp-core
+
+---
+
+## Task 4.2: File tools — read operations
+
+**log_id**: T4.2 | **task_id**: Task 4.2 (File read tools) | **状态**: COMPLETED
+**时间**: 2026-08-05
+**Superpowers 技能**: `superpowers:test-driven-development`
+
+**RED 阶段**：
+- 命令：`.\.venv\Scripts\python.exe -m pytest tests/test_file_tools.py -v`
+- 结果：ModuleNotFoundError: No module named 'codeguard.tool.file_tools'
+
+**GREEN 阶段**：
+- 6 passed（read_file, outside, not_found, list_dir, find_files, search_text）
+- 全量回归：72 passed
+
+**评审发现**：
+- Critical: `_resolve_path` 的 `startswith` 检查存在前缀绕过（workspace 匹配 workspace-extra）
+- Major (3): 大小限制、列表限制、敏感目录排除 — 不在 PLAN Task 4.2 范围，属于后续 Task
+
+**修复 RED**：1 failed（test_resolve_path_prefix_bypass）
+**修复 GREEN**：7 passed
+- 全量回归：75 passed
+
+**修改文件**：`codeguard/tool/file_tools.py`, `tests/test_file_tools.py`
+
+**commit hash**: `116fba4`（实现）、`688741e`（修复）
+
+**复审结果**: PASS — 0 Critical（Major 为后续 Task 范围，非本 Task 阻塞）
+
+**branch/worktree**: feature/mvp-core
+
+**branch/worktree**: feature/mvp-core

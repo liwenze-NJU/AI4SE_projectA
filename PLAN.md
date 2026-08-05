@@ -2477,7 +2477,7 @@ Check: SPEC §4.1 — SecretRedactor uses regex patterns. Applied before storing
 
 Check: `redact()` is idempotent (applying twice produces same result). No external dependencies. Simple regex-based approach (no ML/heuristics). Generic credential patterns do not double-redact `sk-` prefixed values.
 
-- [ ] **Step 8: Commit**
+- [x] **Step 8: Commit** — `2614421` (fix: `d79c434`)
 
 ```bash
 git add codeguard/secret.py tests/test_secret_redactor.py
@@ -2594,7 +2594,7 @@ Check: SPEC §3.6 — ToolRegistry allows registration, lookup by name, listing.
 
 Check: `ToolRegistry` is thread-safe for reads (dict lookup is atomic in CPython). Writes are not thread-safe, but the harness is single-threaded.
 
-- [ ] **Step 8: Commit**
+- [x] **Step 8: Commit** — `ca3e3ad`
 
 ```bash
 git add codeguard/tool/registry.py tests/test_tool_registry.py
@@ -2732,7 +2732,7 @@ Check: SPEC §3.6 — read_file reads content. list_directory lists entries. fin
 
 Check: `_resolve_path` is a shared validation function. All functions return dict (not ToolResult — ToolDispatcher wraps them). Workspace boundary is enforced at the path resolution level.
 
-- [ ] **Step 8: Commit**
+- [x] **Step 8: Commit** — `116fba4` (fix: `688741e`)
 
 ```bash
 git add codeguard/tool/file_tools.py tests/test_file_tools.py
