@@ -93,3 +93,30 @@ def test_action_parser_unknown_action_type():
     parser = ActionParser()
     with pytest.raises(ValueError, match="Unknown action type"):
         parser.parse(json.dumps({"action": "delete_file", "path": "/x"}))
+
+
+def test_action_parser_non_dict_json():
+    """JSON that parses to a non-dict type must raise ValueError, not crash."""
+    parser = ActionParser()
+    for bad_input in ['"just a string"', '42', '[]', 'null']:
+        with pytest.raises(ValueError, match="Expected a JSON object"):
+            parser.parse(bad_input)
+
+
+def test_action_parser_missing_optional_fields():
+    """TOOL_CALL without tool/parameters defaults to None, not empty string/dict."""
+    parser = ActionParser()
+    raw = json.dumps({"action": "tool_call"})
+    action = parser.parse(raw)
+    assert action.kind == ActionKind.TOOL_CALL
+    assert action.tool_name is None
+    assert action.parameters is None
+
+
+def test_action_parser_complete_without_summary():
+    """COMPLETE_REQUEST without summary defaults to None."""
+    parser = ActionParser()
+    raw = json.dumps({"action": "complete"})
+    action = parser.parse(raw)
+    assert action.kind == ActionKind.COMPLETE_REQUEST
+    assert action.summary is None

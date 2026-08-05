@@ -56,6 +56,9 @@ class ActionParser:
         except _json.JSONDecodeError as e:
             raise ValueError(f"Failed to parse action: {e}")
 
+        if not isinstance(data, dict):
+            raise ValueError("Expected a JSON object, got {!r}".format(type(data).__name__))
+
         if "action" not in data:
             raise ValueError("Missing 'action' field in LLM output")
 
@@ -63,14 +66,14 @@ class ActionParser:
         if action_type == "complete":
             return Action(
                 kind=ActionKind.COMPLETE_REQUEST,
-                summary=data.get("summary", ""),
+                summary=data.get("summary"),
                 raw=raw,
             )
         elif action_type == "tool_call":
             return Action(
                 kind=ActionKind.TOOL_CALL,
-                tool_name=data.get("tool", ""),
-                parameters=data.get("parameters", {}),
+                tool_name=data.get("tool"),
+                parameters=data.get("parameters"),
                 raw=raw,
             )
         else:
