@@ -885,4 +885,40 @@
 **复审结果**: PASS — 0 Critical, 0 Major
 
 **branch/worktree**: feature/mvp-core
+
+---
+
+## Task 2.4: ActionParser
+
+**log_id**: T2.4 | **task_id**: Task 2.4 (ActionParser) | **状态**: COMPLETED
+**时间**: 2026-08-05
+**Superpowers 技能**: `superpowers:test-driven-development`
+
+**RED 阶段**：
+- 命令：`.\.venv\Scripts\python.exe -m pytest tests/test_action.py -v`
+- 结果：5 failed（NameError: ActionParser 未定义），5 existing passed
+
+**GREEN 阶段**：
+- 命令：`.\.venv\Scripts\python.exe -m pytest tests/test_action.py -v`
+- 结果：10 passed（5 new + 5 existing）
+- 全量回归：53 passed
+
+**评审发现**：
+- Critical: 非 dict JSON 输入（string/int/list/null）导致 TypeError/KeyError 崩溃
+- Major: data.get("summary", "") / data.get("parameters", {}) / data.get("tool", "") 与 Action dataclass 默认值 None 不一致
+
+**修复 RED 阶段**：
+- 3 failed（非 dict JSON 错误消息、tool_name is None、summary is None）
+
+**修复 GREEN 阶段**：
+- 13 passed（新增 3 tests: 非 dict JSON、缺失可选字段、complete 无 summary）
+- 全量回归：56 passed
+
+**修改文件**：`codeguard/action.py`, `tests/test_action.py`
+
+**commit hash**: `646f002`（实现）、`acdef42`（修复）
+
+**复审结果**: PASS — 0 Critical, 0 Major
+
+**branch/worktree**: feature/mvp-core
 **commit hash**: `4f98b00`（Task 1.1）、`34c3238`（Task 3.1）

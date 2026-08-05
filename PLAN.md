@@ -2315,7 +2315,7 @@ Check: SPEC §3.1 — ActionParser converts LLM output to Action. Handles TOOL_C
 
 Check: `parse()` raises `ValueError` for all error cases (invalid JSON, missing field, unknown type). No fallback to default action (fail fast).
 
-- [ ] **Step 8: Commit**
+- [x] **Step 8: Commit** — `646f002` (fix: `acdef42`)
 
 ```bash
 git add codeguard/action.py tests/test_action.py
