@@ -2197,7 +2197,7 @@ Check: SPEC §3.1 — ContextBuilder produces structured context from system pro
 
 Check: `build()` returns a single formatted string. No side effects. No external dependencies beyond `MemoryRecord` dataclass.
 
-- [ ] **Step 8: Commit**
+- [x] **Step 8: Commit** — `55174c8`
 
 ```bash
 git add codeguard/context.py tests/test_context.py
