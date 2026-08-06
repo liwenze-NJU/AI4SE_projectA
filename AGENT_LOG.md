@@ -1030,9 +1030,48 @@
 
 **修改文件**：`codeguard/tool/file_tools.py`, `tests/test_file_tools.py`
 
-**commit hash**: `116fba4`（实现）、`688741e`（修复）
+**commit hash**: `116fba4`（实现）、`688741e`（prefix bypass 修复）、`676bed3`（SPEC §3.6 安全边界）、`d703cee`（read_file 排除目录）
 
-**复审结果**: PASS — 0 Critical（Major 为后续 Task 范围，非本 Task 阻塞）
+**复审结果**: PASS — 0 Critical, 0 Major（SPEC §3.6 安全边界补齐后复审通过）
+
+**branch/worktree**: feature/mvp-core
+
+---
+
+## Task 4.2 SPEC §3.6 安全边界补齐
+
+**log_id**: T4.2-SPEC | **task_id**: Task 4.2 SPEC §3.6 合规 | **状态**: COMPLETED
+**时间**: 2026-08-06
+**Superpowers 技能**: `superpowers:receiving-code-review`, `superpowers:test-driven-development`
+
+**上一轮评审遗留**：3 Major 被标记为"后续 Task 范围"，结论矛盾（PASS 0C/0M 但同时有未解决 Major）
+
+**核实结果**：SPEC §3.6 明确要求 read_file 大小上限+允许编码、list_directory 结果限制、所有工具排除敏感目录、二进制文件拒绝。这些属于 Task 4.2 文件读取工具自身安全边界，不属于 Task 4.5 的 ToolResult 截断。
+
+**RED 阶段**：
+- 7 failed（oversized 未拒绝、binary 未拒绝、list 未排除敏感目录、list 无结果限制、find_files 未排除、search_text 未排除、symlink 未拒绝）
+
+**GREEN 阶段**：
+- 14 passed + 1 skipped + 68 regression = 82 passed
+
+**修复内容**：
+- MAX_FILE_SIZE = 1_000_000（1MB），read_file 拒绝超大文件
+- _is_binary：检查前 8KB 空字节，read_file 拒绝二进制文件
+- MAX_LIST_RESULTS = 1000，list_directory 设置 truncated 标志
+- EXCLUDED_DIR_NAMES：{.git, .venv, node_modules, __pycache__, build, dist, .tox, .eggs, .mypy_cache, .pytest_cache, .ruff_cache}
+- _is_excluded_dir：检查路径所有组件相对工作区
+- list_directory/find_files/search_text 均调用 _is_excluded_dir
+- read_file 增加 _is_excluded_dir 检查（复审发现，d703cee 修复）
+- Symlink 测试：Windows 需要管理员权限，自动 skip
+
+**第一版默认值记录**（保守值，后续可通过配置收紧）：
+- MAX_FILE_SIZE = 1_000_000（1 MB）
+- MAX_LIST_RESULTS = 1000
+- EXCLUDED_DIR_NAMES 包含 11 个常见敏感/构建/缓存目录
+
+**commit hash**: `676bed3`（主修复）、`d703cee`（read_file 排除目录）
+
+**复审结果**: PASS — 0 Critical, 0 Major
 
 **branch/worktree**: feature/mvp-core
 
