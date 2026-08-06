@@ -2148,3 +2148,27 @@
 **commit hash**: `b30fd86`
 
 **具备进入 Task 17.3 的条件**: 是 — 572 passed, 1 skipped, 0 failed
+
+---
+
+## Task 17.3: Demo Scenario C — fail -> classify -> repair -> COMPLETED
+
+**log_id**: T17.3 | **task_id**: Task 17.3 Demo | **状态**: COMPLETED
+**时间**: 2026-08-07
+**Superpowers 技能**: `superpowers:test-driven-development`
+**branch/worktree**: feature/mvp-core
+
+**RED 阶段**: 4 个测试写入 `tests/test_demo_scenario_c.py`，ModuleNotFoundError；实现后 2 个失败暴露 1 个 Major：demo 模式 ModeRestrictionRule BLOCK write_file → 修复动作从未执行（steps=0，反馈只在 FINAL 触发）→ 场景 C 治理改用 workspace+credential 规则（保留真实护栏语义，允许修复写入执行）
+
+**GREEN 阶段**: 4/4 passed；全量 576 passed, 1 skipped, 0 failed
+
+**实现内容**:
+- `scenario_c.py` — 脚本化 3 步 LLM：写 buggy 代码（src/add.py）→ 写修复代码 → COMPLETE_REQUEST；ScriptedSensorRunner 首次 FAILED（TEST_ASSERTION_FAILURE 已分类）→ 二次 PASSED；反馈环完整：INTERMEDIATE 失败 → FEEDING_BACK → 修复 → INTERMEDIATE 通过 → FINAL_VALIDATION → COMPLETED（steps=2）
+
+**两阶段评审**:
+- 规格合规: PASS — SPEC §3.9 演示场景 3（第一次失败 → FeedbackClassifier 分类 → 回灌 → 改动作 → 最终通过）
+- 代码质量: 0 Critical, 0 Major — 场景 C 保留 workspace/credential 护栏但去除 mode 限制（write_file 需可执行以驱动修复环，符合 demo 场景语义）
+
+**commit hash**: 待提交后补记
+
+**具备进入 Task 18.1 的条件**: 是 — 576 passed, 1 skipped, 0 failed

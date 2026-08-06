@@ -7276,7 +7276,7 @@ git push github task-17.2-demo-b
 - Create: `codeguard/demo/scenario_c.py`
 - Create: `tests/test_demo_scenario_c.py`
 
-- [ ] **Step 1: Write failing tests**
+- [x] **Step 1: Write failing tests** — `tests/test_demo_scenario_c.py`（4 tests: 终态 COMPLETED/反馈环触发/失败已分类/修复动作执行）
 
 Write `tests/test_demo_scenario_c.py`:
 ```python
@@ -7310,7 +7310,7 @@ def run_scenario_c():
 Run: `pytest tests/test_demo_scenario_c.py -v`
 Expected: 1 passed
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit** — `17.3` commit created by current session
 
 ```bash
 git add codeguard/demo/scenario_c.py tests/test_demo_scenario_c.py
