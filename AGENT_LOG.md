@@ -2169,6 +2169,6 @@
 - 规格合规: PASS — SPEC §3.9 演示场景 3（第一次失败 → FeedbackClassifier 分类 → 回灌 → 改动作 → 最终通过）
 - 代码质量: 0 Critical, 0 Major — 场景 C 保留 workspace/credential 护栏但去除 mode 限制（write_file 需可执行以驱动修复环，符合 demo 场景语义）
 
-**commit hash**: 待提交后补记
+**commit hash**: `4d3f09e`
 
 **具备进入 Task 18.1 的条件**: 是 — 576 passed, 1 skipped, 0 failed
