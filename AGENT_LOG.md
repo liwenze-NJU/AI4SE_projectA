@@ -1186,4 +1186,26 @@
 
 **branch/worktree**: feature/mvp-core
 
+---
+
+## Task 5.1: ActionNormalizer + SchemaValidator
+
+**log_id**: T5.1 | **task_id**: Task 5.1 (ActionNormalizer + SchemaValidator) | **状态**: COMPLETED
+**时间**: 2026-08-06
+**Superpowers 技能**: `superpowers:test-driven-development`
+
+**RED 阶段**：ModuleNotFoundError: No module named 'codeguard.guardrail.normalizer'
+
+**GREEN 阶段**：6 passed + 106 regression = 112 passed
+
+**实现**：
+- `SchemaValidator`: 校验 required fields 和 type constraints（string 类型检查）
+- `ActionNormalizer`: path → 绝对路径（pathlib.resolve），SHA-256 action_fingerprint（json.dumps sort_keys=True 确保确定性）
+- COMPLETE_REQUEST 使用常量指纹 "COMPLETE_REQUEST"
+- NormalizedAction 为 frozen dataclass，不可变
+
+**commit hash**: `a8c3a81`
+
+**复审结果**: PASS — 0 Critical, 0 Major
+
 **branch/worktree**: feature/mvp-core

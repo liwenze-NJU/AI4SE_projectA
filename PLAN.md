@@ -3206,7 +3206,7 @@ git push github task-4.5-tool-dispatcher
 
 **File boundary:** Only `codeguard/guardrail/normalizer.py` and `tests/test_guardrail_normalizer.py`
 
-- [ ] **Step 1: Write failing tests**
+- [x] **Step 1: Write failing tests**
 
 Write `tests/test_guardrail_normalizer.py`:
 ```python
@@ -3258,12 +3258,12 @@ def test_normalize_complete_request():
     assert na.action_fingerprint == "COMPLETE_REQUEST"
 ```
 
-- [ ] **Step 2: Run to verify failure**
+- [x] **Step 2: Run to verify failure**
 
 Run: `pytest tests/test_guardrail_normalizer.py -v`
 Expected: ImportErrors
 
-- [ ] **Step 3: Implement ActionNormalizer and SchemaValidator**
+- [x] **Step 3: Implement ActionNormalizer and SchemaValidator**
 
 Write `codeguard/guardrail/normalizer.py`:
 ```python
@@ -3329,22 +3329,22 @@ class ActionNormalizer:
         return hashlib.sha256(raw.encode()).hexdigest()
 ```
 
-- [ ] **Step 4: Run to verify pass**
+- [x] **Step 4: Run to verify pass**
 
 Run: `pytest tests/test_guardrail_normalizer.py -v`
 Expected: 6 passed
 
-- [ ] **Step 5: Refactor** — check that `_compute_fingerprint` uses sorted keys for deterministic output. The `json.dumps(sort_keys=True)` ensures this.
+- [x] **Step 5: Refactor** — check that `_compute_fingerprint` uses sorted keys for deterministic output. The `json.dumps(sort_keys=True)` ensures this.
 
-- [ ] **Step 6: SPEC compliance review**
+- [x] **Step 6: SPEC compliance review**
 
 Check: SPEC §3.2 — ActionNormalizer normalizes paths, computes action_fingerprint. SchemaValidator validates parameters against schema.
 
-- [ ] **Step 7: Code quality review**
+- [x] **Step 7: Code quality review**
 
 Check: `_compute_fingerprint` uses SHA-256 for collision resistance. `SchemaValidator` checks required fields and type constraints. COMPLETE_REQUEST has a constant fingerprint.
 
-- [ ] **Step 8: Commit**
+- [x] **Step 8: Commit**
 
 ```bash
 git add codeguard/guardrail/normalizer.py tests/test_guardrail_normalizer.py
