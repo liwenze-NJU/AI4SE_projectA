@@ -6,9 +6,12 @@ workspace boundary enforcement and safety guardrails per SPEC §3.6.
 Default safety limits (v1 conservative defaults, documented in AGENT_LOG.md):
   MAX_FILE_SIZE = 1_000_000   # 1 MB
   MAX_LIST_RESULTS = 1000
+  list_directory depth = 1 (non-recursive, direct children only)
   EXCLUDED_DIR_NAMES = {".git", ".venv", "node_modules", "__pycache__",
                          "build", "dist", ".tox", ".eggs", ".mypy_cache",
                          ".pytest_cache", ".ruff_cache"}
+  SENSITIVE_FILE_NAMES = {".env"}
+  SENSITIVE_FILE_SUFFIXES = {".key", ".pem"}
 """
 
 import os
@@ -26,6 +29,9 @@ EXCLUDED_DIR_NAMES = {
     ".pytest_cache", ".ruff_cache",
 }
 
+SENSITIVE_FILE_NAMES = {".env"}
+SENSITIVE_FILE_SUFFIXES = {".key", ".pem"}
+
 
 def _is_excluded_dir(path: Path, workspace_root: str) -> bool:
     """Check if any component of path (relative to workspace) is excluded."""
@@ -35,6 +41,11 @@ def _is_excluded_dir(path: Path, workspace_root: str) -> bool:
     except ValueError:
         return False
     return any(part in EXCLUDED_DIR_NAMES for part in rel.parts)
+
+
+def _is_sensitive_file(path: Path) -> bool:
+    """Check if a file is sensitive (.env, *.key, *.pem)."""
+    return path.name in SENSITIVE_FILE_NAMES or path.suffix in SENSITIVE_FILE_SUFFIXES
 
 
 def _is_binary(file_path: Path) -> bool:
@@ -66,6 +77,10 @@ def read_file(params: dict, workspace_root: str = "") -> dict:
             f"Cannot read file in excluded directory: {path}"
         )
 
+    # Sensitive file check
+    if _is_sensitive_file(path):
+        raise PermissionError(f"Cannot read sensitive file: {path}")
+
     # Size limit
     size = path.stat().st_size
     if size > MAX_FILE_SIZE:
@@ -87,6 +102,8 @@ def list_directory(params: dict, workspace_root: str = "") -> dict:
     for p in path.iterdir():
         if p.is_dir() and _is_excluded_dir(p, workspace_root):
             continue
+        if p.is_file() and _is_sensitive_file(p):
+            continue
         all_entries.append(str(p.relative_to(path)))
     truncated = len(all_entries) > MAX_LIST_RESULTS
     if truncated:
@@ -101,6 +118,8 @@ def find_files(params: dict, workspace_root: str = "") -> dict:
     for p in base.glob(pattern):
         if _is_excluded_dir(p, workspace_root):
             continue
+        if p.is_file() and _is_sensitive_file(p):
+            continue
         matches.append(str(p.relative_to(base)))
     return {"files": matches, "pattern": pattern}
 
@@ -114,7 +133,7 @@ def search_text(params: dict, workspace_root: str = "") -> dict:
             continue
         if p.is_file():
             try:
-                if _is_binary(p):
+                if _is_binary(p) or _is_sensitive_file(p):
                     continue
                 for i, line in enumerate(
                     p.read_text(encoding="utf-8", errors="ignore").splitlines(), 1

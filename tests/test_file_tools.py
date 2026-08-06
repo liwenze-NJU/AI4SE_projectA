@@ -160,3 +160,51 @@ def test_symlink_outside_workspace_rejected(tmp_path):
         raise
     with pytest.raises(PermissionError, match="outside workspace"):
         read_file({"path": "link.txt"}, workspace_root=str(workspace))
+
+
+# ---------------------------------------------------------------------------
+# Sensitive file blocking (.env, *.key, *.pem)
+# ---------------------------------------------------------------------------
+
+def test_read_file_rejects_sensitive_file(temp_workspace):
+    """read_file rejects .env, *.key, *.pem files."""
+    for name in [".env", "secret.key", "cert.pem"]:
+        f = temp_workspace / name
+        f.write_text("sensitive content")
+        with pytest.raises(PermissionError, match="sensitive file"):
+            read_file({"path": name}, workspace_root=str(temp_workspace))
+
+
+def test_list_directory_hides_sensitive_files(temp_workspace):
+    """list_directory does not expose .env, *.key, *.pem."""
+    (temp_workspace / "main.py").write_text("ok")
+    (temp_workspace / ".env").write_text("SECRET=1")
+    (temp_workspace / "db.key").write_text("keydata")
+    (temp_workspace / "cert.pem").write_text("certdata")
+    result = list_directory({"path": str(temp_workspace)}, workspace_root=str(temp_workspace))
+    names = set(result["files"])
+    assert "main.py" in names
+    assert ".env" not in names
+    assert "db.key" not in names
+    assert "cert.pem" not in names
+
+
+def test_find_files_hides_sensitive_files(temp_workspace):
+    """find_files does not expose .env, *.key, *.pem."""
+    (temp_workspace / "main.py").write_text("ok")
+    (temp_workspace / ".env").write_text("SECRET=1")
+    result = find_files({"pattern": "**/*", "base_dir": str(temp_workspace)},
+                        workspace_root=str(temp_workspace))
+    names = set(result["files"])
+    assert "main.py" in names
+    assert ".env" not in names
+
+
+def test_search_text_hides_sensitive_files(temp_workspace):
+    """search_text does not expose matches in .env, *.key, *.pem."""
+    (temp_workspace / "main.py").write_text("hello")
+    (temp_workspace / ".env").write_text("hello")
+    result = search_text({"pattern": "hello", "base_dir": str(temp_workspace)},
+                         workspace_root=str(temp_workspace))
+    assert "main.py" in result["matches"]
+    assert ".env" not in result["matches"]
