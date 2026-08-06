@@ -1365,3 +1365,29 @@
 **复审结果**: PASS — 0 Critical, 0 Major
 
 **branch/worktree**: feature/mvp-core
+
+---
+
+## Task 6.4: Feedback formatting
+
+**log_id**: T6.4 | **task_id**: Task 6.4 (Feedback formatting) | **状态**: COMPLETED
+**时间**: 2026-08-06
+**Superpowers 技能**: `superpowers:test-driven-development`
+
+**RED 阶段**：ImportError: cannot import name 'format_feedback_for_llm'
+
+**GREEN 阶段**：37 passed（20 原有 + 17 新增）+ 263 regression = 280 passed
+
+**实现**：
+- `format_feedback_for_llm`: 将 FeedbackResult 列表格式化为结构化纯文本
+- 包含 sensor_id、status、failure_category、fingerprint、summary、diagnostics（最多 5 条）、raw output（最多 200 字符）
+- 不可信输出置于 `[Sensor Evidence]`/`[End Evidence]` 边界内
+- 空列表返回 "No feedback"；整体输出上限 5000 字符
+- 确定性输出：相同输入→相同输出
+- 不改变 Task 6.3 原有分类行为
+
+**commit hash**: `92c0748`
+
+**复审结果**: PASS — 0 Critical, 0 Major
+
+**branch/worktree**: feature/mvp-core

@@ -4324,7 +4324,7 @@ git push github task-6.3-classifier
 
 **Worktree:** worktree-feedback, branch `task-6.4-feedback-format`
 
-- [ ] **Step 1: Write failing tests**
+- [x] **Step 1: Write failing tests**
 
 Append to `tests/test_classifier.py`:
 ```python
@@ -4348,12 +4348,12 @@ def test_format_feedback_empty():
     assert "No feedback" in formatted
 ```
 
-- [ ] **Step 2: Run to verify failure**
+- [x] **Step 2: Run to verify failure**
 
 Run: `pytest tests/test_classifier.py -v`
 Expected: 2 new tests fail (format_feedback_for_llm not defined)
 
-- [ ] **Step 3: Implement format_feedback_for_llm**
+- [x] **Step 3: Implement format_feedback_for_llm**
 
 Append to `codeguard/feedback/classifier.py`:
 ```python
@@ -4380,22 +4380,22 @@ def format_feedback_for_llm(results: list[FeedbackResult]) -> str:
     return "\n".join(parts)
 ```
 
-- [ ] **Step 4: Run to verify pass**
+- [x] **Step 4: Run to verify pass**
 
 Run: `pytest tests/test_classifier.py -v`
 Expected: 7 passed (4 from Task 6.3 + 3 new)
 
-- [ ] **Step 5: Refactor** — check that the formatted output is not too long. The 200-char truncation on raw_output helps.
+- [x] **Step 5: Refactor** — check that the formatted output is not too long. The 200-char truncation on raw_output helps.
 
-- [ ] **Step 6: SPEC compliance review**
+- [x] **Step 6: SPEC compliance review**
 
 Check: SPEC §3.5 — format_feedback_for_llm produces structured context block with sensor, status, category, fingerprint, diagnostics.
 
-- [ ] **Step 7: Code quality review**
+- [x] **Step 7: Code quality review**
 
 Check: Output is plain text, not markdown. Diagnostics limited to 5 entries. Raw output truncated to 200 chars. Empty input produces "No feedback" message.
 
-- [ ] **Step 8: Commit**
+- [x] **Step 8: Commit**
 
 ```bash
 git add codeguard/feedback/classifier.py tests/test_classifier.py
