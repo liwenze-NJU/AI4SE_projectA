@@ -326,3 +326,131 @@ def test_scenario_b_wrong_session_rejected():
             decision=ApprovalStatus.APPROVED,
             action_fingerprint=loop.state.pending_action.action_fingerprint,
         )
+
+
+# ---------------------------------------------------------------------------
+# Task 14.3: Scenario C — fail → classify → repair → COMPLETED
+# ---------------------------------------------------------------------------
+
+from codeguard.feedback import FeedbackResult
+
+
+class ScriptedSensorRunner:
+    """Returns pre-scripted FeedbackResult lists in order."""
+
+    def __init__(self, responses: list[list[FeedbackResult]]):
+        self._responses = responses
+        self._call_count = 0
+
+    def run_all(self) -> list[FeedbackResult]:
+        if self._call_count >= len(self._responses):
+            return []
+        result = self._responses[self._call_count]
+        self._call_count += 1
+        return result
+
+
+def test_scenario_c_fail_repair_cycle():
+    """fail → classify → repair → COMPLETED.
+
+    Demonstrates the feedback loop:
+    Phase 1: LLM writes buggy code → sensor FAILED
+    Phase 2: FeedbackClassifier categorizes → feedback injected
+    Phase 3: LLM writes fixed code → sensor PASSED
+    Phase 4: COMPLETE_REQUEST → FINAL_VALIDATION → COMPLETED
+    """
+    root = CompositionRoot(mode="test")
+    loop = root.create_loop(session_id="scenario-c")
+
+    # Scripted sensor runner: first call returns FAILED, second returns PASSED
+    fail_result = FeedbackResult(
+        sensor_id="pytest",
+        program="python",
+        args=["-m", "pytest"],
+        status="FAILED",
+        failure_category="TEST_ASSERTION_FAILURE",
+        exit_code=1,
+        failure_fingerprint="abc123",
+        validation_type="INTERMEDIATE",
+        summary="1 test failed: test_add",
+        diagnostics=[
+            {"file": "test_math.py", "line": 10, "message": "assert 1 == 2"}
+        ],
+        duration=0.5,
+        retryable=True,
+        raw_output_truncated="FAILED test_add - assert 1 == 2",
+    )
+    pass_result = FeedbackResult(
+        sensor_id="pytest",
+        program="python",
+        args=["-m", "pytest"],
+        status="PASSED",
+        failure_category=None,
+        exit_code=0,
+        failure_fingerprint=None,
+        validation_type="INTERMEDIATE",
+        summary="All tests passed",
+        diagnostics=[],
+        duration=0.3,
+        retryable=False,
+        raw_output_truncated="1 passed",
+    )
+
+    loop.sensor_runner = ScriptedSensorRunner(
+        responses=[[fail_result], [pass_result]]
+    )
+
+    # ScriptedMockLLM:
+    # 1st call: write buggy code → fails test
+    # 2nd call: write fixed code → passes test
+    # 3rd call: COMPLETE_REQUEST → FINAL_VALIDATION → COMPLETED
+    loop.llm = ScriptedMockLLM(responses=[
+        _make_response(Action(
+            kind=ActionKind.TOOL_CALL,
+            tool_name="write_file",
+            parameters={"path": "buggy.py", "content": "def add(a, b): return a - b"},
+            raw="",
+        )),
+        _make_response(Action(
+            kind=ActionKind.TOOL_CALL,
+            tool_name="write_file",
+            parameters={"path": "fixed.py", "content": "def add(a, b): return a + b"},
+            raw="",
+        )),
+        _make_response(Action(
+            kind=ActionKind.COMPLETE_REQUEST, summary="done", raw="",
+        )),
+    ])
+
+    result = loop.run()
+
+    # Verify terminal state
+    assert result.terminal_state == AgentState.COMPLETED, (
+        f"Expected COMPLETED, got {result.terminal_state}"
+    )
+
+    # Verify feedback was collected
+    assert len(result.feedback_results) >= 2, (
+        f"Expected at least 2 feedback results, got {len(result.feedback_results)}"
+    )
+
+    # First feedback should be FAILED
+    assert result.feedback_results[0].status == "FAILED", (
+        f"Expected FAILED, got {result.feedback_results[0].status}"
+    )
+    assert result.feedback_results[0].failure_category == "TEST_FAILURE"
+
+    # Second feedback should be PASSED
+    assert result.feedback_results[1].status == "PASSED", (
+        f"Expected PASSED, got {result.feedback_results[1].status}"
+    )
+
+    # Verify LLM calls: 3 (two write_file + one COMPLETE_REQUEST)
+    assert result.llm_calls_total == 3, (
+        f"Expected 3 LLM calls, got {result.llm_calls_total}"
+    )
+
+    # Verify steps: 2 (two write_file executions)
+    assert result.steps_total == 2, (
+        f"Expected 2 executed steps, got {result.steps_total}"
+    )

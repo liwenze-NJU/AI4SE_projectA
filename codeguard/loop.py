@@ -188,7 +188,10 @@ class AgentLoop:
                 if self.sensor_runner is not None:
                     sensor_results = self.sensor_runner.run_all()
                     if self.feedback_classifier is not None:
-                        sensor_results = self.feedback_classifier.classify(sensor_results)
+                        sensor_results = [
+                            self.feedback_classifier.classify(r)
+                            for r in sensor_results
+                        ]
                     self._feedback_results.extend(sensor_results)
 
             self._transition(AgentState.FEEDING_BACK)
