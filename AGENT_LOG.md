@@ -2145,6 +2145,6 @@
 - 规格合规: PASS — SPEC §3.9 演示场景 2（REQUEST_APPROVAL → AWAITING_APPROVAL → 批准/拒绝/超时）；超时 5s 用 FakeClock
 - 代码质量: 0 Critical, 0 Major — 修复 dispatcher 双类型兼容
 
-**commit hash**: 待提交后补记
+**commit hash**: `b30fd86`
 
 **具备进入 Task 17.3 的条件**: 是 — 572 passed, 1 skipped, 0 failed
