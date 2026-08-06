@@ -409,7 +409,7 @@ git push github task-1.1-scaffold
 
 **Worktree:** main, branch `task-1.2-core-enums`
 
-- [ ] **Step 1: Write failing test**
+- [x] **Step 1: Write failing test**
 
 Write `tests/test_state.py`:
 ```python
@@ -451,12 +451,12 @@ def test_agent_state_running():
     assert AgentState.FEEDING_BACK.value == "feeding_back"
 ```
 
-- [ ] **Step 2: Run to verify failure**
+- [x] **Step 2: Run to verify failure**
 
 Run: `pytest tests/test_state.py -v`
 Expected: `ImportError: cannot import name 'AgentState' from 'codeguard.state'`
 
-- [ ] **Step 3: Implement minimal AgentState enum**
+- [x] **Step 3: Implement minimal AgentState enum**
 
 Write `codeguard/state.py`:
 ```python
@@ -478,7 +478,7 @@ class AgentState(Enum):
     LIMIT_REACHED = "limit_reached"
 ```
 
-- [ ] **Step 4: Run to verify pass**
+- [x] **Step 4: Run to verify pass**
 
 Run: `pytest tests/test_state.py -v`
 Expected: 3 passed
@@ -489,7 +489,7 @@ Expected: 3 passed
 
 Check: SPEC §6.2 AgentState enum — 13 values match. FINALIZING is lifecycle cleanup, not counted. All 9 running states + 4 terminal states present.
 
-- [ ] **Step 7: Code quality review**
+- [x] **Step 7: Code quality review**
 
 Check: `AgentState` is a plain `Enum`, no methods, no dataclass, no extra fields. Single responsibility: define state names.
 
@@ -575,12 +575,12 @@ def test_llm_response_creation():
     assert response.next_action.kind == ActionKind.COMPLETE_REQUEST
 ```
 
-- [ ] **Step 2: Run to verify failure**
+- [x] **Step 2: Run to verify failure**
 
 Run: `pytest tests/test_action.py -v`
 Expected: `ImportError: cannot import name 'ActionKind' from 'codeguard.action'` (module not found)
 
-- [ ] **Step 3: Implement Action data models**
+- [x] **Step 3: Implement Action data models**
 
 Write `codeguard/action.py`:
 ```python
@@ -622,7 +622,7 @@ class LLMResponse:
     raw_response: str
 ```
 
-- [ ] **Step 4: Run to verify pass**
+- [x] **Step 4: Run to verify pass**
 
 Run: `pytest tests/test_action.py -v`
 Expected: 5 passed
@@ -633,7 +633,7 @@ Expected: 5 passed
 
 Check: SPEC §6.3 — ActionKind has TOOL_CALL and COMPLETE_REQUEST. Action has kind, tool_name, parameters, summary, raw. NormalizedAction has action_fingerprint. LLMResponse has content, next_action, finish_reason, model, token_used, cost_used, raw_response.
 
-- [ ] **Step 7: Code quality review**
+- [x] **Step 7: Code quality review**
 
 Check: All dataclasses use `@dataclass` decorator. No methods on data objects. Optional fields use `Optional` type hint. `action_fingerprint` is a plain string hash.
 
@@ -755,12 +755,12 @@ def test_approval_result_with_enum():
     assert ar.decision == ApprovalStatus.APPROVED
 ```
 
-- [ ] **Step 2: Run to verify failure**
+- [x] **Step 2: Run to verify failure**
 
 Run: `pytest tests/test_data_models_core.py -v`
 Expected: ImportErrors
 
-- [ ] **Step 3: Implement data models**
+- [x] **Step 3: Implement data models**
 
 Append to `codeguard/state.py`:
 ```python
@@ -871,7 +871,7 @@ class FakeClock:
         return self._now >= deadline
 ```
 
-- [ ] **Step 4: Run to verify pass**
+- [x] **Step 4: Run to verify pass**
 
 Run: `pytest tests/test_data_models_core.py -v`
 Expected: 5 passed
@@ -882,7 +882,7 @@ Expected: 5 passed
 
 Check: SPEC §6.4 GuardrailResult uses GuardrailDecision enum (BLOCK/REQUEST_APPROVAL/ALLOW). SPEC §6.7 SessionState matches all fields. SPEC §6.8 SessionResult matches. SPEC §6.9 ApprovalRequest uses ApprovalStatus enum (PENDING/APPROVED/REJECTED/TIMEOUT). FakeClock implements injectable clock pattern.
 
-- [ ] **Step 7: Code quality review**
+- [x] **Step 7: Code quality review**
 
 Check: SessionState uses `field(default_factory=...)` for mutable defaults. GuardrailResult uses GuardrailDecision enum, not plain string. ApprovalRequest uses ApprovalStatus enum, not plain string. FakeClock is a simple class with `is_expired()` method.
 
@@ -1117,12 +1117,12 @@ def test_failure_category_enum():
     assert FailureCategory.LINT_ERROR.value == "LINT_ERROR"
 ```
 
-- [ ] **Step 2: Run to verify failure**
+- [x] **Step 2: Run to verify failure**
 
 Run: `pytest tests/test_data_models_remaining.py -v`
 Expected: ImportErrors
 
-- [ ] **Step 3: Implement all remaining data models**
+- [x] **Step 3: Implement all remaining data models**
 
 Create `codeguard/tool/__init__.py`:
 ```python
@@ -1348,7 +1348,7 @@ class EffectiveConfig:
     source: dict[str, str] = field(default_factory=dict)
 ```
 
-- [ ] **Step 4: Run to verify pass**
+- [x] **Step 4: Run to verify pass**
 
 Run: `pytest tests/test_data_models_remaining.py -v`
 Expected: 15 passed
@@ -1359,7 +1359,7 @@ Expected: 15 passed
 
 Check: SPEC §6.5 ToolResult — status, output_summary, diagnostics, exit_code, changed_files, duration, truncated, error_category, audit_id. No token_used/cost_used per R012 correction. SPEC §6.6 ToolDefinition — all fields present. SPEC §6.10 FeedbackResult — three-layer classification fields. SPEC §6.12 Diagnostic — file, line, column, code, message, category. SPEC §6.13 MemoryRecord — 4 MemoryType values match C6 decision. SPEC §6.14 Config models — WorkspaceConfig, LLMConfig, LoopConfig, ToolsConfig, SensorsConfig, MemoryConfig, UIConfig, ApprovalConfig, EffectiveConfig.
 
-- [ ] **Step 7: Code quality review**
+- [x] **Step 7: Code quality review**
 
 Check: All config models use `field(default_factory=...)` for mutable defaults (list, dict, set). `EffectiveConfig` has defaults for all fields, making it constructable without arguments. `ToolResult` has no `token_used`/`cost_used` per SPEC.
 
@@ -1394,7 +1394,7 @@ git push github task-1.5-remaining-models
 
 **Worktree:** main, branch `task-2.1-scripted-mock-llm`
 
-- [ ] **Step 1: Write failing test**
+- [x] **Step 1: Write failing test**
 
 Write `tests/test_llm_mock.py`:
 ```python
@@ -1433,12 +1433,12 @@ def test_scripted_mock_generate_signature():
     assert isinstance(mock, LLMClient)
 ```
 
-- [ ] **Step 2: Run to verify failure**
+- [x] **Step 2: Run to verify failure**
 
 Run: `pytest tests/test_llm_mock.py -v`
 Expected: `ImportError: cannot import name 'ScriptedMockLLM' from 'codeguard.llm.mock'` (module not found)
 
-- [ ] **Step 3: Implement ScriptedMockLLM**
+- [x] **Step 3: Implement ScriptedMockLLM**
 
 Create `codeguard/llm/__init__.py`:
 ```python
@@ -1488,7 +1488,7 @@ class ScriptedMockLLM:
         )
 ```
 
-- [ ] **Step 4: Run to verify pass**
+- [x] **Step 4: Run to verify pass**
 
 Run: `pytest tests/test_llm_mock.py -v`
 Expected: 4 passed
@@ -1499,7 +1499,7 @@ Expected: 4 passed
 
 Check: SPEC §5.3 — LLMClient protocol with generate(session_id, context) -> LLMResponse. ScriptedMockLLM returns LLMResponse with content, next_action, finish_reason, model, token_used, cost_used, raw_response.
 
-- [ ] **Step 7: Code quality review**
+- [x] **Step 7: Code quality review**
 
 Check: ScriptedMockLLM is a simple class, not a mock framework. No external dependencies. `call_count` is a public attribute for test assertions. Uses `StopIteration` (built-in) for exhaustion.
 
@@ -1565,12 +1565,12 @@ def test_loop_transition_saves_old_state():
     assert last["to"] == AgentState.BUILDING_CONTEXT.value
 ```
 
-- [ ] **Step 2: Run to verify failure**
+- [x] **Step 2: Run to verify failure**
 
 Run: `pytest tests/test_loop.py -v`
 Expected: `ImportError: cannot import name 'AgentLoop' from 'codeguard.loop'` (module not found)
 
-- [ ] **Step 3: Implement minimal AgentLoop**
+- [x] **Step 3: Implement minimal AgentLoop**
 
 Write `codeguard/loop.py`:
 ```python
@@ -1622,7 +1622,7 @@ class AgentLoop:
         )
 ```
 
-- [ ] **Step 4: Run to verify pass**
+- [x] **Step 4: Run to verify pass**
 
 Run: `pytest tests/test_loop.py -v`
 Expected: 3 passed
@@ -1633,7 +1633,7 @@ Expected: 3 passed
 
 Check: SPEC §3.1 — AgentLoop is the central state machine driver. SPEC §7.1 — INITIALIZING → BUILDING_CONTEXT is the first transition. SPEC §7.2 — `_transition` records old state before changing (needed for Tracer integration).
 
-- [ ] **Step 7: Code quality review**
+- [x] **Step 7: Code quality review**
 
 Check: `AgentLoop.__init__` takes only `session_id` and `llm` as required args. All other components are injected later or via composition root. `_transition` is a private method. `trace` is a list of dicts (will be replaced by Tracer later).
 
@@ -1869,7 +1869,7 @@ def test_loop_verifier_fails_goes_to_feeding_back():
 Run: `pytest tests/test_loop.py -v`
 Expected: At least 8 new tests fail (AgentLoop.run() does not yet implement full state machine)
 
-- [ ] **Step 3: Implement full state machine in loop.py**
+- [x] **Step 3: Implement full state machine in loop.py**
 
 Replace `codeguard/loop.py`:
 ```python
@@ -2057,7 +2057,7 @@ class AgentLoop:
         )
 ```
 
-- [ ] **Step 4: Run to verify pass**
+- [x] **Step 4: Run to verify pass**
 
 Run: `pytest tests/test_loop.py -v`
 Expected: 11 tests passed (3 from Task 2.2 + 8 new)
@@ -2068,7 +2068,7 @@ Expected: 11 tests passed (3 from Task 2.2 + 8 new)
 
 Check: SPEC §3.1 — All 13 states are reachable. SPEC §7.1 — State transition matrix: INITIALIZING→BUILDING_CONTEXT→DECIDING→GOVERNING→(AWAITING_APPROVAL|EXECUTING)→INTERMEDIATE_VALIDATION→FEEDING_BACK→DECIDING (loop). COMPLETE_REQUEST→FINAL_VALIDATION→COMPLETED. BLOCK→FEEDING_BACK. REJECT/TIMEOUT→CANCELLED. StopPolicy→LIMIT_REACHED/FAILED.
 
-- [ ] **Step 7: Code quality review**
+- [x] **Step 7: Code quality review**
 
 Check: `run()` is a single loop with clear stages. Each stage is gated by `if component:` to allow gradual assembly. No Fake components referenced in production code — all Fakes are in test code only. `_check_stop()` is a separate method for testability.
 
@@ -2099,7 +2099,7 @@ git push github task-2.3-full-state-machine
 
 **Worktree:** main, branch `task-2.4-context-builder`
 
-- [ ] **Step 1: Write failing test**
+- [x] **Step 1: Write failing test**
 
 Write `tests/test_context.py`:
 ```python
@@ -2146,12 +2146,12 @@ def test_context_builder_no_tool_descriptions():
     assert "No tools available" in context
 ```
 
-- [ ] **Step 2: Run to verify failure**
+- [x] **Step 2: Run to verify failure**
 
 Run: `pytest tests/test_context.py -v`
 Expected: `ImportError: cannot import name 'ContextBuilder' from 'codeguard.context'`
 
-- [ ] **Step 3: Implement ContextBuilder**
+- [x] **Step 3: Implement ContextBuilder**
 
 Write `codeguard/context.py`:
 ```python
@@ -2184,7 +2184,7 @@ class ContextBuilder:
         return "\n".join(parts)
 ```
 
-- [ ] **Step 4: Run to verify pass**
+- [x] **Step 4: Run to verify pass**
 
 Run: `pytest tests/test_context.py -v`
 Expected: 3 passed
@@ -2195,7 +2195,7 @@ Expected: 3 passed
 
 Check: SPEC §3.1 — ContextBuilder produces structured context from system prompt, task description, memory records, and tool descriptions.
 
-- [ ] **Step 7: Code quality review**
+- [x] **Step 7: Code quality review**
 
 Check: `build()` returns a single formatted string. No side effects. No external dependencies beyond `MemoryRecord` dataclass.
 
@@ -2261,12 +2261,12 @@ def test_action_parser_missing_action_field():
         parser.parse(json.dumps({"tool": "read_file"}))
 ```
 
-- [ ] **Step 2: Run to verify failure**
+- [x] **Step 2: Run to verify failure**
 
 Run: `pytest tests/test_action.py -v`
 Expected: 4 new tests fail (ActionParser not defined)
 
-- [ ] **Step 3: Implement ActionParser**
+- [x] **Step 3: Implement ActionParser**
 
 Append to `codeguard/action.py`:
 ```python
@@ -2302,7 +2302,7 @@ class ActionParser:
             raise ValueError(f"Unknown action type: {action_type}")
 ```
 
-- [ ] **Step 4: Run to verify pass**
+- [x] **Step 4: Run to verify pass**
 
 Run: `pytest tests/test_action.py -v`
 Expected: 9 passed (5 from Task 1.3 + 4 new)
@@ -2313,7 +2313,7 @@ Expected: 9 passed (5 from Task 1.3 + 4 new)
 
 Check: SPEC §3.1 — ActionParser converts LLM output to Action. Handles TOOL_CALL and COMPLETE_REQUEST. Raises errors for invalid input.
 
-- [ ] **Step 7: Code quality review**
+- [x] **Step 7: Code quality review**
 
 Check: `parse()` raises `ValueError` for all error cases (invalid JSON, missing field, unknown type). No fallback to default action (fail fast).
 
@@ -2398,7 +2398,7 @@ def test_redact_multiple_api_keys():
 Run: `python -m pytest tests/test_secret_redactor.py -v`
 Expected: `ModuleNotFoundError: No module named 'codeguard.secret'` (or `ImportError` — both indicate the module/class does not exist yet, which is the correct RED state)
 
-- [ ] **Step 3: Implement SecretRedactor**
+- [x] **Step 3: Implement SecretRedactor**
 
 Write `codeguard/secret.py`:
 ```python
@@ -2473,7 +2473,7 @@ Expected: 6 passed
 
 Check: SPEC §4.1 — SecretRedactor uses regex patterns. Applied before storing in logs/traces/results. Preserves non-sensitive content. Configurable max_length.
 
-- [ ] **Step 7: Code quality review**
+- [x] **Step 7: Code quality review**
 
 Check: `redact()` is idempotent (applying twice produces same result). No external dependencies. Simple regex-based approach (no ML/heuristics). Generic credential patterns do not double-redact `sk-` prefixed values.
 
@@ -2548,12 +2548,12 @@ def test_list_tools():
     assert len(names) == 2
 ```
 
-- [ ] **Step 2: Run to verify failure**
+- [x] **Step 2: Run to verify failure**
 
 Run: `pytest tests/test_tool_registry.py -v`
 Expected: `ImportError: cannot import name 'ToolRegistry' from 'codeguard.tool.registry'`
 
-- [ ] **Step 3: Implement ToolRegistry**
+- [x] **Step 3: Implement ToolRegistry**
 
 Write `codeguard/tool/registry.py`:
 ```python
@@ -2579,7 +2579,7 @@ class ToolRegistry:
         return list(self._tools.values())
 ```
 
-- [ ] **Step 4: Run to verify pass**
+- [x] **Step 4: Run to verify pass**
 
 Run: `pytest tests/test_tool_registry.py -v`
 Expected: 4 passed
@@ -2590,7 +2590,7 @@ Expected: 4 passed
 
 Check: SPEC §3.6 — ToolRegistry allows registration, lookup by name, listing. Unknown tool raises KeyError. Duplicate raises ValueError.
 
-- [ ] **Step 7: Code quality review**
+- [x] **Step 7: Code quality review**
 
 Check: `ToolRegistry` is thread-safe for reads (dict lookup is atomic in CPython). Writes are not thread-safe, but the harness is single-threaded.
 
@@ -2663,12 +2663,12 @@ def test_search_text(temp_workspace):
     assert "main.py" in result["matches"]
 ```
 
-- [ ] **Step 2: Run to verify failure**
+- [x] **Step 2: Run to verify failure**
 
 Run: `pytest tests/test_file_tools.py -v`
 Expected: `ImportError: cannot import name 'read_file' from 'codeguard.tool.file_tools'`
 
-- [ ] **Step 3: Implement file read tools**
+- [x] **Step 3: Implement file read tools**
 
 Write `codeguard/tool/file_tools.py`:
 ```python
@@ -2717,7 +2717,7 @@ def search_text(params: dict, workspace_root: str = "") -> dict:
     return {"matches": matches, "pattern": pattern}
 ```
 
-- [ ] **Step 4: Run to verify pass**
+- [x] **Step 4: Run to verify pass**
 
 Run: `pytest tests/test_file_tools.py -v`
 Expected: 6 passed
@@ -2728,7 +2728,7 @@ Expected: 6 passed
 
 Check: SPEC §3.6 — read_file reads content. list_directory lists entries. find_files uses glob. search_text searches within files. All enforce workspace boundary.
 
-- [ ] **Step 7: Code quality review**
+- [x] **Step 7: Code quality review**
 
 Check: `_resolve_path` is a shared validation function. All functions return dict (not ToolResult — ToolDispatcher wraps them). Workspace boundary is enforced at the path resolution level.
 
@@ -2822,12 +2822,12 @@ def test_delete_file(temp_workspace):
     assert not path.exists()
 ```
 
-- [ ] **Step 2: Run to verify failure**
+- [x] **Step 2: Run to verify failure**
 
 Run: `pytest tests/test_file_tools.py -v`
 Expected: 7 new tests fail (write_file, apply_patch, delete_file not defined)
 
-- [ ] **Step 3: Implement write tools**
+- [x] **Step 3: Implement write tools**
 
 Append to `codeguard/tool/file_tools.py`:
 ```python
@@ -2887,7 +2887,7 @@ def delete_file(params: dict, workspace_root: str = "") -> dict:
     return {"status": "SUCCESS", "path": str(target)}
 ```
 
-- [ ] **Step 4: Run to verify pass**
+- [x] **Step 4: Run to verify pass**
 
 Run: `pytest tests/test_file_tools.py -v`
 Expected: 13 passed (6 read + 7 write)
@@ -2898,7 +2898,7 @@ Expected: 13 passed (6 read + 7 write)
 
 Check: SPEC §3.6 — write_file with SHA-256 fingerprint for conflict detection. Atomic write via tempfile+rename. apply_patch with context match. delete_file. All enforce workspace boundary.
 
-- [ ] **Step 7: Code quality review**
+- [x] **Step 7: Code quality review**
 
 Check: `write_file` uses `os.replace()` for atomic write (atomic on POSIX, near-atomic on Windows). `apply_patch` does a single replacement (not regex). `delete_file` checks existence before unlinking.
 
@@ -2959,12 +2959,12 @@ def test_run_process_captures_stderr(temp_workspace):
     assert "error" in result["stderr"]
 ```
 
-- [ ] **Step 2: Run to verify failure**
+- [x] **Step 2: Run to verify failure**
 
 Run: `pytest tests/test_process_tool.py -v`
 Expected: `ImportError: cannot import name 'run_process' from 'codeguard.tool.process_tool'`
 
-- [ ] **Step 3: Implement run_process**
+- [x] **Step 3: Implement run_process**
 
 Write `codeguard/tool/process_tool.py`:
 ```python
@@ -3007,7 +3007,7 @@ def run_process(params: dict, workspace_root: str = "") -> dict:
         raise TimeoutError(f"Process '{program}' timed out after {timeout}s")
 ```
 
-- [ ] **Step 4: Run to verify pass**
+- [x] **Step 4: Run to verify pass**
 
 Run: `pytest tests/test_process_tool.py -v`
 Expected: 5 passed
@@ -3018,7 +3018,7 @@ Expected: 5 passed
 
 Check: SPEC §3.6 — structured program+args, no shell=True, timeout enforcement, cwd support, stdout/stderr capture.
 
-- [ ] **Step 7: Code quality review**
+- [x] **Step 7: Code quality review**
 
 Check: `subprocess.run` with `shell=False` prevents shell injection. `_validate_args` blocks shell metacharacters as defense-in-depth. `capture_output=True` prevents output to terminal.
 
@@ -3093,12 +3093,12 @@ def test_dispatch_applies_secret_redactor(temp_workspace):
     assert "sk-1234567890abcdef" not in result.output_summary
 ```
 
-- [ ] **Step 2: Run to verify failure**
+- [x] **Step 2: Run to verify failure**
 
 Run: `pytest tests/test_tool_dispatcher.py -v`
 Expected: `ImportError: cannot import name 'ToolDispatcher' from 'codeguard.tool.dispatcher'`
 
-- [ ] **Step 3: Implement ToolDispatcher**
+- [x] **Step 3: Implement ToolDispatcher**
 
 Write `codeguard/tool/dispatcher.py`:
 ```python
@@ -3158,7 +3158,7 @@ class ToolDispatcher:
         )
 ```
 
-- [ ] **Step 4: Run to verify pass**
+- [x] **Step 4: Run to verify pass**
 
 Run: `pytest tests/test_tool_dispatcher.py -v`
 Expected: 3 passed
@@ -3169,7 +3169,7 @@ Expected: 3 passed
 
 Check: SPEC §3.6 — ToolDispatcher routes to correct handler. TOCTOU re-validation via handler's own path resolution. SecretRedactor wraps output. ToolResult has correct status/error_category.
 
-- [ ] **Step 7: Code quality review**
+- [x] **Step 7: Code quality review**
 
 Check: Error handling categorizes exceptions into FAILURE/TIMEOUT/ERROR. SecretRedactor is applied before storage. Output is truncated to 1000 chars in summary.
 
@@ -3975,12 +3975,12 @@ def test_sensor_runner_failure(temp_workspace):
     assert result.exit_code == 1
 ```
 
-- [ ] **Step 2: Run to verify failure**
+- [x] **Step 2: Run to verify failure**
 
 Run: `pytest tests/test_sensor_runner.py -v`
 Expected: ImportErrors
 
-- [ ] **Step 3: Implement SensorRunner**
+- [x] **Step 3: Implement SensorRunner**
 
 Write `codeguard/feedback/sensor.py`:
 ```python
@@ -4110,12 +4110,12 @@ def test_generic_parser():
     assert result["failure_category"] == "UNKNOWN_FAILURE"
 ```
 
-- [ ] **Step 2: Run to verify failure**
+- [x] **Step 2: Run to verify failure**
 
 Run: `pytest tests/test_parsers.py -v`
 Expected: ImportErrors
 
-- [ ] **Step 3: Implement parsers**
+- [x] **Step 3: Implement parsers**
 
 Write `codeguard/feedback/parsers.py`:
 ```python
@@ -4892,12 +4892,12 @@ def test_store_atomic_write(temp_workspace):
     assert len(data["records"]) == 1
 ```
 
-- [ ] **Step 2: Run to verify failure**
+- [x] **Step 2: Run to verify failure**
 
 Run: `pytest tests/test_memory_store.py -v`
 Expected: ImportErrors
 
-- [ ] **Step 3: Implement JSONMemoryStore**
+- [x] **Step 3: Implement JSONMemoryStore**
 
 Write `codeguard/memory/store.py`:
 ```python
@@ -4960,7 +4960,7 @@ class JSONMemoryStore:
         return records
 ```
 
-- [ ] **Step 4: Run to verify pass**
+- [x] **Step 4: Run to verify pass**
 
 Run: `pytest tests/test_memory_store.py -v`
 Expected: 6 passed
@@ -4971,7 +4971,7 @@ Expected: 6 passed
 
 Check: SPEC §3.7 — JSONMemoryStore with atomic write (tempfile+rename), project-scoped, max_records enforcement, get/list operations.
 
-- [ ] **Step 7: Code quality review**
+- [x] **Step 7: Code quality review**
 
 Check: `_save_atomically` uses `os.replace()` for atomicity. `_load` returns empty structure for missing files. `save()` checks max_records before writing.
 
@@ -5077,12 +5077,12 @@ def test_retrieve_sort_by_trust(temp_workspace):
     assert results[0].trust_level == TrustLevel.USER_APPROVED
 ```
 
-- [ ] **Step 2: Run to verify failure**
+- [x] **Step 2: Run to verify failure**
 
 Run: `pytest tests/test_memory_retriever.py -v`
 Expected: ImportErrors
 
-- [ ] **Step 3: Implement MemoryRetriever**
+- [x] **Step 3: Implement MemoryRetriever**
 
 Write `codeguard/memory/retriever.py`:
 ```python
@@ -5130,7 +5130,7 @@ class MemoryRetriever:
         return records
 ```
 
-- [ ] **Step 4: Run to verify pass**
+- [x] **Step 4: Run to verify pass**
 
 Run: `pytest tests/test_memory_retriever.py -v`
 Expected: 5 passed
@@ -5141,7 +5141,7 @@ Expected: 5 passed
 
 Check: SPEC §3.7 — MemoryRetriever filters by type/tag/keyword. Excludes PENDING, REJECTED, ARCHIVED, DELETED. Sorts by trust_level + updated_at. Applies top_k and context_budget.
 
-- [ ] **Step 7: Code quality review**
+- [x] **Step 7: Code quality review**
 
 Check: `_TRUST_ORDER` dict maps TrustLevel to int for sorting. Context budget accumulates content length and stops when exceeded.
 
@@ -5213,12 +5213,12 @@ def test_unknown_type_rejected(temp_workspace):
         store.propose_write(_make_record(type="unknown_type"))
 ```
 
-- [ ] **Step 2: Run to verify failure**
+- [x] **Step 2: Run to verify failure**
 
 Run: `pytest tests/test_memory_store.py -v`
 Expected: 4 new tests fail (propose_write, approve_memory, reject_memory not defined)
 
-- [ ] **Step 3: Implement lifecycle methods**
+- [x] **Step 3: Implement lifecycle methods**
 
 Append to `codeguard/memory/store.py`:
 ```python
@@ -5247,7 +5247,7 @@ Append to `codeguard/memory/store.py`:
         raise ValueError(f"Record {record_id} not found")
 ```
 
-- [ ] **Step 4: Run to verify pass**
+- [x] **Step 4: Run to verify pass**
 
 Run: `pytest tests/test_memory_store.py -v`
 Expected: 10 passed (6 from Task 9.1 + 4 new)
@@ -5258,7 +5258,7 @@ Expected: 10 passed (6 from Task 9.1 + 4 new)
 
 Check: SPEC §3.7 — memory_propose_write creates PENDING. approve_memory -> ACTIVE. reject_memory -> REJECTED. Unknown type rejected. LLM cannot create ACTIVE directly.
 
-- [ ] **Step 7: Code quality review**
+- [x] **Step 7: Code quality review**
 
 Check: `propose_write` validates the type enum before saving. `approve_memory` and `reject_memory` modify in-place and re-save atomically.
 
@@ -5339,12 +5339,12 @@ def test_loader_type_error_fails(temp_workspace):
         loader.load_file(str(path))
 ```
 
-- [ ] **Step 2: Run to verify failure**
+- [x] **Step 2: Run to verify failure**
 
 Run: `pytest tests/test_config_loader.py -v`
 Expected: ImportErrors
 
-- [ ] **Step 3: Implement ConfigLoader**
+- [x] **Step 3: Implement ConfigLoader**
 
 Write `codeguard/config/loader.py`:
 ```python
@@ -5373,7 +5373,7 @@ class ConfigLoader:
         return data
 ```
 
-- [ ] **Step 4: Run to verify pass**
+- [x] **Step 4: Run to verify pass**
 
 Run: `pytest tests/test_config_loader.py -v`
 Expected: 3 passed (1 may fail depending on error handling — adjust as needed)
@@ -5384,7 +5384,7 @@ Expected: 3 passed (1 may fail depending on error handling — adjust as needed)
 
 Check: SPEC §3.8 — ConfigLoader loads TOML, validates known sections, returns defaults for missing file. Unknown sections raise error.
 
-- [ ] **Step 7: Code quality review**
+- [x] **Step 7: Code quality review**
 
 Check: Uses `tomllib` (Python 3.12 standard library). Missing file returns empty dict (not error). TOMLDecodeError is caught and re-raised as ValueError.
 
@@ -5468,12 +5468,12 @@ def test_merge_empty_project_config():
     assert merged["workspace"]["project_root"] == "/user"
 ```
 
-- [ ] **Step 2: Run to verify failure**
+- [x] **Step 2: Run to verify failure**
 
 Run: `pytest tests/test_config_merger.py -v`
 Expected: ImportErrors
 
-- [ ] **Step 3: Implement ConfigMerger**
+- [x] **Step 3: Implement ConfigMerger**
 
 Write `codeguard/config/merger.py`:
 ```python
@@ -5556,7 +5556,7 @@ class ConfigMerger:
             return project_val if project_val is not None else user_val
 ```
 
-- [ ] **Step 4: Run to verify pass**
+- [x] **Step 4: Run to verify pass**
 
 Run: `pytest tests/test_config_merger.py -v`
 Expected: 7 passed
@@ -5567,7 +5567,7 @@ Expected: 7 passed
 
 Check: SPEC §3.8 — 31 merge rules table. Intersection for enabled_tools/required_sensors. Union for disabled_tools/protected_paths/excluded_paths. Stricter for max_steps/timeout/budget. project_only_shortens for approval_timeout. user_or_cli_only for cli_timeout. CLI overrides take precedence.
 
-- [ ] **Step 7: Code quality review**
+- [x] **Step 7: Code quality review**
 
 Check: `_MERGE_RULES` dict is a single source of truth. Missing rules default to "override" (project overrides user). All numeric comparisons use `min()` for "stricter" (lower is safer).
 
@@ -5680,12 +5680,12 @@ def test_adapter_llm_response_content():
     assert response.token_used == 5
 ```
 
-- [ ] **Step 2: Run to verify failure**
+- [x] **Step 2: Run to verify failure**
 
 Run: `pytest tests/test_llm_deepseek.py -v`
 Expected: ImportErrors
 
-- [ ] **Step 3: Implement DeepSeekAdapter**
+- [x] **Step 3: Implement DeepSeekAdapter**
 
 Write `codeguard/llm/deepseek.py`:
 ```python
@@ -5748,7 +5748,7 @@ class DeepSeekAdapter:
             raise TimeoutError(f"DeepSeek API request timed out after {self._timeout}s")
 ```
 
-- [ ] **Step 4: Run to verify pass**
+- [x] **Step 4: Run to verify pass**
 
 Run: `pytest tests/test_llm_deepseek.py -v`
 Expected: 5 passed (all offline, using mock HTTP transport)
@@ -5785,7 +5785,7 @@ if __name__ == "__main__":
 
 Check: SPEC §5.3 — DeepSeekAdapter implements LLMClient protocol. Uses OpenAI-compatible HTTP API. Offline tests with mock transport. Smoke test is manual only.
 
-- [ ] **Step 7: Code quality review**
+- [x] **Step 7: Code quality review**
 
 Check: `httpx.Client` is injectable for testing. The mock transport pattern (`httpx.MockTransport`) is used in ALL tests. No conditional skip logic. Real API calls only in `scripts/deepseek_smoke_test.py`.
 
@@ -5861,12 +5861,12 @@ def test_keyring_update():
     assert store.get("deepseek") == "sk-new-key"
 ```
 
-- [ ] **Step 2: Run to verify failure**
+- [x] **Step 2: Run to verify failure**
 
 Run: `pytest tests/test_cli.py -v`
 Expected: ImportErrors
 
-- [ ] **Step 3: Implement KeyringCredentialStore**
+- [x] **Step 3: Implement KeyringCredentialStore**
 
 Write `codeguard/cli/key_cmd.py`:
 ```python
@@ -5895,7 +5895,7 @@ class KeyringCredentialStore:
         keyring.delete_password(_SERVICE_NAME, provider)
 ```
 
-- [ ] **Step 4: Run to verify pass**
+- [x] **Step 4: Run to verify pass**
 
 Run: `pytest tests/test_cli.py -v`
 Expected: 5 passed
@@ -5906,7 +5906,7 @@ Expected: 5 passed
 
 Check: SPEC §8.1 — KeyringCredentialStore uses Windows Credential Manager. Keys are masked in status output. Fail closed when keyring unavailable.
 
-- [ ] **Step 7: Code quality review**
+- [x] **Step 7: Code quality review**
 
 Check: Uses `keyring` library (cross-platform, uses Windows Credential Manager on Windows). `get()` returns None for missing keys (not raises). `status()` masks the key.
 
@@ -6009,12 +6009,12 @@ def test_composition_root_local_mode():
         root.create_loop(session_id="local-session")
 ```
 
-- [ ] **Step 2: Run to verify failure**
+- [x] **Step 2: Run to verify failure**
 
 Run: `pytest tests/test_composition_root.py -v`
 Expected: ImportErrors
 
-- [ ] **Step 3: Implement CompositionRoot**
+- [x] **Step 3: Implement CompositionRoot**
 
 Write `codeguard/composition.py`:
 ```python
@@ -6155,7 +6155,7 @@ class CompositionRoot:
         return loop
 ```
 
-- [ ] **Step 4: Run to verify pass**
+- [x] **Step 4: Run to verify pass**
 
 Run: `pytest tests/test_composition_root.py -v`
 Expected: 4 passed
@@ -6166,7 +6166,7 @@ Expected: 4 passed
 
 Check: SPEC §5.1 — CompositionRoot assembles components. Test mode uses ScriptedMockLLM. Demo mode uses all mock components. Local mode uses real components. Demo mode doesn't import real components.
 
-- [ ] **Step 7: Code quality review**
+- [x] **Step 7: Code quality review**
 
 Check: Lazy imports in `_create_local_loop` ensure demo mode never imports real components. `_create_demo_loop` uses only ScriptedMockLLM.
 
@@ -6202,7 +6202,7 @@ git push github task-13.1-composition-root
 
 **File boundary:** Only `tests/test_integration_guardrail_feedback.py`
 
-- [ ] **Step 1: Write failing test**
+- [x] **Step 1: Write failing test**
 
 Write `tests/test_integration_guardrail_feedback.py`:
 ```python
@@ -6251,23 +6251,23 @@ def test_scenario_a_block_then_feedback_then_complete():
     assert result.steps_total >= 0
 ```
 
-- [ ] **Step 2: Run to verify failure**
+- [x] **Step 2: Run to verify failure**
 
 Run: `pytest tests/test_integration_guardrail_feedback.py::test_scenario_a_block_then_feedback_then_complete -v`
 Expected: FAIL (loop may not handle BLOCK+feedback correctly yet)
 
-- [ ] **Step 3: Implement test fix** — adjust the test to match the actual loop behavior. The loop's BLOCK handling redirects to FEEDING_BACK then DECIDING, which should work with the two-phase script.
+- [x] **Step 3: Implement test fix** — adjust the test to match the actual loop behavior. The loop's BLOCK handling redirects to FEEDING_BACK then DECIDING, which should work with the two-phase script.
 
-- [ ] **Step 4: Run to verify pass**
+- [x] **Step 4: Run to verify pass**
 
 Run: `pytest tests/test_integration_guardrail_feedback.py::test_scenario_a_block_then_feedback_then_complete -v`
 Expected: PASS
 
-- [ ] **Step 5: SPEC compliance review**
+- [x] **Step 5: SPEC compliance review**
 
 Check: SPEC §10.1 — Scenario A demonstrates governance-driven loop: BLOCK -> feedback -> change -> COMPLETED.
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 git add tests/test_integration_guardrail_feedback.py
@@ -6368,12 +6368,12 @@ def test_scenario_b_timeout():
     assert result.steps_total == 0  # tool was NOT executed
 ```
 
-- [ ] **Step 2: Run to verify failure**
+- [x] **Step 2: Run to verify failure**
 
 Run: `pytest tests/test_integration_guardrail_feedback.py -k "scenario_b" -v`
 Expected: tests fail (AgentLoop.resume_with_approval not implemented, or wrong assertions)
 
-- [ ] **Step 3: Implement**
+- [x] **Step 3: Implement**
 
 Add `resume_with_approval` to `codeguard/loop.py`:
 ```python
@@ -6403,12 +6403,12 @@ if self._check_timeout_hook:
     self._check_timeout_hook(self)
 ```
 
-- [ ] **Step 4: Run to verify pass**
+- [x] **Step 4: Run to verify pass**
 
 Run: `pytest tests/test_integration_guardrail_feedback.py -k "scenario_b" -v`
 Expected: 3 passed
 
-- [ ] **Step 5: SPEC compliance review**
+- [x] **Step 5: SPEC compliance review**
 
 Check: SPEC §10.2 — approve -> COMPLETED with tool execution. reject -> CANCELLED, zero tool calls. timeout -> CANCELLED, zero tool calls. FakeClock deterministic testing.
 
@@ -6434,7 +6434,7 @@ git push github task-14.2-integration-b
 
 **Consumes:** SPEC.md §10.3
 
-- [ ] **Step 1: Write failing test**
+- [x] **Step 1: Write failing test**
 
 Append to `tests/test_integration_guardrail_feedback.py`:
 ```python
@@ -6471,14 +6471,14 @@ def test_scenario_c_fail_repair_cycle():
     assert result.terminal_state == AgentState.COMPLETED
 ```
 
-- [ ] **Step 2: Run to verify failure**
+- [x] **Step 2: Run to verify failure**
 
 Run: `pytest tests/test_integration_guardrail_feedback.py -k "scenario_c" -v`
 Expected: FAIL (loop may not handle feedback correctly)
 
-- [ ] **Step 3: Implement** — fix AgentLoop to properly integrate SensorRunner and FeedbackClassifier after tool execution.
+- [x] **Step 3: Implement** — fix AgentLoop to properly integrate SensorRunner and FeedbackClassifier after tool execution.
 
-- [ ] **Step 4: Run to verify pass**
+- [x] **Step 4: Run to verify pass**
 
 Run: `pytest tests/test_integration_guardrail_feedback.py -k "scenario_c" -v`
 Expected: 1 passed
@@ -6540,14 +6540,14 @@ def test_no_progress_repeated_failure():
     assert result.terminal_state == AgentState.LIMIT_REACHED
 ```
 
-- [ ] **Step 2: Run to verify failure**
+- [x] **Step 2: Run to verify failure**
 
 Run: `pytest tests/test_integration_guardrail_feedback.py -k "no_progress" -v`
 Expected: tests fail (no_progress detection not wired into AgentLoop)
 
-- [ ] **Step 3: Implement** — ensure StopPolicy evaluates at correct state boundaries in AgentLoop.run().
+- [x] **Step 3: Implement** — ensure StopPolicy evaluates at correct state boundaries in AgentLoop.run().
 
-- [ ] **Step 4: Run to verify pass**
+- [x] **Step 4: Run to verify pass**
 
 Run: `pytest tests/test_integration_guardrail_feedback.py -k "no_progress" -v`
 Expected: 2 passed
@@ -6562,6 +6562,21 @@ git push github task-14.4-integration-noprogress
 ```
 
 ---
+
+---
+
+**Phase 14 完成状态**: ✅ COMPLETED (2026-08-06)
+
+| Task | 场景 | Commit | 测试 |
+|------|------|--------|------|
+| 14.1 | Scenario A: BLOCK → feedback → COMPLETED | `a15dc77` | 1 new |
+| 14.2 | Scenario B: approve/reject/timeout | `eb59f02` | 5 new |
+| 14.3 | Scenario C: fail → classify → repair → COMPLETED | `7383a04` | 1 new |
+| 14.4 | No-progress → LIMIT_REACHED | `d29d70a` | 3 new |
+
+**最终测试**: 489 passed, 1 skipped (Windows symlink)
+**生产代码修复**: engine.py, rules.py, loop.py, action.py, state.py
+**测试修复**: test_loop.py, test_guardrail_engine.py
 
 ### Phase 15: CLI
 
@@ -6607,12 +6622,12 @@ def test_config_command_shows():
     assert "workspace" in result or "config" in result.lower()
 ```
 
-- [ ] **Step 2: Run to verify failure**
+- [x] **Step 2: Run to verify failure**
 
 Run: `pytest tests/test_cli.py -v`
 Expected: ImportErrors
 
-- [ ] **Step 3: Implement CLI commands**
+- [x] **Step 3: Implement CLI commands**
 
 Write `codeguard/cli/chat.py`:
 ```python
@@ -6655,7 +6670,7 @@ def config_command(args: list[str]) -> str:
     return "Effective configuration:\n  mode: test\n  workspace: (not set)"
 ```
 
-- [ ] **Step 4: Run to verify pass**
+- [x] **Step 4: Run to verify pass**
 
 Run: `pytest tests/test_cli.py -v`
 Expected: 3 passed (web_command may need adjustment)
@@ -6724,12 +6739,12 @@ async def test_mock_banner_present():
     assert "MOCK" in response.text or "Demo" in response.text
 ```
 
-- [ ] **Step 2: Run to verify failure**
+- [x] **Step 2: Run to verify failure**
 
 Run: `pytest tests/test_web_app.py -v`
 Expected: ImportErrors
 
-- [ ] **Step 3: Implement FastAPI app**
+- [x] **Step 3: Implement FastAPI app**
 
 Write `codeguard/web/app.py`:
 ```python
@@ -6763,7 +6778,7 @@ def create_app(mode: str = "demo") -> FastAPI:
     return app
 ```
 
-- [ ] **Step 4: Run to verify pass**
+- [x] **Step 4: Run to verify pass**
 
 Run: `pytest tests/test_web_app.py -v`
 Expected: 3 passed
@@ -6815,18 +6830,18 @@ async def test_mock_banner_visible():
     assert "MOCK" in response.text or "mock" in response.text.lower()
 ```
 
-- [ ] **Step 2: Run to verify failure**
+- [x] **Step 2: Run to verify failure**
 
 Run: `pytest tests/test_web_scenarios.py -v`
 Expected: ImportErrors (templates not yet created)
 
-- [ ] **Step 3: Implement Jinja2 templates**
+- [x] **Step 3: Implement Jinja2 templates**
 
 Create `codeguard/web/templates/base.html` with Mock banner, nav, and content block.
 Create `codeguard/web/templates/scenarios.html` extending base.html with 3 scenario cards.
 Create `codeguard/web/static/style.css` with Vercel-inspired design tokens.
 
-- [ ] **Step 4: Run to verify pass**
+- [x] **Step 4: Run to verify pass**
 
 Run: `pytest tests/test_web_scenarios.py -v`
 Expected: 2 passed
@@ -6880,17 +6895,17 @@ async def test_dashboard_shows_stepper():
     assert "initializing" in response.text.lower() or "building" in response.text.lower()
 ```
 
-- [ ] **Step 2: Run to verify failure**
+- [x] **Step 2: Run to verify failure**
 
 Run: `pytest tests/test_web_dashboard.py -v`
 Expected: ImportErrors or 404 (dashboard route not created)
 
-- [ ] **Step 3: Implement dashboard.html and main.js**
+- [x] **Step 3: Implement dashboard.html and main.js**
 
 Create `codeguard/web/templates/dashboard.html` with 3-column layout (state machine, guardrail, trace).
 Create `codeguard/web/static/main.js` with polling for session state updates.
 
-- [ ] **Step 4: Run to verify pass**
+- [x] **Step 4: Run to verify pass**
 
 Run: `pytest tests/test_web_dashboard.py -v`
 Expected: 2 passed
@@ -6940,16 +6955,16 @@ async def test_approval_modal_shows_countdown():
     assert "timeout" in response.text.lower() or "second" in response.text.lower() or "countdown" in response.text.lower()
 ```
 
-- [ ] **Step 2: Run to verify failure**
+- [x] **Step 2: Run to verify failure**
 
 Run: `pytest tests/test_web_approval.py -v`
 Expected: ImportErrors or 404
 
-- [ ] **Step 3: Implement approval.html**
+- [x] **Step 3: Implement approval.html**
 
 Create `codeguard/web/templates/approval.html` with approve/reject buttons, countdown timer display, risk summary.
 
-- [ ] **Step 4: Run to verify pass**
+- [x] **Step 4: Run to verify pass**
 
 Run: `pytest tests/test_web_approval.py -v`
 Expected: 2 passed
@@ -6997,16 +7012,16 @@ async def test_results_shows_trace():
     assert "trace" in response.text.lower() or "step" in response.text.lower()
 ```
 
-- [ ] **Step 2: Run to verify failure**
+- [x] **Step 2: Run to verify failure**
 
 Run: `pytest tests/test_web_results.py -v`
 Expected: 404 or ImportError
 
-- [ ] **Step 3: Implement results.html**
+- [x] **Step 3: Implement results.html**
 
 Create `codeguard/web/templates/results.html` with 4 MemoryType display, trace log, final state.
 
-- [ ] **Step 4: Run to verify pass**
+- [x] **Step 4: Run to verify pass**
 
 Run: `pytest tests/test_web_results.py -v`
 Expected: 2 passed
@@ -7082,12 +7097,12 @@ async def test_narrow_screen_approval_operable():
     assert "approve" in response.text.lower() or "reject" in response.text.lower()
 ```
 
-- [ ] **Step 2: Run to verify failure**
+- [x] **Step 2: Run to verify failure**
 
 Run: `pytest tests/test_web_mock_security.py tests/test_web_narrow_screen.py -v`
 Expected: 4 tests fail (mock security and narrow-screen CSS not yet implemented)
 
-- [ ] **Step 3: Implement CSS narrow-screen adaption**
+- [x] **Step 3: Implement CSS narrow-screen adaption**
 
 Add to `codeguard/web/static/style.css`:
 ```css
@@ -7103,7 +7118,7 @@ Add to `codeguard/web/static/style.css`:
 }
 ```
 
-- [ ] **Step 4: Run to verify pass**
+- [x] **Step 4: Run to verify pass**
 
 Run: `pytest tests/test_web_mock_security.py tests/test_web_narrow_screen.py -v`
 Expected: 4 passed
@@ -7151,12 +7166,12 @@ def test_scenario_a_uses_only_mock_components():
     assert mock_fs is not None
 ```
 
-- [ ] **Step 2: Run to verify failure**
+- [x] **Step 2: Run to verify failure**
 
 Run: `pytest tests/test_demo_scenario_a.py -v`
 Expected: ImportErrors
 
-- [ ] **Step 3: Implement scenario_a.py and mock components**
+- [x] **Step 3: Implement scenario_a.py and mock components**
 
 Create `codeguard/demo/scenario_a.py`:
 ```python
@@ -7170,7 +7185,7 @@ def run_scenario_a():
 
 Create mock components (mock_store.py, mock_credential.py, mock_tool_dispatcher.py, mock_fs.py) with simple stub implementations.
 
-- [ ] **Step 4: Run to verify pass**
+- [x] **Step 4: Run to verify pass**
 
 Run: `pytest tests/test_demo_scenario_a.py -v`
 Expected: 2 passed
@@ -7208,12 +7223,12 @@ def test_scenario_b_reject():
     assert result.terminal_state == AgentState.CANCELLED
 ```
 
-- [ ] **Step 2: Run to verify failure**
+- [x] **Step 2: Run to verify failure**
 
 Run: `pytest tests/test_demo_scenario_b.py -v`
 Expected: ImportErrors
 
-- [ ] **Step 3: Implement scenario_b.py**
+- [x] **Step 3: Implement scenario_b.py**
 
 Create `codeguard/demo/scenario_b.py`:
 ```python
@@ -7230,7 +7245,7 @@ def run_scenario_b_reject():
     return loop.run()
 ```
 
-- [ ] **Step 4: Run to verify pass**
+- [x] **Step 4: Run to verify pass**
 
 Run: `pytest tests/test_demo_scenario_b.py -v`
 Expected: 2 passed
@@ -7264,12 +7279,12 @@ def test_scenario_c_completes():
     assert result.terminal_state == AgentState.COMPLETED
 ```
 
-- [ ] **Step 2: Run to verify failure**
+- [x] **Step 2: Run to verify failure**
 
 Run: `pytest tests/test_demo_scenario_c.py -v`
 Expected: ImportErrors
 
-- [ ] **Step 3: Implement scenario_c.py**
+- [x] **Step 3: Implement scenario_c.py**
 
 Create `codeguard/demo/scenario_c.py`:
 ```python
@@ -7281,7 +7296,7 @@ def run_scenario_c():
     return loop.run()
 ```
 
-- [ ] **Step 4: Run to verify pass**
+- [x] **Step 4: Run to verify pass**
 
 Run: `pytest tests/test_demo_scenario_c.py -v`
 Expected: 1 passed
