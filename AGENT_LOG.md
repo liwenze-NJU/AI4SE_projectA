@@ -1607,3 +1607,77 @@
 **复审结果**: PASS — SPEC 合规 31/31，代码质量 0 Critical, 0 Major
 
 **branch/worktree**: feature/mvp-core
+
+---
+
+## Task 11.1: DeepSeekAdapter with offline test
+
+**log_id**: T11.1 | **task_id**: Task 11.1 (DeepSeekAdapter) | **状态**: COMPLETED
+**时间**: 2026-08-06
+**Superpowers 技能**: `superpowers:test-driven-development`
+
+**RED 阶段**: ModuleNotFoundError (httpx → codeguard.llm.deepseek)
+
+**GREEN 阶段**: 15 passed + 432 regression = 447 passed, 1 skipped
+
+**实现**:
+- `DeepSeekAdapter`: 实现 LLMClient 协议，OpenAI-compatible HTTP API
+- httpx.Client 可注入，全部测试使用 MockTransport
+- 处理：4xx/5xx、超时、网络错误、空 choices、畸形 JSON、缺少 content
+- API Key 不在 repr() 或异常中
+- `scripts/deepseek_smoke_test.py`: 仅手动，仅环境变量，不在 pytest/CI
+
+**commit hash**: `9f08e67`
+
+**复审结果**: PASS — SPEC 合规 12/12，代码质量 0 Critical, 0 Major
+
+**branch/worktree**: feature/mvp-core
+
+---
+
+## Task 12.1: KeyringCredentialStore
+
+**log_id**: T12.1 | **task_id**: Task 12.1 (KeyringCredentialStore) | **状态**: COMPLETED
+**时间**: 2026-08-06
+**Superpowers 技能**: `superpowers:test-driven-development`
+
+**RED 阶段**: ModuleNotFoundError: No module named 'codeguard.credentials'
+
+**GREEN 阶段**: 13 passed + 447 regression = 460 passed, 1 skipped
+
+**实现**:
+- `KeyringCredentialStore`: keyring + service_name="codeguard"
+- status() 仅显示 "Set (masked)" / "Not set"，不泄露 Key 或前缀
+- clear() 不存在凭据不报错；fail closed
+- 全部 13 测试使用 FakeKeyringBackend，不访问真实 OS keychain
+
+**commit hash**: `f06e968`
+
+**复审结果**: PASS — SPEC 合规 6/6，代码质量 0 Critical, 0 Major
+
+**branch/worktree**: feature/mvp-core
+
+---
+
+## Task 13.1: CompositionRoot
+
+**log_id**: T13.1 | **task_id**: Task 13.1 (CompositionRoot) | **状态**: COMPLETED
+**时间**: 2026-08-06
+**Superpowers 技能**: `superpowers:test-driven-development`
+
+**RED 阶段**: ModuleNotFoundError: No module named 'codeguard.composition'
+
+**GREEN 阶段**: 19 passed + 460 regression = 479 passed, 1 skipped
+
+**实现**:
+- `CompositionRoot`: Local / Test / Demo 三种装配模式
+- Local: DeepSeekAdapter + KeyringCredentialStore，凭据缺失 fail closed
+- Test: ScriptedMockLLM + 全部核心组件，完全离线
+- Demo: ScriptedMockLLM，对象图中无 deepseek/keyring/credentials 类型
+- 模式不可升级；每次 create_loop() 产生独立实例
+
+**commit hash**: `84255c6`
+
+**复审结果**: PASS — SPEC 合规 9/9，代码质量 0 Critical, 0 Major
+
+**branch/worktree**: feature/mvp-core

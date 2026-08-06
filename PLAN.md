@@ -5607,7 +5607,14 @@ git push github task-10.2-config-merger
 
 **IMPORTANT:** Unit tests use `httpx` mock transport (always offline, never skip). The smoke test `scripts/deepseek_smoke_test.py` is the ONLY script that makes real API calls — it is NOT in CI, NOT auto-run.
 
-- [ ] **Step 1: Write failing tests with mock HTTP transport**
+- [x] **Step 1: Write failing tests** ✅ (15 tests)
+- [x] **Step 2: Run to verify failure** ✅ (ModuleNotFoundError)
+- [x] **Step 3: Implement DeepSeekAdapter** ✅
+- [x] **Step 4: Run to verify pass** ✅ (15 passed)
+- [x] **Step 5: Create smoke test script** ✅
+- [x] **Step 6: SPEC compliance review** ✅ (12/12)
+- [x] **Step 7: Code quality review** ✅ (0 Critical, 0 Major)
+- [x] **Step 8: Commit** ✅ `9f08e67`
 
 Write `tests/test_llm_deepseek.py`:
 ```python
@@ -5811,7 +5818,14 @@ git push github task-11.1-deepseek-adapter
 
 **Worktree:** main, branch `task-12.1-keyring-credential`
 
-- [ ] **Step 1: Write failing tests**
+- [x] **Step 1: Write failing tests** ✅ (13 tests)
+- [x] **Step 2: Run to verify failure** ✅ (ModuleNotFoundError)
+- [x] **Step 3: Implement KeyringCredentialStore** ✅
+- [x] **Step 4: Run to verify pass** ✅ (13 passed)
+- [x] **Step 5: Refactor** ✅ (clean)
+- [x] **Step 6: SPEC compliance review** ✅ (6/6)
+- [x] **Step 7: Code quality review** ✅ (0 Critical, 0 Major)
+- [x] **Step 8: Commit** ✅ `f06e968`
 
 Write `tests/test_cli.py`:
 ```python
@@ -5927,7 +5941,14 @@ git push github task-12.1-keyring-credential
 
 **Pre-commit:** All prior task commits
 
-- [ ] **Step 1: Write failing tests**
+- [x] **Step 1: Write failing tests** ✅ (19 tests)
+- [x] **Step 2: Run to verify failure** ✅ (ModuleNotFoundError)
+- [x] **Step 3: Implement CompositionRoot** ✅
+- [x] **Step 4: Run to verify pass** ✅ (19 passed)
+- [x] **Step 5: Refactor** ✅ (clean)
+- [x] **Step 6: SPEC compliance review** ✅ (9/9)
+- [x] **Step 7: Code quality review** ✅ (0 Critical, 0 Major)
+- [x] **Step 8: Commit** ✅ `84255c6`
 
 Write `tests/test_composition_root.py`:
 ```python
