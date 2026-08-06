@@ -15,9 +15,10 @@ class MockToolDispatcher:
     def __init__(self):
         self.calls: list[Action] = []
 
-    def dispatch(self, action: Action) -> ToolResult:
+    def dispatch(self, action) -> ToolResult:
         self.calls.append(action)
-        params = action.parameters or {}
+        # Accept both Action (raw) and NormalizedAction (approval resume path)
+        params = getattr(action, "parameters", None) or getattr(action, "normalized_parameters", None) or {}
         path = params.get("path", "")
         status = "SUCCESS"
         if action.tool_name == "read_file":

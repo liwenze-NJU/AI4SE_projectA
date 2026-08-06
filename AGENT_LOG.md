@@ -2123,3 +2123,28 @@
 **commit hash**: `1080a04`
 
 **具备进入 Task 17.2 的条件**: 是 — 568 passed, 1 skipped, 0 failed
+
+---
+
+## Task 17.2: Demo Scenario B — approval -> COMPLETED / CANCELLED
+
+**log_id**: T17.2 | **task_id**: Task 17.2 Demo | **状态**: COMPLETED
+**时间**: 2026-08-07
+**Superpowers 技能**: `superpowers:test-driven-development`
+**branch/worktree**: feature/mvp-core
+
+**RED 阶段**: 4 个测试写入 `tests/test_demo_scenario_b.py`，ModuleNotFoundError (codeguard.demo.scenario_b)；实现后修复 1 个 Major：批准恢复路径 dispatch 收到 NormalizedAction（无 .parameters 属性）→ mock_tool_dispatcher 兼容 Action/NormalizedAction
+
+**GREEN 阶段**: 4/4 passed；全量 572 passed, 1 skipped, 0 failed
+
+**实现内容**:
+- `scenario_b.py` — `run_scenario_b_approve()` / `run_scenario_b_reject()` / `run_scenario_b_timeout()`：脚本化 1 步 write_file（副作用动作）→ approval_rule REQUEST_APPROVAL → AWAITING_APPROVAL 暂停 → 批准（指纹绑定 resume）→ EXECUTING → COMPLETED；拒绝/超时 → CANCELLED（零执行）；超时用 FakeClock advance(10) 不真实等待
+- 审批绑定 session_id + request_id + action_fingerprint（复用 ApprovalManager）
+
+**两阶段评审**:
+- 规格合规: PASS — SPEC §3.9 演示场景 2（REQUEST_APPROVAL → AWAITING_APPROVAL → 批准/拒绝/超时）；超时 5s 用 FakeClock
+- 代码质量: 0 Critical, 0 Major — 修复 dispatcher 双类型兼容
+
+**commit hash**: 待提交后补记
+
+**具备进入 Task 17.3 的条件**: 是 — 572 passed, 1 skipped, 0 failed
