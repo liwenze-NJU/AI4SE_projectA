@@ -1286,3 +1286,31 @@
 **复审结果**: PASS — 0 Critical, 0 Major
 
 **branch/worktree**: feature/mvp-core
+
+---
+
+## Task 6.1: SensorRunner
+
+**log_id**: T6.1 | **task_id**: Task 6.1 (SensorRunner) | **状态**: COMPLETED
+**时间**: 2026-08-06
+**Superpowers 技能**: `superpowers:test-driven-development`
+
+**RED 阶段**：ModuleNotFoundError: No module named 'codeguard.feedback.sensor'
+
+**GREEN 阶段**：22 passed + 188 regression = 210 passed（含 Unicode 修复：text=True + errors="replace"）
+
+**实现**：
+- `SensorRunner`: subprocess.run([program, *args], shell=False, text=True, errors="replace")
+- 同时捕获 stdout/stderr，以 `[stdout]`/`[stderr]` 标签组合
+- `time.perf_counter()` 测量实际执行时长（含超时和错误路径）
+- `allowed_exit_codes` 判定 PASSED/FAILED，支持非零允许退出码
+- `output_limit` 截断防止超长输出进入上下文
+- 异常路径：TimeoutExpired → TIMEOUT，FileNotFoundError → UNAVAILABLE
+- 所有路径均返回结构化 FeedbackResult，不抛异常
+- cwd 优先使用 SensorDefinition.cwd
+
+**commit hash**: `544e6e1`
+
+**复审结果**: PASS — 0 Critical, 0 Major
+
+**branch/worktree**: feature/mvp-core

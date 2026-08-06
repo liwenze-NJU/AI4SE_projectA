@@ -3940,7 +3940,7 @@ git push github task-5.4-approval-manager
 
 **File boundary:** Only `codeguard/feedback/sensor.py` and `tests/test_sensor_runner.py`
 
-- [ ] **Step 1: Write failing tests**
+- [x] **Step 1: Write failing tests**
 
 Write `tests/test_sensor_runner.py`:
 ```python
@@ -4027,22 +4027,22 @@ class SensorRunner:
             return FeedbackResult(sensor_id=self._definition.name, program=self._definition.program, args=self._definition.args, status="UNAVAILABLE", failure_category="PROGRAM_NOT_FOUND", exit_code=None, failure_fingerprint=None, validation_type="INTERMEDIATE", summary="Program not found", diagnostics=[], duration=0.0, retryable=False, raw_output_truncated="")
 ```
 
-- [ ] **Step 4: Run to verify pass**
+- [x] **Step 4: Run to verify pass**
 
 Run: `pytest tests/test_sensor_runner.py -v`
 Expected: 4 passed
 
-- [ ] **Step 5: Refactor** — check that `run()` catches all expected exceptions and returns structured FeedbackResult even on failure.
+- [x] **Step 5: Refactor** — check that `run()` catches all expected exceptions and returns structured FeedbackResult even on failure.
 
-- [ ] **Step 6: SPEC compliance review**
+- [x] **Step 6: SPEC compliance review**
 
 Check: SPEC §3.5 — SensorRunner runs sensor via subprocess with program+args. Captures output. Handles timeout and missing program. Returns structured FeedbackResult.
 
-- [ ] **Step 7: Code quality review**
+- [x] **Step 7: Code quality review**
 
 Check: All error paths return FeedbackResult (no unhandled exceptions). Timeout and FileNotFoundError are caught and mapped to appropriate status values.
 
-- [ ] **Step 8: Commit**
+- [x] **Step 8: Commit**
 
 ```bash
 git add codeguard/feedback/sensor.py tests/test_sensor_runner.py
