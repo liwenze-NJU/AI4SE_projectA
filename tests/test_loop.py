@@ -141,14 +141,19 @@ class FakeObjectiveVerifier:
         return self._passed
 
 
+from codeguard.stop import StopPolicy, StopDecision
+
+
 class FakeStopPolicy:
-    """Scriptable stop policy. Returns a string decision or None to continue."""
+    """Scriptable stop policy. Returns a StopDecision or None to continue."""
 
     def __init__(self, decision=None):
         self._decision = decision
 
     def evaluate(self, state):
-        return self._decision
+        if self._decision is None:
+            return None
+        return StopDecision(True, self._decision, "fake")
 
 
 # ---------------------------------------------------------------------------
@@ -264,7 +269,7 @@ def test_loop_limit_reached():
     ])
     loop = AgentLoop(session_id="s1", llm=mock)
     loop.rule_engine = FakeGuardrail(decisions=["ALLOW"])
-    loop.stop_policy = FakeStopPolicy(decision="LIMIT_REACHED")
+    loop.stop_policy = FakeStopPolicy(decision=AgentState.LIMIT_REACHED)
     result = loop.run()
     assert result.terminal_state == AgentState.LIMIT_REACHED
 
@@ -277,7 +282,7 @@ def test_loop_failed():
     ])
     loop = AgentLoop(session_id="s1", llm=mock)
     loop.rule_engine = FakeGuardrail(decisions=["ALLOW"])
-    loop.stop_policy = FakeStopPolicy(decision="FAILED")
+    loop.stop_policy = FakeStopPolicy(decision=AgentState.FAILED)
     result = loop.run()
     assert result.terminal_state == AgentState.FAILED
 
@@ -328,7 +333,7 @@ def test_loop_stop_policy_completed_ignored():
     loop.objective_verifier = FakeObjectiveVerifier(passed=True)
     # stop_policy returns "COMPLETED" — but this should be ignored;
     # only FINAL_VALIDATION can produce COMPLETED
-    loop.stop_policy = FakeStopPolicy(decision="COMPLETED")
+    loop.stop_policy = FakeStopPolicy(decision=AgentState.COMPLETED)
     result = loop.run()
     # COMPLETED must come from FINAL_VALIDATION, not stop_policy shortcut
     assert result.terminal_state == AgentState.COMPLETED

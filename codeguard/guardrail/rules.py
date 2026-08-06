@@ -1,7 +1,19 @@
 import re
 from pathlib import Path
-from codeguard.action import ActionKind, NormalizedAction
+from codeguard.action import Action, ActionKind, NormalizedAction
 from codeguard.tool.registry import ToolRegistry
+
+
+def _get_params(action: Action | NormalizedAction) -> dict:
+    """Extract parameters dict from either Action or NormalizedAction."""
+    if isinstance(action, NormalizedAction):
+        return action.normalized_parameters or {}
+    return action.parameters or {}
+
+
+def _get_tool_name(action: Action | NormalizedAction) -> str:
+    """Extract tool_name from either Action or NormalizedAction."""
+    return action.tool_name or ""
 
 
 class WorkspaceBoundaryRule:
@@ -15,10 +27,10 @@ class WorkspaceBoundaryRule:
     def __init__(self, workspace_root: str):
         self._root = Path(workspace_root).resolve()
 
-    def evaluate(self, action: NormalizedAction) -> dict:
+    def evaluate(self, action: Action | NormalizedAction) -> dict:
         if action.kind == ActionKind.COMPLETE_REQUEST:
             return {"decision": "ALLOW", "rule_id": "workspace_boundary", "reason_codes": []}
-        path = action.normalized_parameters.get("path", "")
+        path = _get_params(action).get("path", "")
         if not path:
             return {"decision": "ALLOW", "rule_id": "workspace_boundary", "reason_codes": []}
         if not self._is_within_workspace(path):
@@ -50,10 +62,10 @@ class CredentialLeakRule:
             re.compile(rf'{field}\s*[=:]\s*\S+') for field in self._CREDENTIAL_FIELDS
         ]
 
-    def evaluate(self, action: NormalizedAction) -> dict:
+    def evaluate(self, action: Action | NormalizedAction) -> dict:
         if action.kind == ActionKind.COMPLETE_REQUEST:
             return {"decision": "ALLOW", "rule_id": "credential_leak", "reason_codes": []}
-        for value in action.normalized_parameters.values():
+        for value in _get_params(action).values():
             if not isinstance(value, str):
                 continue
             if self._sk_pattern.search(value):
@@ -70,11 +82,11 @@ class UnregisteredToolRule:
     def __init__(self, registry: ToolRegistry):
         self._registry = registry
 
-    def evaluate(self, action: NormalizedAction) -> dict:
+    def evaluate(self, action: Action | NormalizedAction) -> dict:
         if action.kind == ActionKind.COMPLETE_REQUEST:
             return {"decision": "ALLOW", "rule_id": "unregistered_tool", "reason_codes": []}
         try:
-            self._registry.lookup(action.tool_name or "")
+            self._registry.lookup(_get_tool_name(action))
             return {"decision": "ALLOW", "rule_id": "unregistered_tool", "reason_codes": []}
         except KeyError:
             return {"decision": "BLOCK", "rule_id": "unregistered_tool", "reason_codes": ["unknown_tool"]}
@@ -93,9 +105,9 @@ class ModeRestrictionRule:
     def __init__(self, mode: str):
         self._mode = mode
 
-    def evaluate(self, action: NormalizedAction) -> dict:
+    def evaluate(self, action: Action | NormalizedAction) -> dict:
         if action.kind == ActionKind.COMPLETE_REQUEST:
             return {"decision": "ALLOW", "rule_id": "mode_restriction", "reason_codes": []}
-        if self._mode == "demo" and action.tool_name in self._DEMO_BLOCKED_TOOLS:
+        if self._mode == "demo" and _get_tool_name(action) in self._DEMO_BLOCKED_TOOLS:
             return {"decision": "BLOCK", "rule_id": "mode_restriction", "reason_codes": ["blocked_in_demo"]}
         return {"decision": "ALLOW", "rule_id": "mode_restriction", "reason_codes": []}

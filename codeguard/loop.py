@@ -87,7 +87,7 @@ class AgentLoop:
             # COMPLETE_REQUEST → FINAL_VALIDATION
             if action.kind == ActionKind.COMPLETE_REQUEST:
                 self._transition(AgentState.FINAL_VALIDATION)
-                if self.objective_verifier is None or self.objective_verifier.verify(self.state):
+                if self.objective_verifier is None or self.objective_verifier.verify(self._feedback_results):
                     self._transition(AgentState.COMPLETED)
                     break
                 else:
@@ -224,10 +224,10 @@ class AgentLoop:
         decision = self.stop_policy.evaluate(self.state)
         if decision is None:
             return False
-        if decision == "LIMIT_REACHED":
+        if decision.terminal_state == AgentState.LIMIT_REACHED:
             self._transition(AgentState.LIMIT_REACHED)
             return True
-        elif decision == "FAILED":
+        elif decision.terminal_state == AgentState.FAILED:
             self._transition(AgentState.FAILED)
             return True
         # "COMPLETED" is NOT a valid stop_policy decision —

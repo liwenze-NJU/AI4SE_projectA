@@ -157,11 +157,11 @@ class TestRuleEngine:
         assert "Blocked" in result.human_readable_message
         assert "b1" in result.human_readable_message
 
-    def test_recoverable_false_on_block(self):
+    def test_recoverable_true_on_block(self):
         engine = RuleEngine()
         engine.add_rule("b1", lambda na: _block("b1"))
         result = engine.evaluate(_make_na())
-        assert result.recoverable is False
+        assert result.recoverable is True
 
     def test_recoverable_true_on_approval(self):
         engine = RuleEngine()

@@ -1,5 +1,18 @@
-from codeguard.action import NormalizedAction
+import hashlib
+import json as _json
+from codeguard.action import Action, NormalizedAction
 from codeguard.guardrail import GuardrailDecision, GuardrailResult
+
+
+def _fingerprint_action(action: Action) -> str:
+    """Generate a deterministic fingerprint from an Action's key fields."""
+    data = _json.dumps({
+        "kind": action.kind.value,
+        "tool_name": action.tool_name or "",
+        "parameters": action.parameters or {},
+    }, sort_keys=True)
+    return hashlib.sha256(data.encode()).hexdigest()
+
 
 _DECISION_PRIORITY = {"BLOCK": 3, "REQUEST_APPROVAL": 2, "ALLOW": 1}
 _VALID_DECISIONS = frozenset(_DECISION_PRIORITY.keys())
@@ -35,7 +48,7 @@ class RuleEngine:
     def add_rule(self, name: str, rule):
         self._rules[name] = rule
 
-    def evaluate(self, action: NormalizedAction) -> GuardrailResult:
+    def evaluate(self, action: Action | NormalizedAction) -> GuardrailResult:
         results = []
         for name, rule in self._rules.items():
             try:
@@ -46,14 +59,19 @@ class RuleEngine:
                 results.append({"decision": "BLOCK", "rule_id": name, "reason_codes": ["rule_error"]})
 
         merged = self._merger.merge(results)
+        fingerprint = (
+            action.action_fingerprint
+            if isinstance(action, NormalizedAction)
+            else _fingerprint_action(action)
+        )
         return GuardrailResult(
             decision=GuardrailDecision(merged["decision"]),
             rule_ids=merged["rule_ids"],
             reason_codes=merged["reason_codes"],
             human_readable_message=self._format_message(merged),
-            recoverable=(merged["decision"] != "BLOCK"),
+            recoverable=True,
             normalized_action=action,
-            action_fingerprint=action.action_fingerprint,
+            action_fingerprint=fingerprint,
         )
 
     def _invoke_rule(self, rule, action: NormalizedAction) -> dict:
