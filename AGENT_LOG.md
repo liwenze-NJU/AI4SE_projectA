@@ -2045,3 +2045,29 @@
 **commit hash**: `08da2c7`
 
 **具备进入 Task 16.5 的条件**: 是 — 552 passed, 1 skipped, 0 failed
+
+---
+
+## Task 16.5: P4 — Session results + memory summary
+
+**log_id**: T16.5 | **task_id**: Task 16.5 WebUI | **状态**: COMPLETED
+**时间**: 2026-08-06
+**Superpowers 技能**: `superpowers:test-driven-development`
+**branch/worktree**: feature/mvp-core
+
+**RED 阶段**: 5 个测试写入 `tests/test_web_results.py`（memory 类型/trace/终态/护栏计数/导航操作），全部 404
+
+**GREEN 阶段**: 5/5 passed；全量 557 passed, 1 skipped, 0 failed
+
+**实现内容**:
+- `results.html` — 终态头条（COMPLETED 药丸 + 场景名 + mono 指标：耗时/步数/护栏计数）+ 反馈闭环卡（4 段横向流程：第一次失败→反馈分类→改动作→第二次通过，编号+语义色边条）+ Memory 摘要面板（4 条：已批准决策/任务摘要/失败解决方案/项目约定，类型药丸+来源时间戳）+ 护栏决策汇总（3 计数卡，零计数淡化）+ 底部操作（返回场景选择/重放本场景）
+- `app.py` — `GET /results` 渲染（`_MOCK_RESULTS` 数据）；`_MOCK_RESULTS` 含 feedback_loop + memory_entries + guardrail_counts
+- `style.css` — results 页面样式
+
+**两阶段评审**:
+- 规格合规: PASS — 与线框图 04/WIREFRAME_SPEC §4 一致（终态头条/反馈闭环/Memory 4 类型/护栏汇总/导航）
+- 代码质量: 0 Critical, 0 Major — 纯 Mock 数据，无真实组件
+
+**commit hash**: 待提交后补记
+
+**具备进入 Task 16.6 的条件**: 是 — 557 passed, 1 skipped, 0 failed

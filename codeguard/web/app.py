@@ -23,6 +23,30 @@ class ApprovalRequest(BaseModel):
     request_id: str = "mock-req-1"
 
 
+_MOCK_RESULTS = {
+    "scenario": "C · 测试失败反馈闭环",
+    "final_state": "COMPLETED",
+    "duration_seconds": 42,
+    "step_count": 7,
+    "guardrail_counts": {"ALLOW": 1, "BLOCK": 0, "REQUEST_APPROVAL": 0},
+    "feedback_loop": {
+        "triggered": True,
+        "steps": [
+            {"title": "第一次失败", "category": "测试失败", "detail": "VALIDATING · 断言失败", "time": "00:09", "color": "danger"},
+            {"title": "反馈分类", "category": "断言失败", "detail": "FEEDING_BACK · 分类回灌", "time": "00:11", "color": "warn"},
+            {"title": "Agent 改动作", "category": "改用 validate", "detail": "EXECUTING · 修正动作", "time": "00:14", "color": "accent"},
+            {"title": "第二次通过", "category": "测试通过", "detail": "VALIDATING · 通过", "time": "00:18", "color": "success"},
+        ],
+    },
+    "memory_entries": [
+        {"type": "已批准决策", "summary": "write_file(mock://…/auth.py) 已批准", "source": "00:06"},
+        {"type": "任务摘要", "summary": "测试会话：3 步完成，1 次失败恢复", "source": "00:42"},
+        {"type": "失败解决方案", "summary": "断言失败 → 改用 validate input 后通过", "source": "00:11"},
+        {"type": "项目约定", "summary": "validate 优先于直接写入（本场景示例）", "source": "00:18"},
+    ],
+}
+
+
 def _new_demo_session(scenario: str = "demo") -> dict:
     """Create an in-memory demo session (browser-isolated, mock only)."""
     return {
@@ -136,6 +160,18 @@ def create_app(mode: str = "demo") -> FastAPI:
             }
         )
         return {"session_id": session_id, "request_id": payload.request_id, "decision": payload.decision}
+
+    @app.get("/results")
+    async def results(request: Request):
+        """P4 session results + memory summary (mock)."""
+        return _templates.TemplateResponse(
+            request=request,
+            name="results.html",
+            context={
+                "mock_mode": mode == "demo",
+                "results": _MOCK_RESULTS,
+            },
+        )
 
     @app.get("/session/{session_id}/state")
     async def get_session_state(session_id: str):

@@ -1416,3 +1416,209 @@ a:hover {
   background-color: color-mix(in oklab, var(--danger), white 85%);
   color: var(--danger);
 }
+
+/* --------------------------------------------------------------------------
+   Results Page (P4)
+   -------------------------------------------------------------------------- */
+.results-page {
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: var(--space-8) var(--space-6) var(--space-12);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-6);
+}
+
+.results-hero {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-4);
+  flex-wrap: wrap;
+  border: 1px solid var(--border-soft);
+  border-radius: var(--radius-sm);
+  padding: var(--space-5) var(--space-6);
+}
+
+.results-hero-title {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  flex-wrap: wrap;
+}
+
+.results-hero-heading {
+  font-size: 20px;
+  font-weight: 600;
+  color: var(--fg);
+}
+
+.results-metrics {
+  display: flex;
+  gap: var(--space-5);
+  margin: 0;
+  flex-wrap: wrap;
+}
+
+.metric-item {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.metric-item dt {
+  font-size: 12px;
+  color: var(--meta);
+}
+
+.metric-mono {
+  font-family: var(--font-mono);
+  font-size: 14px;
+  color: var(--fg);
+  font-feature-settings: "tnum";
+}
+
+.results-card {
+  border: 1px solid var(--border-soft);
+  border-radius: var(--radius-sm);
+  padding: var(--space-5) var(--space-6);
+}
+
+.feedback-loop {
+  display: flex;
+  align-items: stretch;
+  gap: var(--space-2);
+  flex-wrap: wrap;
+}
+
+.feedback-step {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-2);
+  border-left: 4px solid var(--meta);
+  padding: var(--space-3);
+  background-color: var(--bg-soft);
+  border-radius: var(--radius-sm);
+  flex: 1;
+  min-width: 180px;
+}
+
+.feedback-step-danger { border-left-color: var(--danger); }
+.feedback-step-warn { border-left-color: var(--warn); }
+.feedback-step-accent { border-left-color: var(--accent); }
+.feedback-step-success { border-left-color: var(--success); }
+
+.feedback-step-number {
+  font-family: var(--font-mono);
+  font-size: 13px;
+  color: var(--meta);
+  flex-shrink: 0;
+}
+
+.feedback-step-body {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+
+.feedback-step-detail {
+  font-size: 13px;
+  color: var(--fg-2);
+}
+
+.feedback-step-time {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  color: var(--meta);
+  font-feature-settings: "tnum";
+  margin-left: auto;
+  white-space: nowrap;
+}
+
+.feedback-arrow {
+  align-self: center;
+  color: var(--meta);
+  font-size: 18px;
+}
+
+.results-empty {
+  font-family: var(--font-mono);
+  font-size: 13px;
+  color: var(--meta);
+  margin: 0;
+}
+
+.memory-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.memory-entry {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-3) 0;
+  border-bottom: 1px solid var(--border-soft);
+}
+
+.memory-entry:last-child {
+  border-bottom: none;
+}
+
+.memory-type-pill {
+  flex-shrink: 0;
+  min-width: 96px;
+  text-align: center;
+}
+
+.memory-summary {
+  flex: 1;
+  font-size: 14px;
+  color: var(--fg-2);
+}
+
+.memory-source {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  color: var(--meta);
+  font-feature-settings: "tnum";
+  white-space: nowrap;
+}
+
+.guardrail-summary {
+  display: flex;
+  gap: var(--space-4);
+  flex-wrap: wrap;
+}
+
+.guardrail-count-card {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-2);
+  border: 1px solid var(--border-soft);
+  border-radius: var(--radius-sm);
+  padding: var(--space-4) var(--space-6);
+  min-width: 140px;
+}
+
+.guardrail-count-card.zero {
+  opacity: 0.5;
+}
+
+.guardrail-count-num {
+  font-family: var(--font-mono);
+  font-size: 28px;
+  font-weight: 600;
+  color: var(--fg);
+  font-feature-settings: "tnum";
+}
+
+.results-actions {
+  display: flex;
+  gap: var(--space-3);
+  flex-wrap: wrap;
+}

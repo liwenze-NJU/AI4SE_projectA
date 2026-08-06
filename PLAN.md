@@ -6995,7 +6995,7 @@ git push github task-16.4-webui-p3
 - Create: `codeguard/web/templates/results.html`
 - Create: `tests/test_web_results.py`
 
-- [ ] **Step 1: Write failing tests**
+- [x] **Step 1: Write failing tests** — `tests/test_web_results.py`（5 tests: memory 类型/trace/终态/护栏计数/导航操作）
 
 Write `tests/test_web_results.py`:
 ```python
@@ -7035,10 +7035,10 @@ Create `codeguard/web/templates/results.html` with 4 MemoryType display, trace l
 Run: `pytest tests/test_web_results.py -v`
 Expected: 2 passed
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit** — `16.5` commit created by current session
 
 ```bash
-git add codeguard/web/templates/results.html tests/test_web_results.py
+git add codeguard/web/templates/results.html codeguard/web/static/style.css codeguard/web/app.py tests/test_web_results.py
 git commit -m "feat: add P4 session results page with memory summary and trace"
 git push origin task-16.5-webui-p4
 git push github task-16.5-webui-p4
