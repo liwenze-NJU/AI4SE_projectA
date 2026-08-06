@@ -6595,6 +6595,15 @@ git push github task-14.4-integration-noprogress
 
 **Dependency:** Task 12.1 (key_cmd), Task 13.1 (CompositionRoot)
 
+**Status:** COMPLETED | **commit:** `1bd26a1` | **tests:** 20/20 passed
+
+- [x] **Step 1: Write failing tests** — 20 tests in `tests/test_cli.py`, RED with ImportError
+- [x] **Step 2: Run to verify failure** — 18 failed (ImportError/ModuleNotFoundError)
+- [x] **Step 3: Implement CLI commands** — chat, demo, web, config, key_cmd, __main__ dispatch
+- [x] **Step 4: Run to verify pass** — 20/20 passed
+- [x] **Step 5: Full pytest** — 532 passed, 1 skipped (Windows symlink), 0 failed
+- [x] **Step 6: Commit** — `1bd26a1`
+
 - [ ] **Step 1: Write failing tests**
 
 Write in `tests/test_cli.py`:

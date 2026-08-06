@@ -1898,3 +1898,44 @@
 **commit hash**: `f0bc0c6`
 
 **具备进入 Task 15.1 的条件**: 是 — 512 passed, 1 skipped, 0 failed
+
+---
+
+## Task 15.1: Complete CLI dispatch
+
+**log_id**: T15.1 | **task_id**: Task 15.1 CLI | **状态**: COMPLETED
+**时间**: 2026-08-06
+**Superpowers 技能**: `superpowers:test-driven-development`
+**branch/worktree**: feature/mvp-core
+
+**RED 阶段**: 20 个测试写入 `tests/test_cli.py`，18 个 ImportError/ModuleNotFoundError（预期失败原因：CLI 模块尚未创建）
+
+**GREEN 阶段**: 创建 6 个 CLI 模块 + 更新 `__main__.py`，20/20 passed
+
+**实现内容**:
+- `codeguard/cli/chat.py`: `chat_command(args)` — 解析 --mode，创建 CompositionRoot，调用 loop.run()
+- `codeguard/cli/demo_cmd.py`: `demo_command(args)` — 解析 --scenario，CompositionRoot(mode="demo")
+- `codeguard/cli/web_cmd.py`: `web_command(args)` — 延迟导入 uvicorn，启动 WebUI
+- `codeguard/cli/config_cmd.py`: `config_command(args)` — 使用 ConfigLoader.load_file() 显示配置
+- `codeguard/cli/key_cmd.py`: `key_set/status/update/clear_command(args)` — 使用 KeyringCredentialStore
+- `codeguard/__main__.py`: `main(argv)` — argparse 分发到各命令实现
+- `tests/test_cli.py`: 20 测试（3 chat, 4 demo, 2 web, 3 config, 8 main dispatch）
+
+**组件连接**:
+| 命令 | 连接组件 |
+|------|---------|
+| chat | CompositionRoot(mode) → create_loop() → AgentLoop.run() |
+| demo | CompositionRoot(mode="demo") → create_loop() → AgentLoop.run() |
+| web | uvicorn.run("codeguard.web.app:app") |
+| config | ConfigLoader.load_file() |
+| key | KeyringCredentialStore.set/get/status/clear |
+
+**全量测试**: 532 passed, 1 skipped (test_symlink_outside_workspace_rejected), 0 failed
+
+**两阶段评审**:
+- 规格合规: PASS — 所有命令与 SPEC §5.2 一致；chat/demo 真实分发到 CompositionRoot；key 使用 KeyringCredentialStore；web 使用 uvicorn；config 使用 ConfigLoader
+- 代码质量: 0 Critical, 0 Major — uvicorn 延迟导入；key 通过 input() 读取（不通过命令行参数）；测试无真实 API 调用
+
+**commit hash**: `1bd26a1`
+
+**具备进入 Task 16.1 的条件**: 是 — 532 passed, 1 skipped, 0 failed
