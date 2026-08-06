@@ -2042,6 +2042,6 @@
 - 规格合规: PASS — 与线框图 03/WIREFRAME_SPEC §3 一致（布局/三重冗余/三按钮/倒计时/错误状态）
 - 代码质量: 0 Critical, 0 Major — Pydantic body 绑定 JSON；审批绑定 session_id + request_id
 
-**commit hash**: 待提交后补记
+**commit hash**: `08da2c7`
 
 **具备进入 Task 16.5 的条件**: 是 — 552 passed, 1 skipped, 0 failed
