@@ -208,3 +208,73 @@ def test_search_text_hides_sensitive_files(temp_workspace):
                          workspace_root=str(temp_workspace))
     assert "main.py" in result["matches"]
     assert ".env" not in result["matches"]
+
+
+# ---------------------------------------------------------------------------
+# Task 4.3: File write tools — write_file, apply_patch, delete_file
+# ---------------------------------------------------------------------------
+
+import hashlib
+
+def test_write_file_new(temp_workspace):
+    from codeguard.tool.file_tools import write_file
+    path = temp_workspace / "new.txt"
+    result = write_file({"path": str(path), "content": "hello"}, workspace_root=str(temp_workspace))
+    assert result["status"] == "SUCCESS"
+    assert path.read_text() == "hello"
+
+def test_write_file_with_fingerprint(temp_workspace):
+    from codeguard.tool.file_tools import write_file
+    path = temp_workspace / "existing.txt"
+    path.write_text("original")
+    content_before = path.read_bytes()
+    fp = hashlib.sha256(content_before).hexdigest()
+    result = write_file({"path": str(path), "content": "modified", "sha256_fingerprint": fp}, workspace_root=str(temp_workspace))
+    assert result["status"] == "SUCCESS"
+    assert path.read_text() == "modified"
+
+def test_write_file_fingerprint_mismatch(temp_workspace):
+    from codeguard.tool.file_tools import write_file
+    import pytest
+    path = temp_workspace / "existing.txt"
+    path.write_text("original")
+    with pytest.raises(ValueError, match="Fingerprint mismatch"):
+        write_file({"path": str(path), "content": "modified", "sha256_fingerprint": "wrong"}, workspace_root=str(temp_workspace))
+
+def test_write_file_outside_workspace(temp_workspace):
+    from codeguard.tool.file_tools import write_file
+    import pytest
+    outside = Path("/tmp") / "malicious.txt"
+    with pytest.raises(PermissionError):
+        write_file({"path": str(outside), "content": "x"}, workspace_root=str(temp_workspace))
+
+def test_write_file_rejects_excluded_dir(temp_workspace):
+    from codeguard.tool.file_tools import write_file
+    import pytest
+    (temp_workspace / ".git").mkdir()
+    with pytest.raises(PermissionError, match="excluded"):
+        write_file({"path": str(temp_workspace / ".git" / "config"), "content": "x"}, workspace_root=str(temp_workspace))
+
+def test_apply_patch(temp_workspace):
+    from codeguard.tool.file_tools import apply_patch
+    path = temp_workspace / "main.py"
+    path.write_text("def foo():\n    pass\n")
+    result = apply_patch({"path": str(path), "old_string": "    pass", "new_string": "    return 42"}, workspace_root=str(temp_workspace))
+    assert result["status"] == "SUCCESS"
+    assert "return 42" in path.read_text()
+
+def test_apply_patch_context_mismatch(temp_workspace):
+    from codeguard.tool.file_tools import apply_patch
+    import pytest
+    path = temp_workspace / "main.py"
+    path.write_text("def foo():\n    pass\n")
+    with pytest.raises(ValueError, match="not found"):
+        apply_patch({"path": str(path), "old_string": "not found", "new_string": "x"}, workspace_root=str(temp_workspace))
+
+def test_delete_file(temp_workspace):
+    from codeguard.tool.file_tools import delete_file
+    path = temp_workspace / "temp.txt"
+    path.write_text("delete me")
+    result = delete_file({"path": str(path)}, workspace_root=str(temp_workspace))
+    assert result["status"] == "SUCCESS"
+    assert not path.exists()

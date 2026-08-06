@@ -143,3 +143,88 @@ def search_text(params: dict, workspace_root: str = "") -> dict:
             except Exception:
                 continue
     return {"matches": matches, "pattern": pattern}
+
+
+# ---------------------------------------------------------------------------
+# Task 4.3: File write tools — write_file, apply_patch, delete_file
+# ---------------------------------------------------------------------------
+
+import hashlib
+import tempfile
+
+
+def _resolve_dir(requested: str, workspace_root: str) -> str:
+    """Resolve path and validate parent directory is within workspace."""
+    root = Path(workspace_root).resolve()
+    target = (root / requested).resolve()
+    root_str = str(root)
+    target_str = str(target)
+    if target_str != root_str and not target_str.startswith(root_str + os.sep):
+        raise PermissionError(f"Path '{requested}' is outside workspace '{workspace_root}'")
+    return str(target)
+
+
+def write_file(params: dict, workspace_root: str = "") -> dict:
+    path = Path(_resolve_dir(params["path"], workspace_root))
+
+    # Safety checks
+    if _is_excluded_dir(path, workspace_root):
+        raise PermissionError(f"Cannot write to excluded directory: {path}")
+    if _is_sensitive_file(path):
+        raise PermissionError(f"Cannot write to sensitive file: {path}")
+
+    if path.exists():
+        current_content = path.read_bytes()
+        current_fp = hashlib.sha256(current_content).hexdigest()
+        provided_fp = params.get("sha256_fingerprint")
+        if provided_fp and current_fp != provided_fp:
+            raise ValueError(f"Fingerprint mismatch: expected {provided_fp}, got {current_fp}")
+
+    content = params["content"]
+    # Atomic write: write to temp file, then rename
+    fd, tmp_path = tempfile.mkstemp(dir=path.parent, suffix=".tmp")
+    try:
+        with os.fdopen(fd, "w", encoding="utf-8") as f:
+            f.write(content)
+        os.replace(tmp_path, str(path))
+    except Exception:
+        try:
+            os.unlink(tmp_path)
+        except Exception:
+            pass
+        raise
+    return {"status": "SUCCESS", "path": str(path)}
+
+
+def apply_patch(params: dict, workspace_root: str = "") -> dict:
+    path = Path(_resolve_dir(params["path"], workspace_root))
+
+    # Safety checks
+    if _is_excluded_dir(path, workspace_root):
+        raise PermissionError(f"Cannot patch file in excluded directory: {path}")
+    if _is_sensitive_file(path):
+        raise PermissionError(f"Cannot patch sensitive file: {path}")
+
+    content = path.read_text(encoding="utf-8")
+    old = params["old_string"]
+    new = params["new_string"]
+    if old not in content:
+        raise ValueError(f"old_string not found in {path}")
+    content = content.replace(old, new, 1)
+    path.write_text(content, encoding="utf-8")
+    return {"status": "SUCCESS", "path": str(path)}
+
+
+def delete_file(params: dict, workspace_root: str = "") -> dict:
+    path = Path(_resolve_dir(params["path"], workspace_root))
+
+    # Safety checks
+    if _is_excluded_dir(path, workspace_root):
+        raise PermissionError(f"Cannot delete file in excluded directory: {path}")
+    if _is_sensitive_file(path):
+        raise PermissionError(f"Cannot delete sensitive file: {path}")
+
+    if not path.exists():
+        raise FileNotFoundError(f"File not found: {path}")
+    path.unlink()
+    return {"status": "SUCCESS", "path": str(path)}
