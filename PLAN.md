@@ -3371,7 +3371,7 @@ git push github task-5.1-action-normalizer
 
 **Worktree:** worktree-guardrail, branch `task-5.2-guardrail-rules`
 
-- [ ] **Step 1: Write failing tests**
+- [x] **Step 1: Write failing tests**
 
 Write `tests/test_guardrail_rules.py`:
 ```python
@@ -3432,12 +3432,12 @@ def test_mode_restriction_rule_allows():
     assert result["decision"] == "ALLOW"
 ```
 
-- [ ] **Step 2: Run to verify failure**
+- [x] **Step 2: Run to verify failure**
 
 Run: `pytest tests/test_guardrail_rules.py -v`
 Expected: ImportErrors
 
-- [ ] **Step 3: Implement guardrail rules**
+- [x] **Step 3: Implement guardrail rules**
 
 Write `codeguard/guardrail/rules.py`:
 ```python
@@ -3503,22 +3503,22 @@ class ModeRestrictionRule:
         return {"decision": "ALLOW", "rule_id": "mode_restriction", "reason_codes": []}
 ```
 
-- [ ] **Step 4: Run to verify pass**
+- [x] **Step 4: Run to verify pass**
 
 Run: `pytest tests/test_guardrail_rules.py -v`
 Expected: 7 passed
 
-- [ ] **Step 5: Refactor** — check that `CredentialLeakRule` patterns match the same patterns as `SecretRedactor`. Consider sharing pattern definitions.
+- [x] **Step 5: Refactor** — check that `CredentialLeakRule` patterns match the same patterns as `SecretRedactor`. Consider sharing pattern definitions.
 
-- [ ] **Step 6: SPEC compliance review**
+- [x] **Step 6: SPEC compliance review**
 
 Check: SPEC §3.2 — WorkspaceBoundaryRule blocks out-of-bounds paths. CredentialLeakRule blocks credential patterns. UnregisteredToolRule blocks unknown tools. ModeRestrictionRule blocks disallowed actions in current mode.
 
-- [ ] **Step 7: Code quality review**
+- [x] **Step 7: Code quality review**
 
 Check: Each rule is a separate class with a single `evaluate()` method. All rules handle COMPLETE_REQUEST as ALLOW. Rules return plain dicts (not GuardrailResult) — the RuleEngine wraps them.
 
-- [ ] **Step 8: Commit**
+- [x] **Step 8: Commit**
 
 ```bash
 git add codeguard/guardrail/rules.py tests/test_guardrail_rules.py

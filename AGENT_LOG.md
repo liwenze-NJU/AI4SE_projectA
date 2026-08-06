@@ -1209,3 +1209,28 @@
 **复审结果**: PASS — 0 Critical, 0 Major
 
 **branch/worktree**: feature/mvp-core
+
+---
+
+## Task 5.2: Built-in guardrail rules
+
+**log_id**: T5.2 | **task_id**: Task 5.2 (Built-in guardrail rules) | **状态**: COMPLETED
+**时间**: 2026-08-06
+**Superpowers 技能**: `superpowers:test-driven-development`
+
+**RED 阶段**：ModuleNotFoundError: No module named 'codeguard.guardrail.rules'
+
+**GREEN 阶段**：28 passed + 112 regression = 140 passed
+
+**实现**：
+- `WorkspaceBoundaryRule`: pathlib.Path.resolve() + relative_to() 父子路径判断，阻止外部路径、.. 逃逸、名称前缀绕过（workspace vs workspace-evil），兼容 Windows
+- `CredentialLeakRule`: 与 SecretRedactor 对齐（sk-\w+、api_key/password/secret/token\s*[=:]\s*\S+），检查所有参数值
+- `UnregisteredToolRule`: 通过 ToolRegistry.lookup() 判断，KeyError → BLOCK
+- `ModeRestrictionRule`: demo 模式禁止 run_process/write_file/delete_file/apply_patch，full 模式全放行
+- 所有规则对 COMPLETE_REQUEST 返回 ALLOW
+
+**commit hash**: `494b4e4`
+
+**复审结果**: PASS — 0 Critical, 0 Major
+
+**branch/worktree**: feature/mvp-core
