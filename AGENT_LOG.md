@@ -1443,3 +1443,30 @@
 **复审结果**: PASS — 0 Critical, 0 Major
 
 **branch/worktree**: feature/mvp-core
+
+---
+
+## Task 8.1: StopPolicy
+
+**log_id**: T8.1 | **task_id**: Task 8.1 (StopPolicy) | **状态**: COMPLETED
+**时间**: 2026-08-06
+**Superpowers 技能**: `superpowers:test-driven-development`
+
+**RED 阶段**：ModuleNotFoundError: No module named 'codeguard.stop'
+
+**GREEN 阶段**：24 passed + 320 regression = 344 passed
+
+**实现**：
+- `StopDecision`: dataclass（should_stop, terminal_state, reason）
+- `StopPolicy`: 评估 max_steps, max_llm_calls, token_budget, cost_budget, 连续指纹重复
+- 按 SPEC §3.3：指纹检查使用**连续重复**（`_max_consecutive`），非 Counter 任意出现次数
+- `["fp1", "fp2", "fp1", "fp1"]` → 最大连续 2，不触发阈值为 3
+- `["fp1", "fp1", "fp1"]` → 最大连续 3，触发
+- budget=None 表示无限制；threshold=0 禁用指纹检查
+- 无触发条件返回 None
+
+**commit hash**: `3f02dc7`
+
+**复审结果**: PASS — 0 Critical, 0 Major
+
+**branch/worktree**: feature/mvp-core

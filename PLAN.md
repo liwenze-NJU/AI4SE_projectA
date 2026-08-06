@@ -4674,7 +4674,7 @@ git push github task-7.1-tracer
 
 **File boundary:** Only `codeguard/stop.py` and `tests/test_stop_policy.py`
 
-- [ ] **Step 1: Write failing tests**
+- [x] **Step 1: Write failing tests**
 
 Write `tests/test_stop_policy.py`:
 ```python
@@ -4728,12 +4728,12 @@ def test_stop_limit_not_reached():
     assert policy.evaluate(state) is None
 ```
 
-- [ ] **Step 2: Run to verify failure**
+- [x] **Step 2: Run to verify failure**
 
 Run: `pytest tests/test_stop_policy.py -v`
 Expected: ImportErrors
 
-- [ ] **Step 3: Implement StopPolicy**
+- [x] **Step 3: Implement StopPolicy**
 
 Write `codeguard/stop.py`:
 ```python
@@ -4780,22 +4780,22 @@ class StopPolicy:
         return None
 ```
 
-- [ ] **Step 4: Run to verify pass**
+- [x] **Step 4: Run to verify pass**
 
 Run: `pytest tests/test_stop_policy.py -v`
 Expected: 8 passed
 
-- [ ] **Step 5: Refactor** — check that Counter is imported (it's from collections, standard library). Consider using a simpler dict-based count if Counter is too heavy.
+- [x] **Step 5: Refactor** — check that Counter is imported (it's from collections, standard library). Consider using a simpler dict-based count if Counter is too heavy.
 
-- [ ] **Step 6: SPEC compliance review**
+- [x] **Step 6: SPEC compliance review**
 
 Check: SPEC §3.3 — StopPolicy checks max_steps, max_llm_calls, token_budget, cost_budget, repeated action_fingerprint, repeated failure_fingerprint. Returns LIMIT_REACHED when any condition met. Returns None when no condition met.
 
-- [ ] **Step 7: Code quality review**
+- [x] **Step 7: Code quality review**
 
 Check: `evaluate()` returns None for "no stop" (falsy) and a string for "stop" (truthy). This allows `if decision:` checks in AgentLoop. No-progress threshold uses Counter for simplicity.
 
-- [ ] **Step 8: Commit**
+- [x] **Step 8: Commit**
 
 ```bash
 git add codeguard/stop.py tests/test_stop_policy.py
