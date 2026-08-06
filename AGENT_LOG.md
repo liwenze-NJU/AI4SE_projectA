@@ -1470,3 +1470,33 @@
 **复审结果**: PASS — 0 Critical, 0 Major
 
 **branch/worktree**: feature/mvp-core
+
+---
+
+## Task 9.1: JSONMemoryStore
+
+**log_id**: T9.1 | **task_id**: Task 9.1 (JSONMemoryStore) | **状态**: STARTED
+**时间**: 2026-08-06
+**Superpowers 技能**: `superpowers:test-driven-development`
+
+**目标**: 实现 JSONMemoryStore（原子写入、项目隔离、max_records 限制）
+**验证命令**: `pytest tests/test_memory_store.py -v`
+
+**RED 阶段**: ModuleNotFoundError: No module named 'codeguard.memory.store'
+
+**GREEN 阶段**: 12 passed + 344 regression = 356 passed, 1 skipped
+
+**实现**:
+- `JSONMemoryStore`: 项目隔离的 JSON 文件存储，原子写入（tempfile.mkstemp + os.replace）
+- 存储路径：`base_dir/projects/<project_id>/memory.json`，含 schema_version
+- `save()`: max_records + max_content_size 限制，id 重复时更新（upsert）
+- `get()`: 按 record_id + project_id 获取单条
+- `list()`: 按 project_id 列出，可选 MemoryType 过滤
+- `_record_to_dict` / `_dict_to_record`: 枚举值 ↔ 字符串转换
+- 损坏文件处理：备份 `.backup.<timestamp>` 后抛出 ValueError
+
+**commit hash**: `4c7c6f6`
+
+**复审结果**: PASS — SPEC 合规 10/10，代码质量 0 issues
+
+**branch/worktree**: feature/mvp-core

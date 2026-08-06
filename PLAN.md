@@ -4828,7 +4828,14 @@ git push github task-8.1-stop-policy
 
 **File boundary:** Only `codeguard/memory/store.py` and `tests/test_memory_store.py`
 
-- [ ] **Step 1: Write failing tests**
+- [x] **Step 1: Write failing tests** ✅
+- [x] **Step 2: Run to verify failure** ✅ (ModuleNotFoundError)
+- [x] **Step 3: Implement JSONMemoryStore** ✅
+- [x] **Step 4: Run to verify pass** ✅ (12 passed)
+- [x] **Step 5: Refactor** ✅ (time import → top level)
+- [x] **Step 6: SPEC compliance review** ✅ (10/10 per SPEC §3.7)
+- [x] **Step 7: Code quality review** ✅ (0 issues)
+- [x] **Step 8: Commit** ✅ `4c7c6f6`
 
 Write `tests/test_memory_store.py`:
 ```python
