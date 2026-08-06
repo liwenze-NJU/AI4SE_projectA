@@ -1339,3 +1339,29 @@
 **复审结果**: PASS — 0 Critical, 0 Major
 
 **branch/worktree**: feature/mvp-core
+
+---
+
+## Task 6.3: FeedbackClassifier
+
+**log_id**: T6.3 | **task_id**: Task 6.3 (FeedbackClassifier) | **状态**: COMPLETED
+**时间**: 2026-08-06
+**Superpowers 技能**: `superpowers:test-driven-development`
+
+**RED 阶段**：ModuleNotFoundError: No module named 'codeguard.feedback.classifier'
+
+**GREEN 阶段**：20 passed + 243 regression = 263 passed
+
+**实现**：
+- 三层分类：status → failure_category → diagnostics
+- PASSED 直接返回不变；TIMEOUT/UNAVAILABLE/EXECUTION_ERROR 直接映射为 failure_category
+- FAILED 根据 sensor_id 选择 Parser（pytest→PytestParser, ruff→RuffParser, mypy→MypyParser, 其他→GenericParser）
+- Parser 异常 fail-safe：捕获后归为 UNKNOWN_FAILURE
+- SHA-256 指纹：`sensor_id:category:parser_fingerprint`，相同失败→相同指纹
+- 保留原有 exit_code、duration、summary、raw_output_truncated
+
+**commit hash**: `4c8fabb`
+
+**复审结果**: PASS — 0 Critical, 0 Major
+
+**branch/worktree**: feature/mvp-core

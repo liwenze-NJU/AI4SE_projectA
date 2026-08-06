@@ -4206,7 +4206,7 @@ git push github task-6.2-parsers
 
 **Worktree:** worktree-feedback, branch `task-6.3-classifier`
 
-- [ ] **Step 1: Write failing tests**
+- [x] **Step 1: Write failing tests**
 
 Write `tests/test_classifier.py`:
 ```python
@@ -4240,12 +4240,12 @@ def test_classify_failure_fingerprint():
     assert len(classified.failure_fingerprint) > 0
 ```
 
-- [ ] **Step 2: Run to verify failure**
+- [x] **Step 2: Run to verify failure**
 
 Run: `pytest tests/test_classifier.py -v`
 Expected: ImportErrors
 
-- [ ] **Step 3: Implement FeedbackClassifier**
+- [x] **Step 3: Implement FeedbackClassifier**
 
 Write `codeguard/feedback/classifier.py`:
 ```python
@@ -4282,22 +4282,22 @@ class FeedbackClassifier:
         return result
 ```
 
-- [ ] **Step 4: Run to verify pass**
+- [x] **Step 4: Run to verify pass**
 
 Run: `pytest tests/test_classifier.py -v`
 Expected: 4 passed
 
-- [ ] **Step 5: Refactor** — check that `PASSED` status returns immediately without parsing. The early return handles this.
+- [x] **Step 5: Refactor** — check that `PASSED` status returns immediately without parsing. The early return handles this.
 
-- [ ] **Step 6: SPEC compliance review**
+- [x] **Step 6: SPEC compliance review**
 
 Check: SPEC §3.5 — Three-layer classification: status -> failure_category -> diagnostics. Failure fingerprint computed from sensor_id + category + parsed fingerprint.
 
-- [ ] **Step 7: Code quality review**
+- [x] **Step 7: Code quality review**
 
 Check: `classify()` modifies the FeedbackResult in place (preserves reference). Failure fingerprint uses SHA-256 for collision resistance.
 
-- [ ] **Step 8: Commit**
+- [x] **Step 8: Commit**
 
 ```bash
 git add codeguard/feedback/classifier.py tests/test_classifier.py
