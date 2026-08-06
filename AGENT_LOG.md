@@ -1234,3 +1234,28 @@
 **复审结果**: PASS — 0 Critical, 0 Major
 
 **branch/worktree**: feature/mvp-core
+
+---
+
+## Task 5.3: RuleEngine + PriorityMerger
+
+**log_id**: T5.3 | **task_id**: Task 5.3 (RuleEngine + PriorityMerger) | **状态**: COMPLETED
+**时间**: 2026-08-06
+**Superpowers 技能**: `superpowers:test-driven-development`
+
+**RED 阶段**：ModuleNotFoundError: No module named 'codeguard.guardrail.engine'
+
+**GREEN 阶段**：24 passed + 140 regression = 164 passed
+
+**实现**：
+- `RuleEngine`: 执行所有已注册规则（callable 或 evaluate() 对象），fail-closed（异常、未知 decision、缺失字段均视为 BLOCK），空规则集返回 default-deny BLOCK
+- `PriorityMerger`: 独立可测试类，BLOCK > REQUEST_APPROVAL > ALLOW，与注册顺序无关
+- `_validate_result`: 校验规则返回的 dict（decision 合法性、rule_id 存在性），畸形结果抛出异常 → fail-closed
+- `_invoke_rule`: 优先使用 evaluate() 方法，否则作为 callable 调用
+- 返回真实 `GuardrailResult`（`GuardrailDecision` 枚举），`recoverable = decision != "BLOCK"`
+
+**commit hash**: `d28e8c0`
+
+**复审结果**: PASS — 0 Critical, 0 Major
+
+**branch/worktree**: feature/mvp-core

@@ -3545,7 +3545,7 @@ git push github task-5.2-guardrail-rules
 
 **Worktree:** worktree-guardrail, branch `task-5.3-rule-engine`
 
-- [ ] **Step 1: Write failing tests**
+- [x] **Step 1: Write failing tests**
 
 Write `tests/test_guardrail_engine.py`:
 ```python
@@ -3598,12 +3598,12 @@ def test_priority_merger_approval_over_allow():
     assert merged["decision"] == "REQUEST_APPROVAL"
 ```
 
-- [ ] **Step 2: Run to verify failure**
+- [x] **Step 2: Run to verify failure**
 
 Run: `pytest tests/test_guardrail_engine.py -v`
 Expected: ImportErrors
 
-- [ ] **Step 3: Implement RuleEngine and PriorityMerger**
+- [x] **Step 3: Implement RuleEngine and PriorityMerger**
 
 Write `codeguard/guardrail/engine.py`:
 ```python
@@ -3664,22 +3664,22 @@ class RuleEngine:
         return "Allowed"
 ```
 
-- [ ] **Step 4: Run to verify pass**
+- [x] **Step 4: Run to verify pass**
 
 Run: `pytest tests/test_guardrail_engine.py -v`
 Expected: 6 passed
 
-- [ ] **Step 5: Refactor** — check that rule exceptions are caught and treated as BLOCK (fail closed). The try/except in `evaluate()` ensures this.
+- [x] **Step 5: Refactor** — check that rule exceptions are caught and treated as BLOCK (fail closed). The try/except in `evaluate()` ensures this.
 
-- [ ] **Step 6: SPEC compliance review**
+- [x] **Step 6: SPEC compliance review**
 
 Check: SPEC §3.2 — RuleEngine executes all rules. PriorityMerger uses BLOCK > REQUEST_APPROVAL > ALLOW. Empty rules returns BLOCK (default-deny). One veto blocks regardless of order.
 
-- [ ] **Step 7: Code quality review**
+- [x] **Step 7: Code quality review**
 
 Check: `evaluate()` catches exceptions per-rule (one failing rule doesn't crash the engine). `PriorityMerger` is a separate class for testability. `_format_message` produces human-readable output.
 
-- [ ] **Step 8: Commit**
+- [x] **Step 8: Commit**
 
 ```bash
 git add codeguard/guardrail/engine.py tests/test_guardrail_engine.py
