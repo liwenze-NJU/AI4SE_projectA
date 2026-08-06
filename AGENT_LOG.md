@@ -1391,3 +1391,29 @@
 **复审结果**: PASS — 0 Critical, 0 Major
 
 **branch/worktree**: feature/mvp-core
+
+---
+
+## Task 6.5: ObjectiveVerifier
+
+**log_id**: T6.5 | **task_id**: Task 6.5 (ObjectiveVerifier) | **状态**: COMPLETED
+**时间**: 2026-08-06
+**Superpowers 技能**: `superpowers:test-driven-development`
+
+**RED 阶段**：ModuleNotFoundError: No module named 'codeguard.feedback.verifier'
+
+**GREEN 阶段**：22 passed + 280 regression = 302 passed
+
+**实现**：
+- `ObjectiveVerifier`: 检查所有 required_sensors 均有 FINAL PASSED 结果
+- 按 SPEC：COMPLETED 仅从 FINAL_VALIDATION 可达 → INTERMEDIATE PASSED 不算
+- 重复 sensor_id 策略：列表位置最后者胜出，防止历史 PASSED 掩盖后续失败
+- TIMEOUT/UNAVAILABLE/EXECUTION_ERROR 均不算 PASSED
+- 空 required_sensors → True；非必需传感器不影响结果
+- 无副作用，返回 bool
+
+**commit hash**: `240677e`
+
+**复审结果**: PASS — 0 Critical, 0 Major
+
+**branch/worktree**: feature/mvp-core

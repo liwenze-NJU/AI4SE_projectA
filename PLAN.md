@@ -4422,7 +4422,7 @@ git push github task-6.4-feedback-format
 
 **Worktree:** worktree-feedback, branch `task-6.5-verifier`
 
-- [ ] **Step 1: Write failing tests**
+- [x] **Step 1: Write failing tests**
 
 Write `tests/test_verifier.py`:
 ```python
@@ -4453,12 +4453,12 @@ def test_verifier_all_sensors():
     assert verifier.verify(results) is True
 ```
 
-- [ ] **Step 2: Run to verify failure**
+- [x] **Step 2: Run to verify failure**
 
 Run: `pytest tests/test_verifier.py -v`
 Expected: ImportErrors
 
-- [ ] **Step 3: Implement ObjectiveVerifier**
+- [x] **Step 3: Implement ObjectiveVerifier**
 
 Write `codeguard/feedback/verifier.py`:
 ```python
@@ -4478,22 +4478,22 @@ class ObjectiveVerifier:
         return True
 ```
 
-- [ ] **Step 4: Run to verify pass**
+- [x] **Step 4: Run to verify pass**
 
 Run: `pytest tests/test_verifier.py -v`
 Expected: 4 passed
 
-- [ ] **Step 5: Refactor** — no refactoring needed. Simple set membership check.
+- [x] **Step 5: Refactor** — no refactoring needed. Simple set membership check.
 
-- [ ] **Step 6: SPEC compliance review**
+- [x] **Step 6: SPEC compliance review**
 
 Check: SPEC §3.5 — ObjectiveVerifier checks all required sensors PASSED. Missing required sensor returns False. No required sensors returns True.
 
-- [ ] **Step 7: Code quality review**
+- [x] **Step 7: Code quality review**
 
 Check: Simple, focused class. Returns bool, not FeedbackResult. No side effects.
 
-- [ ] **Step 8: Commit**
+- [x] **Step 8: Commit**
 
 ```bash
 git add codeguard/feedback/verifier.py tests/test_verifier.py
