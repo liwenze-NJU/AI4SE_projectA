@@ -454,3 +454,143 @@ def test_scenario_c_fail_repair_cycle():
     assert result.steps_total == 2, (
         f"Expected 2 executed steps, got {result.steps_total}"
     )
+
+
+# ---------------------------------------------------------------------------
+# Task 14.4: No-progress detection → LIMIT_REACHED
+# ---------------------------------------------------------------------------
+
+from codeguard.stop import StopPolicy
+
+
+def test_no_progress_repeated_action():
+    """Repeated action_fingerprint → no_progress_threshold → LIMIT_REACHED.
+
+    When the same action is proposed 3+ consecutive times, the
+    StopPolicy detects no progress and terminates the loop.
+    """
+    root = CompositionRoot(mode="test")
+    loop = root.create_loop(session_id="no-progress-action")
+
+    # StopPolicy with no_progress_threshold=3
+    loop.stop_policy = StopPolicy(
+        max_steps=50, max_llm_calls=100, no_progress_threshold=3,
+    )
+
+    # Same action repeated 4 times
+    same_action = _make_response(Action(
+        kind=ActionKind.TOOL_CALL,
+        tool_name="read_file",
+        parameters={"path": "same.txt"},
+        raw="",
+    ))
+    loop.llm = ScriptedMockLLM(responses=[same_action] * 5)
+
+    result = loop.run()
+
+    assert result.terminal_state == AgentState.LIMIT_REACHED, (
+        f"Expected LIMIT_REACHED, got {result.terminal_state}"
+    )
+    # The loop should stop after 3+ consecutive same fingerprints
+    # (GOVERNING appends fingerprint, StopPolicy checks after FEEDING_BACK)
+    assert result.llm_calls_total >= 3, (
+        f"Expected at least 3 LLM calls before stopping, got {result.llm_calls_total}"
+    )
+
+
+def test_no_progress_repeated_failure():
+    """Repeated failure_fingerprint → no_progress_threshold → LIMIT_REACHED.
+
+    When the same failure fingerprint appears 3+ consecutive times,
+    the StopPolicy detects no progress and terminates the loop.
+    """
+    root = CompositionRoot(mode="test")
+    loop = root.create_loop(session_id="no-progress-failure")
+
+    loop.stop_policy = StopPolicy(
+        max_steps=50, max_llm_calls=100, no_progress_threshold=3,
+    )
+
+    # Sensor that always returns FAILED with the same fingerprint
+    fail_result = FeedbackResult(
+        sensor_id="pytest",
+        program="python",
+        args=["-m", "pytest"],
+        status="FAILED",
+        failure_category="TEST_FAILURE",
+        exit_code=1,
+        failure_fingerprint="same_failure_fp",
+        validation_type="INTERMEDIATE",
+        summary="Always fails",
+        diagnostics=[],
+        duration=0.1,
+        retryable=True,
+        raw_output_truncated="FAILED",
+    )
+    loop.sensor_runner = ScriptedSensorRunner(
+        responses=[[fail_result]] * 10
+    )
+
+    # LLM keeps proposing the same write action
+    write_action = _make_response(Action(
+        kind=ActionKind.TOOL_CALL,
+        tool_name="write_file",
+        parameters={"path": "buggy.py", "content": "bad"},
+        raw="",
+    ))
+    loop.llm = ScriptedMockLLM(responses=[write_action] * 10)
+
+    result = loop.run()
+
+    assert result.terminal_state == AgentState.LIMIT_REACHED, (
+        f"Expected LIMIT_REACHED, got {result.terminal_state}"
+    )
+
+
+def test_no_progress_non_consecutive_does_not_trigger():
+    """Non-consecutive repeated fingerprints do NOT trigger LIMIT_REACHED.
+
+    If the agent proposes different actions between repeats, the
+    consecutive-run counter resets and the loop continues normally.
+    """
+    root = CompositionRoot(mode="test")
+    loop = root.create_loop(session_id="no-progress-nonconsecutive")
+
+    loop.stop_policy = StopPolicy(
+        max_steps=50, max_llm_calls=100, no_progress_threshold=3,
+    )
+
+    # Alternating actions: A, B, A, B, A, COMPLETE
+    # Fingerprint A appears 3 times but NOT consecutively
+    loop.llm = ScriptedMockLLM(responses=[
+        _make_response(Action(
+            kind=ActionKind.TOOL_CALL, tool_name="read_file",
+            parameters={"path": "a.txt"}, raw="",
+        )),
+        _make_response(Action(
+            kind=ActionKind.TOOL_CALL, tool_name="read_file",
+            parameters={"path": "b.txt"}, raw="",
+        )),
+        _make_response(Action(
+            kind=ActionKind.TOOL_CALL, tool_name="read_file",
+            parameters={"path": "a.txt"}, raw="",
+        )),
+        _make_response(Action(
+            kind=ActionKind.TOOL_CALL, tool_name="read_file",
+            parameters={"path": "b.txt"}, raw="",
+        )),
+        _make_response(Action(
+            kind=ActionKind.TOOL_CALL, tool_name="read_file",
+            parameters={"path": "a.txt"}, raw="",
+        )),
+        _make_response(Action(
+            kind=ActionKind.COMPLETE_REQUEST, summary="done", raw="",
+        )),
+    ])
+
+    result = loop.run()
+
+    # Should complete normally — non-consecutive repeats don't trigger
+    assert result.terminal_state == AgentState.COMPLETED, (
+        f"Expected COMPLETED, got {result.terminal_state}"
+    )
