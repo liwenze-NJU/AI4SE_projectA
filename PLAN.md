@@ -4069,7 +4069,7 @@ git push github task-6.1-sensor-runner
 
 **Worktree:** worktree-feedback, branch `task-6.2-parsers`
 
-- [ ] **Step 1: Write failing tests**
+- [x] **Step 1: Write failing tests**
 
 Write `tests/test_parsers.py`:
 ```python
@@ -4164,22 +4164,22 @@ class GenericParser:
         return {"failure_category": "UNKNOWN_FAILURE", "diagnostics": [], "fingerprint": None}
 ```
 
-- [ ] **Step 4: Run to verify pass**
+- [x] **Step 4: Run to verify pass**
 
 Run: `pytest tests/test_parsers.py -v`
 Expected: 5 passed
 
-- [ ] **Step 5: Refactor** — no refactoring needed. Each parser is a separate class with a single `parse()` method.
+- [x] **Step 5: Refactor** — no refactoring needed. Each parser is a separate class with a single `parse()` method.
 
-- [ ] **Step 6: SPEC compliance review**
+- [x] **Step 6: SPEC compliance review**
 
 Check: SPEC §3.5 — PytestParser, RuffParser, MypyParser, GenericParser all produce failure_category + diagnostics + fingerprint.
 
-- [ ] **Step 7: Code quality review**
+- [x] **Step 7: Code quality review**
 
 Check: Each parser is independent. Parse errors don't crash (return UNKNOWN_FAILURE). Fingerprints are deterministic.
 
-- [ ] **Step 8: Commit**
+- [x] **Step 8: Commit**
 
 ```bash
 git add codeguard/feedback/parsers.py tests/test_parsers.py

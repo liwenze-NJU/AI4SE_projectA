@@ -1314,3 +1314,28 @@
 **复审结果**: PASS — 0 Critical, 0 Major
 
 **branch/worktree**: feature/mvp-core
+
+---
+
+## Task 6.2: Output parsers
+
+**log_id**: T6.2 | **task_id**: Task 6.2 (Output parsers) | **状态**: COMPLETED
+**时间**: 2026-08-06
+**Superpowers 技能**: `superpowers:test-driven-development`
+
+**RED 阶段**：ModuleNotFoundError: No module named 'codeguard.feedback.parsers'
+
+**GREEN 阶段**：33 passed + 210 regression = 243 passed（1 项测试输入修复：补充行号）
+
+**实现**：
+- `PytestParser`: 识别 `FAILED file.py:line::test_name` 格式，提取 file/line/message
+- `RuffParser`: 识别 `path:line:col: CODE message` 格式
+- `MypyParser`: 识别 `path:line:col: error/warning: message [code]` 格式，可选列号和错误码
+- `GenericParser`: 返回 UNKNOWN_FAILURE 作为兜底
+- 所有解析器：`_strip_ansi()` 移除 ANSI 转义序列，SHA-256 确定性 fingerprint，空/畸形输入不崩溃，`parse()` 返回 `{failure_category, diagnostics, fingerprint}`
+
+**commit hash**: `3ffeec0`
+
+**复审结果**: PASS — 0 Critical, 0 Major
+
+**branch/worktree**: feature/mvp-core
