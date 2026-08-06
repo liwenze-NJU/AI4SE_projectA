@@ -1259,3 +1259,30 @@
 **复审结果**: PASS — 0 Critical, 0 Major
 
 **branch/worktree**: feature/mvp-core
+
+---
+
+## Task 5.4: ApprovalManager with FakeClock
+
+**log_id**: T5.4 | **task_id**: Task 5.4 (ApprovalManager with FakeClock) | **状态**: COMPLETED
+**时间**: 2026-08-06
+**Superpowers 技能**: `superpowers:test-driven-development`
+
+**RED 阶段**：ImportError: cannot import name 'ApprovalManager' from 'codeguard.guardrail.approval'
+
+**GREEN 阶段**：24 passed + 164 regression = 188 passed
+
+**实现**：
+- `ApprovalManager`: 创建审批请求（UUID、session_id、action_fingerprint、matched_rules、risk_summary、created_at、expires_at），默认超时 300s（SPEC §3.4）
+- `approve`: 验证 request 存在、session_id 匹配、fingerprint 匹配、未过期、仍为 PENDING → APPROVED
+- `reject`: 验证 request 存在、session_id 匹配、未过期、仍为 PENDING → REJECTED
+- `check_timeout`: PENDING 且 is_expired → TIMEOUT（含恰好在 expires_at 的边界）
+- 终态（APPROVED/REJECTED/TIMEOUT）不可再次转换，抛 ValueError
+- 注入 FakeClock 确定性测试，不使用 sleep 或真实时间
+- 复用现有 ApprovalRequest、ApprovalResult、ApprovalStatus、FakeClock，不重复定义
+
+**commit hash**: `1ce6e78`
+
+**复审结果**: PASS — 0 Critical, 0 Major
+
+**branch/worktree**: feature/mvp-core

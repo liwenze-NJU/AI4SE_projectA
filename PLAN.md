@@ -3706,7 +3706,7 @@ git push github task-5.3-rule-engine
 
 **Worktree:** worktree-guardrail, branch `task-5.4-approval-manager`
 
-- [ ] **Step 1: Write failing tests**
+- [x] **Step 1: Write failing tests**
 
 Write `tests/test_approval_manager.py`:
 ```python
@@ -3782,12 +3782,12 @@ def test_approve_fingerprint_mismatch():
         mgr.approve(request_id=req.request_id, session_id="s1", action_fingerprint="wrong_fp")
 ```
 
-- [ ] **Step 2: Run to verify failure**
+- [x] **Step 2: Run to verify failure**
 
 Run: `pytest tests/test_approval_manager.py -v`
 Expected: ImportErrors or AttributeError (ApprovalManager not yet implemented)
 
-- [ ] **Step 3: Implement ApprovalManager**
+- [x] **Step 3: Implement ApprovalManager**
 
 Write `codeguard/guardrail/approval.py` (replace existing file):
 ```python
@@ -3892,22 +3892,22 @@ class ApprovalManager:
         return req
 ```
 
-- [ ] **Step 4: Run to verify pass**
+- [x] **Step 4: Run to verify pass**
 
 Run: `pytest tests/test_approval_manager.py -v`
 Expected: 8 passed
 
-- [ ] **Step 5: Refactor** — check that `_get_valid_request` validates all conditions (existence, session, expiry, fingerprint, status). Consider extracting timeout checking into a separate method.
+- [x] **Step 5: Refactor** — check that `_get_valid_request` validates all conditions (existence, session, expiry, fingerprint, status). Consider extracting timeout checking into a separate method.
 
-- [ ] **Step 6: SPEC compliance review**
+- [x] **Step 6: SPEC compliance review**
 
 Check: SPEC §3.4 — ApprovalRequest with request_id, session_id, action binding, fingerprint, timeout. Approve/reject/timeout all work. Expired requests cannot be approved. Session mismatch rejected. FakeClock for deterministic testing.
 
-- [ ] **Step 7: Code quality review**
+- [x] **Step 7: Code quality review**
 
 Check: `_get_valid_request` is a single validation gate used by both approve and reject. All validation errors are ValueError with descriptive messages. FakeClock is injected, not created internally.
 
-- [ ] **Step 8: Commit**
+- [x] **Step 8: Commit**
 
 ```bash
 git add codeguard/guardrail/approval.py tests/test_approval_manager.py
