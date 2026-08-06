@@ -1417,3 +1417,29 @@
 **复审结果**: PASS — 0 Critical, 0 Major
 
 **branch/worktree**: feature/mvp-core
+
+---
+
+## Task 7.1: Tracer（集成 SecretRedactor）
+
+**log_id**: T7.1 | **task_id**: Task 7.1 (Tracer) | **状态**: COMPLETED
+**时间**: 2026-08-06
+**Superpowers 技能**: `superpowers:test-driven-development`
+
+**RED 阶段**：ModuleNotFoundError: No module named 'codeguard.tracer'
+
+**GREEN 阶段**：18 passed + 302 regression = 320 passed
+
+**实现**：
+- `TraceEvent`: 包含 event_type、data（dict）、timestamp（ISO 格式）
+- `Tracer`: 记录状态转换、Guardrail 决策、工具调用、反馈事件
+- `_redact_nested`: 递归遍历 dict/list/tuple 中的字符串，逐值调用 SecretRedactor.redact()
+- 脱敏前存储：Guardrail message、工具参数（含嵌套）、反馈消息
+- `get_events()`: `copy.deepcopy()` 返回防御性副本，修改不影响内部状态
+- 默认注入 SecretRedactor()，可注入自定义实例
+
+**commit hash**: `a04d434`
+
+**复审结果**: PASS — 0 Critical, 0 Major
+
+**branch/worktree**: feature/mvp-core

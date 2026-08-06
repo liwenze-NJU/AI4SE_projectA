@@ -4526,7 +4526,7 @@ git push github task-6.5-verifier
 
 **File boundary:** Only `codeguard/tracer.py` and `tests/test_tracer.py`
 
-- [ ] **Step 1: Write failing tests**
+- [x] **Step 1: Write failing tests**
 
 Write `tests/test_tracer.py`:
 ```python
@@ -4582,12 +4582,12 @@ def test_tracer_chronological_order():
     assert events[2].event_type == "state_transition"
 ```
 
-- [ ] **Step 2: Run to verify failure**
+- [x] **Step 2: Run to verify failure**
 
 Run: `pytest tests/test_tracer.py -v`
 Expected: ImportErrors
 
-- [ ] **Step 3: Implement Tracer**
+- [x] **Step 3: Implement Tracer**
 
 Write `codeguard/tracer.py`:
 ```python
@@ -4626,22 +4626,22 @@ class Tracer:
         return list(self._events)
 ```
 
-- [ ] **Step 4: Run to verify pass**
+- [x] **Step 4: Run to verify pass**
 
 Run: `pytest tests/test_tracer.py -v`
 Expected: 6 passed
 
-- [ ] **Step 5: Refactor** — check that SecretRedactor is applied to all user-produced content (tool params, guardrail messages). State transitions and feedback status are enum values, not redactable.
+- [x] **Step 5: Refactor** — check that SecretRedactor is applied to all user-produced content (tool params, guardrail messages). State transitions and feedback status are enum values, not redactable.
 
-- [ ] **Step 6: SPEC compliance review**
+- [x] **Step 6: SPEC compliance review**
 
 Check: SPEC §4.3 — Tracer records chronological events. SecretRedactor applied before storing. Events include state transitions, guardrail decisions, tool calls, feedback results.
 
-- [ ] **Step 7: Code quality review**
+- [x] **Step 7: Code quality review**
 
 Check: `get_events()` returns a copy of the list (defensive copy). SecretRedactor is applied at record time, not export time. All event types use a single `TraceEvent` dataclass.
 
-- [ ] **Step 8: Commit**
+- [x] **Step 8: Commit**
 
 ```bash
 git add codeguard/tracer.py tests/test_tracer.py
