@@ -1939,3 +1939,82 @@
 **commit hash**: `1bd26a1`
 
 **具备进入 Task 16.1 的条件**: 是 — 532 passed, 1 skipped, 0 failed
+---
+
+## Task 16.1: FastAPI app + session isolation
+
+**log_id**: T16.1 | **task_id**: Task 16.1 WebUI | **状态**: COMPLETED（回溯补记）
+**时间**: 2026-08-06
+**branch/worktree**: feature/mvp-core
+
+**RED 阶段**: `tests/test_web_app.py` 3 个测试（health/session isolation/mock banner）写入时 app.py 未创建，ImportError
+
+**GREEN 阶段**: 创建 `codeguard/web/app.py` + `__init__.py`，3/3 passed
+
+**实现内容**:
+- `create_app(mode="demo")` — FastAPI 工厂
+- `/health` — 返回 status/mode/mock 标志
+- `POST /session` — 生成随机 session_id，独立内存状态（浏览器会话隔离）
+- `/` — Jinja2 TemplateResponse 渲染 scenarios.html
+
+**全量测试**: 536 passed, 1 skipped, 0 failed
+
+**commit hash**: `4e635af`
+
+**具备进入 Task 16.2 的条件**: 是
+
+---
+
+## Task 16.2: P1 — Scenario selection page
+
+**log_id**: T16.2 | **task_id**: Task 16.2 WebUI | **状态**: COMPLETED（回溯补记）
+**时间**: 2026-08-06
+**branch/worktree**: feature/mvp-core
+
+**RED 阶段**: `tests/test_web_scenarios.py` 4 个测试写入时模板未创建，ImportError/404
+
+**GREEN 阶段**: 创建 `base.html`（Mock 横幅+导航+footer）、`scenarios.html`（3 张场景卡）、`style.css`（Vercel 令牌），4/4 passed
+
+**实现内容**:
+- `base.html` — 不可关闭的 Mock 安全横幅 + 顶部导航 + 内容/脚本 block
+- `scenarios.html` — 3 张场景卡（路径逃逸 BLOCK/副作用待审批/反馈闭环），卡片链接 `/session?scenario=a|b|c`
+- `style.css` — Open Design/Vercel 风格设计令牌（颜色、间距、排版、组件）
+
+**全量测试**: 540 passed, 1 skipped, 0 failed
+
+**commit hash**: `e0e2758`
+
+**具备进入 Task 16.3 的条件**: 是
+
+---
+
+## Task 16.3: P2 — Agent dashboard
+
+**log_id**: T16.3 | **task_id**: Task 16.3 WebUI | **状态**: COMPLETED
+**时间**: 2026-08-06
+**Superpowers 技能**: `superpowers:test-driven-development`
+**branch/worktree**: feature/mvp-core
+
+**RED 阶段**: 6 个测试写入 `tests/test_web_dashboard.py`（endpoint 200/stepper/three columns/session state/demo controls/mock banner）；修复 P1→P2 导航断裂时新增 `test_scenario_entry_redirects_to_dashboard`，初始 405（GET /session 不存在），RED 确认
+
+**GREEN 阶段**: 创建 `dashboard.html`（顶部概览条 + 三栏布局）+ `static/main.js`（2s 轮询）+ 状态轮询 API；新增 `GET /session` 303 重定向到 `/dashboard?session=…`；`/dashboard` 支持 session 参数复用。14/14 web 测试通过
+
+**实现内容**:
+- `dashboard.html` — 顶部概览条（场景名/当前态/水平步进器含终态分支/演示控件）+ 左栏状态机时间线 + 中栏执行轨迹 + 右栏工具调用与护栏决策三联卡
+- `static/main.js` — 2s 轮询 `/session/{id}/state`，更新步进器/时间线/轨迹/护栏卡；步进▶/暂停/重放 演示控件（Mock 回放仅前端推进状态）
+- `GET /dashboard` — 新建或复用 demo session（内存态，重启可丢失）
+- `GET /session/{session_id}/state` — 轮询端点：state/trace/guardrail_decisions
+- `GET /session?scenario=…` — P1 卡片入口：303 → `/dashboard?session=…`
+- `style.css` — 三栏网格（260px/1fr/300px）+ 1023px 单栏堆叠 + 375px 窄屏 + reduced-motion
+
+**修复的问题**: P1 场景卡链接 `/session?scenario=a` 原本 405（仅 POST /session）→ 新增 GET 路由 303 重定向到 dashboard，P1→P2 导航打通
+
+**全量测试**: 546 passed, 1 skipped (test_symlink_outside_workspace_rejected), 0 failed
+
+**两阶段评审**:
+- 规格合规: PASS — 三栏布局/水平步进器/护栏三联与 WIREFRAME_SPEC 02 一致；MOCK 横幅保留；会话隔离；窄屏单栏堆叠；无 React/Node.js
+- 代码质量: 0 Critical, 1 Minor（记录不阻塞）— main.js 首屏不更新导航栏状态药丸（保持"未开始"，首次状态变化后正常）；`/dashboard` 每次访问新建 session 不清理（内存态演示可接受）
+
+**commit hash**: 待当前会话提交后补记
+
+**具备进入 Task 16.4 的条件**: 是 — 546 passed, 1 skipped, 0 failed

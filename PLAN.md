@@ -6708,7 +6708,7 @@ git push github task-15.1-cli
 
 **Dependency:** Task 13.1 (CompositionRoot)
 
-- [ ] **Step 1: Write failing tests**
+- [x] **Step 1: Write failing tests** — `tests/test_web_app.py` (health/session isolation/mock banner)
 
 Write `tests/test_web_app.py`:
 ```python
@@ -6792,7 +6792,7 @@ def create_app(mode: str = "demo") -> FastAPI:
 Run: `pytest tests/test_web_app.py -v`
 Expected: 3 passed
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit** — `4e635af`
 
 ```bash
 git add codeguard/web/__init__.py codeguard/web/app.py tests/test_web_app.py
@@ -6811,7 +6811,7 @@ git push github task-16.1-web-app
 - Create: `codeguard/web/static/style.css`
 - Create: `tests/test_web_scenarios.py`
 
-- [ ] **Step 1: Write failing tests**
+- [x] **Step 1: Write failing tests** — `tests/test_web_scenarios.py` (3 cards/mock banner/teaching intro)
 
 Write `tests/test_web_scenarios.py`:
 ```python
@@ -6855,7 +6855,7 @@ Create `codeguard/web/static/style.css` with Vercel-inspired design tokens.
 Run: `pytest tests/test_web_scenarios.py -v`
 Expected: 2 passed
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit** — `e0e2758`
 
 ```bash
 git add codeguard/web/templates/ codeguard/web/static/ tests/test_web_scenarios.py
@@ -6873,7 +6873,7 @@ git push github task-16.2-webui-p1
 - Create: `codeguard/web/static/main.js`
 - Create: `tests/test_web_dashboard.py`
 
-- [ ] **Step 1: Write failing tests**
+- [x] **Step 1: Write failing tests** — `tests/test_web_dashboard.py` (6 tests: endpoint 200/stepper/three columns/session state/demo controls/mock banner)
 
 Write `tests/test_web_dashboard.py`:
 ```python
@@ -6919,7 +6919,7 @@ Create `codeguard/web/static/main.js` with polling for session state updates.
 Run: `pytest tests/test_web_dashboard.py -v`
 Expected: 2 passed
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit** — pending (Task 16.3 commit created by current session)
 
 ```bash
 git add codeguard/web/templates/dashboard.html codeguard/web/static/main.js tests/test_web_dashboard.py

@@ -54,3 +54,14 @@ async def test_mock_banner_not_closable():
     assert "close" not in text.lower()
     assert "dismiss" not in text.lower()
     assert "×" not in text
+
+
+@pytest.mark.asyncio
+async def test_scenario_entry_redirects_to_dashboard():
+    """Scenario card entry (`/session?scenario=a`) must not 404."""
+    app = create_app(mode="demo")
+    transport = ASGITransport(app=app)
+    async with AsyncClient(transport=transport, base_url="http://test", follow_redirects=False) as client:
+        response = await client.get("/session?scenario=a")
+    assert response.status_code in (302, 303, 307)
+    assert "/dashboard" in response.headers.get("location", "")
