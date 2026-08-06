@@ -1868,3 +1868,33 @@
 **经验教训**: 集成测试通过不代表架构正确。必须对照 SPEC 逐条验证管线步骤、类型约束和语义正确性。
 
 **具备进入 Task 15.1 的条件**: 是 — 全部 5 项修复完成，0 Critical/Major，507 passed, 1 skipped
+
+---
+
+## Phase 14 恢复修复 (Session Recovery)
+
+**log_id**: T14-RECOVER | **task_id**: Phase 14 Session Recovery | **状态**: COMPLETED
+**时间**: 2026-08-06
+**起因**: 上次会话因 Request too large (max 32MB) 中断，未提交的修改留在工作区。
+
+**恢复检查**:
+- 分支: feature/mvp-core, HEAD: ca495c8
+- 未提交修改: composition.py, loop.py, test_phase14_spec_compliance.py, test_process_tool.py
+
+**三项修复确认**:
+1. 完整治理管线与 SchemaValidator — composition.py 注入 SchemaValidator + ToolRegistry + _register_standard_tools
+2. 删除 fallback normalization — loop.py `_normalize()` 移除 fallback，fail closed
+3. Windows run_process 测试改用 sys.executable — test_process_tool.py 7/7 passed
+
+**修复的问题**:
+- `_register_standard_tools` 未在 `_wire_common` 中调用 → ToolRegistry 为空 → 所有工具查找失败
+- 测试中重复注册工具导致 ValueError → 跳过已注册 + 测试替换 registry
+- test_loop.py 直接创建 AgentLoop 缺少 action_normalizer → 8 个测试 FAILED → 注入 ActionNormalizer
+
+**验证**:
+- 专项: 23/23 test_phase14_spec_compliance.py, 7/7 test_process_tool.py, 13/13 test_loop.py
+- 全量: 512 passed, 1 skipped (test_symlink_outside_workspace_rejected), 0 failed
+
+**commit hash**: `f0bc0c6`
+
+**具备进入 Task 15.1 的条件**: 是 — 512 passed, 1 skipped, 0 failed
