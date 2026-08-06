@@ -2068,6 +2068,6 @@
 - 规格合规: PASS — 与线框图 04/WIREFRAME_SPEC §4 一致（终态头条/反馈闭环/Memory 4 类型/护栏汇总/导航）
 - 代码质量: 0 Critical, 0 Major — 纯 Mock 数据，无真实组件
 
-**commit hash**: 待提交后补记
+**commit hash**: `887bc18`
 
 **具备进入 Task 16.6 的条件**: 是 — 557 passed, 1 skipped, 0 failed
