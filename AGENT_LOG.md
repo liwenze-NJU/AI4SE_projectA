@@ -1827,3 +1827,44 @@
 - `tests/test_guardrail_engine.py`: 更新 recoverable 断言
 
 **具备进入 Task 15.1 的条件**: 是 — 全部 4 个场景完成，0 Critical/Major，489 passed, 1 skipped
+
+---
+
+## Phase 14 规格修复 (CORRECTED)
+
+**log_id**: T14-FIX | **task_id**: Phase 14 SPEC Compliance Fix | **状态**: COMPLETED
+**时间**: 2026-08-06
+**Superpowers 技能**: `superpowers:receiving-code-review`, `superpowers:systematic-debugging`, `superpowers:test-driven-development`
+
+**问题发现**: Phase 14 初版集成测试全部通过 (489 passed)，但人工对照 SPEC 审查后发现以下架构回退：
+
+1. **治理管线回退**: AgentLoop 将原始 Action 直接传给 RuleEngine，RuleEngine 和内置 Rule 使用 `Action | NormalizedAction` 宽松入口。SPEC §3.2 要求严格管线 `Action → SchemaValidator → ActionNormalizer → NormalizedAction → RuleEngine`。
+
+2. **BLOCK recoverable 硬编码**: 所有 GuardrailResult 统一 `recoverable=True`。规则异常和不可恢复错误应 `recoverable=False → FAILED`。
+
+3. **审批恢复流程缺陷**: `pending_action` 存储可变 Action；批准后直接 dispatch 不经重新校验；`AgentLoop._continue_from_approval()` 直接访问 `ApprovalManager._requests`。
+
+4. **FINAL_VALIDATION 缺失**: COMPLETE_REQUEST 只检查旧的 INTERMEDIATE 反馈，不运行最终 Sensor，不标记 FINAL validation_type。
+
+**RED 阶段**: 18 个合规测试中 10 个 RED，暴露全部 4 类问题。
+
+**GREEN 阶段**: 18 个合规测试 + 10 个集成测试全部通过。507 passed, 1 skipped。
+
+**修复内容**:
+- `codeguard/guardrail/engine.py`: 只接受 NormalizedAction (TypeError 拒绝 Action)；PriorityMerger 合并 recoverable 语义
+- `codeguard/guardrail/rules.py`: 只接受 NormalizedAction；显式标注 recoverable=True
+- `codeguard/guardrail/approval.py`: 新增 get_request(), check_timeout_for_request() public 方法
+- `codeguard/loop.py`: GOVERNING 前规范化 Action；FINAL_VALIDATION 运行 Sensor+FINAL+Classifier+Verifier；审批恢复使用 public API + 重新校验
+- `codeguard/feedback/verifier.py`: 新增 required_sensors property (getter/setter)
+- `codeguard/composition.py`: 注入 ActionNormalizer
+- `codeguard/state.py`: pending_action 恢复为 NormalizedAction 类型
+- `tests/test_phase14_spec_compliance.py`: 新增 18 个 SPEC 合规测试
+- `tests/test_loop.py`: FakeGuardrail/FakeApproval 更新
+
+**commit hash**: `8109761`
+
+**复审结果**: PASS — SPEC 合规 5/5 修复，代码质量 0 Critical, 0 Major
+
+**经验教训**: 集成测试通过不代表架构正确。必须对照 SPEC 逐条验证管线步骤、类型约束和语义正确性。
+
+**具备进入 Task 15.1 的条件**: 是 — 全部 5 项修复完成，0 Critical/Major，507 passed, 1 skipped
