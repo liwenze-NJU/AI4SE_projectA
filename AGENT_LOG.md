@@ -1106,4 +1106,84 @@
 
 **branch/worktree**: feature/mvp-core
 
+---
+
+## Task 4.3: File write tools
+
+**log_id**: T4.3 | **task_id**: Task 4.3 (File write tools) | **状态**: COMPLETED
+**时间**: 2026-08-06
+**Superpowers 技能**: `superpowers:test-driven-development`
+
+**RED 阶段**：8 failed（ImportError: write_file/apply_patch/delete_file 未定义）
+
+**GREEN 阶段**：8 passed + 86 regression = 94 passed
+
+**实现**：
+- write_file: SHA-256 fingerprint 冲突检测，tempfile + os.replace 原子写入
+- apply_patch: 上下文匹配，不匹配时 ValueError
+- delete_file: FileNotFoundError 检查
+- 全部复用 Task 4.2 安全边界：_resolve_dir（os.sep）、_is_excluded_dir、_is_sensitive_file
+
+**commit hash**: `7aac679`
+
+**复审结果**: PASS — 0 Critical, 0 Major
+
+**branch/worktree**: feature/mvp-core
+
+---
+
+## Task 4.4: run_process tool
+
+**log_id**: T4.4 | **task_id**: Task 4.4 (run_process) | **状态**: COMPLETED
+**时间**: 2026-08-06
+**Superpowers 技能**: `superpowers:test-driven-development`
+
+**RED 阶段**：ModuleNotFoundError: No module named 'codeguard.tool.process_tool'
+
+**GREEN 阶段**：5 passed + 94 regression = 99 passed
+
+**评审发现**：
+- Critical: cwd 未校验工作区边界
+- Major: 元字符集缺少 `;`
+
+**修复 RED**：2 failed（cwd_outside 未拒绝、semicolon 未拒绝）
+
+**修复 GREEN**：7 passed（新增 cwd 边界检查 + semicolon 拒绝测试）
+- 全量回归：106 passed
+
+**实现**：
+- _validate_cwd: os.sep 前缀检查
+- _SHELL_METACHARS = `;&|`$`（不含 \n\r，避免阻塞合法的 Python -c 代码）
+- shell=False, subprocess.run, timeout → TimeoutError
+
+**commit hash**: `fd03da3`（实现）、`9ca5c19`（修复）
+
+**复审结果**: PASS — 0 Critical, 0 Major
+
+**branch/worktree**: feature/mvp-core
+
+---
+
+## Task 4.5: ToolDispatcher
+
+**log_id**: T4.5 | **task_id**: Task 4.5 (ToolDispatcher) | **状态**: COMPLETED
+**时间**: 2026-08-06
+**Superpowers 技能**: `superpowers:test-driven-development`
+
+**RED 阶段**：ModuleNotFoundError: No module named 'codeguard.tool.dispatcher'
+
+**GREEN 阶段**：5 passed + 99 regression = 104 passed
+
+**实现**：
+- dispatch: lookup → handler → 异常分类 → SecretRedactor → ToolResult
+- 异常分类：WORKSPACE_VIOLATION / FILE_NOT_FOUND / TIMEOUT / UNEXPECTED
+- 输出截断至 1000 字符，truncated 标志
+- SecretRedactor 在 ToolResult 构造前统一调用
+
+**commit hash**: `c6933a1`
+
+**复审结果**: PASS — 0 Critical, 0 Major
+
+**branch/worktree**: feature/mvp-core
+
 **branch/worktree**: feature/mvp-core

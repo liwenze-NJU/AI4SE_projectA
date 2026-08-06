@@ -2902,7 +2902,7 @@ Check: SPEC §3.6 — write_file with SHA-256 fingerprint for conflict detection
 
 Check: `write_file` uses `os.replace()` for atomic write (atomic on POSIX, near-atomic on Windows). `apply_patch` does a single replacement (not regex). `delete_file` checks existence before unlinking.
 
-- [ ] **Step 8: Commit**
+- [x] **Step 8: Commit** — `7aac679`
 
 ```bash
 git add codeguard/tool/file_tools.py tests/test_file_tools.py
@@ -3022,7 +3022,7 @@ Check: SPEC §3.6 — structured program+args, no shell=True, timeout enforcemen
 
 Check: `subprocess.run` with `shell=False` prevents shell injection. `_validate_args` blocks shell metacharacters as defense-in-depth. `capture_output=True` prevents output to terminal.
 
-- [ ] **Step 8: Commit**
+- [x] **Step 8: Commit** — `fd03da3` (fix: `9ca5c19`)
 
 ```bash
 git add codeguard/tool/process_tool.py tests/test_process_tool.py
@@ -3173,7 +3173,7 @@ Check: SPEC §3.6 — ToolDispatcher routes to correct handler. TOCTOU re-valida
 
 Check: Error handling categorizes exceptions into FAILURE/TIMEOUT/ERROR. SecretRedactor is applied before storage. Output is truncated to 1000 chars in summary.
 
-- [ ] **Step 8: Commit**
+- [x] **Step 8: Commit** — `c6933a1`
 
 ```bash
 git add codeguard/tool/dispatcher.py tests/test_tool_dispatcher.py
