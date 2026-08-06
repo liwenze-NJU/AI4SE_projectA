@@ -107,3 +107,222 @@ def test_scenario_a_block_then_feedback_then_complete():
     assert result.steps_total == 1, (
         f"Expected 1 executed step (read_file), got {result.steps_total}"
     )
+
+
+# ---------------------------------------------------------------------------
+# Task 14.2: Scenario B — REQUEST_APPROVAL → approve/reject/timeout
+# ---------------------------------------------------------------------------
+
+from codeguard.guardrail.approval import ApprovalManager, ApprovalStatus, FakeClock
+
+
+def _make_approval_rule():
+    """Create a rule that always returns REQUEST_APPROVAL for any tool call."""
+    def _evaluate(action):
+        if action.kind == ActionKind.COMPLETE_REQUEST:
+            return {"decision": "ALLOW", "rule_id": "approval_rule", "reason_codes": []}
+        return {"decision": "REQUEST_APPROVAL", "rule_id": "approval_rule",
+                "reason_codes": ["needs_approval"]}
+    return _evaluate
+
+
+def test_scenario_b_approve():
+    """REQUEST_APPROVAL → approve → EXECUTING → COMPLETED.
+
+    Approval is bound to session_id, request_id, and action_fingerprint.
+    Only the originally requested action is executed after approval.
+    """
+    root = CompositionRoot(mode="test")
+    loop = root.create_loop(session_id="scenario-b-approve")
+
+    engine = RuleEngine()
+    engine.add_rule("approval_rule", _make_approval_rule())
+    loop.rule_engine = engine
+
+    clock = FakeClock()
+    loop.approval_manager = ApprovalManager(clock=clock, approval_timeout=60)
+
+    loop.llm = ScriptedMockLLM(responses=[
+        _make_response(Action(
+            kind=ActionKind.TOOL_CALL,
+            tool_name="write_file",
+            parameters={"path": "output.txt"},
+            raw="",
+        )),
+        _make_response(Action(
+            kind=ActionKind.COMPLETE_REQUEST, summary="done", raw="",
+        )),
+    ])
+
+    # First run: should pause at AWAITING_APPROVAL
+    result = loop.run()
+    assert loop.state.current_state == AgentState.AWAITING_APPROVAL, (
+        f"Expected AWAITING_APPROVAL, got {loop.state.current_state}"
+    )
+    assert loop.state.approval_request_id is not None
+    assert result.terminal_state == AgentState.AWAITING_APPROVAL
+
+    # Approve the request
+    loop.resume_with_approval(
+        request_id=loop.state.approval_request_id,
+        session_id="scenario-b-approve",
+        decision=ApprovalStatus.APPROVED,
+        action_fingerprint=loop.state.pending_action.action_fingerprint,
+    )
+
+    # Second run: continue from AWAITING_APPROVAL → EXECUTING → ... → COMPLETED
+    result = loop.run()
+    assert result.terminal_state == AgentState.COMPLETED, (
+        f"Expected COMPLETED, got {result.terminal_state}"
+    )
+    assert result.steps_total >= 1  # tool was executed
+
+
+def test_scenario_b_reject():
+    """REQUEST_APPROVAL → reject → CANCELLED, zero tool executions."""
+    root = CompositionRoot(mode="test")
+    loop = root.create_loop(session_id="scenario-b-reject")
+
+    engine = RuleEngine()
+    engine.add_rule("approval_rule", _make_approval_rule())
+    loop.rule_engine = engine
+
+    clock = FakeClock()
+    loop.approval_manager = ApprovalManager(clock=clock, approval_timeout=60)
+
+    loop.llm = ScriptedMockLLM(responses=[
+        _make_response(Action(
+            kind=ActionKind.TOOL_CALL,
+            tool_name="write_file",
+            parameters={"path": "output.txt"},
+            raw="",
+        )),
+    ])
+
+    # First run: should pause at AWAITING_APPROVAL
+    result = loop.run()
+    assert loop.state.current_state == AgentState.AWAITING_APPROVAL
+
+    # Reject
+    loop.resume_with_approval(
+        request_id=loop.state.approval_request_id,
+        session_id="scenario-b-reject",
+        decision=ApprovalStatus.REJECTED,
+        action_fingerprint=loop.state.pending_action.action_fingerprint,
+    )
+
+    result = loop.run()
+    assert result.terminal_state == AgentState.CANCELLED, (
+        f"Expected CANCELLED, got {result.terminal_state}"
+    )
+    assert result.steps_total == 0  # tool was NOT executed
+
+
+def test_scenario_b_timeout():
+    """REQUEST_APPROVAL → timeout → CANCELLED, zero tool executions.
+
+    Uses FakeClock to advance past the timeout without real waiting.
+    """
+    root = CompositionRoot(mode="test")
+    loop = root.create_loop(session_id="scenario-b-timeout")
+
+    engine = RuleEngine()
+    engine.add_rule("approval_rule", _make_approval_rule())
+    loop.rule_engine = engine
+
+    clock = FakeClock()
+    loop.approval_manager = ApprovalManager(clock=clock, approval_timeout=5)
+
+    loop.llm = ScriptedMockLLM(responses=[
+        _make_response(Action(
+            kind=ActionKind.TOOL_CALL,
+            tool_name="write_file",
+            parameters={"path": "output.txt"},
+            raw="",
+        )),
+    ])
+
+    # First run: should pause at AWAITING_APPROVAL
+    result = loop.run()
+    assert loop.state.current_state == AgentState.AWAITING_APPROVAL
+    request_id = loop.state.approval_request_id
+    assert request_id is not None
+
+    # Advance clock past timeout
+    clock.advance(10)
+
+    # Second run: should detect timeout → CANCELLED
+    result = loop.run()
+    assert result.terminal_state == AgentState.CANCELLED, (
+        f"Expected CANCELLED, got {result.terminal_state}"
+    )
+    assert result.steps_total == 0  # tool was NOT executed
+
+
+def test_scenario_b_wrong_fingerprint_rejected():
+    """Approval with wrong action_fingerprint is rejected."""
+    root = CompositionRoot(mode="test")
+    loop = root.create_loop(session_id="scenario-b-wrong-fp")
+
+    engine = RuleEngine()
+    engine.add_rule("approval_rule", _make_approval_rule())
+    loop.rule_engine = engine
+
+    clock = FakeClock()
+    loop.approval_manager = ApprovalManager(clock=clock, approval_timeout=60)
+
+    loop.llm = ScriptedMockLLM(responses=[
+        _make_response(Action(
+            kind=ActionKind.TOOL_CALL,
+            tool_name="write_file",
+            parameters={"path": "output.txt"},
+            raw="",
+        )),
+    ])
+
+    result = loop.run()
+    assert loop.state.current_state == AgentState.AWAITING_APPROVAL
+
+    # Try to approve with wrong fingerprint
+    import pytest
+    with pytest.raises(ValueError, match="fingerprint"):
+        loop.resume_with_approval(
+            request_id=loop.state.approval_request_id,
+            session_id="scenario-b-wrong-fp",
+            decision=ApprovalStatus.APPROVED,
+            action_fingerprint="wrong-fingerprint",
+        )
+
+
+def test_scenario_b_wrong_session_rejected():
+    """Approval with wrong session_id is rejected."""
+    root = CompositionRoot(mode="test")
+    loop = root.create_loop(session_id="scenario-b-wrong-session")
+
+    engine = RuleEngine()
+    engine.add_rule("approval_rule", _make_approval_rule())
+    loop.rule_engine = engine
+
+    clock = FakeClock()
+    loop.approval_manager = ApprovalManager(clock=clock, approval_timeout=60)
+
+    loop.llm = ScriptedMockLLM(responses=[
+        _make_response(Action(
+            kind=ActionKind.TOOL_CALL,
+            tool_name="write_file",
+            parameters={"path": "output.txt"},
+            raw="",
+        )),
+    ])
+
+    result = loop.run()
+    assert loop.state.current_state == AgentState.AWAITING_APPROVAL
+
+    import pytest
+    with pytest.raises(ValueError, match="Session"):
+        loop.resume_with_approval(
+            request_id=loop.state.approval_request_id,
+            session_id="wrong-session",
+            decision=ApprovalStatus.APPROVED,
+            action_fingerprint=loop.state.pending_action.action_fingerprint,
+        )

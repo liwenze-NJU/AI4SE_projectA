@@ -40,6 +40,7 @@ class AgentLoop:
         self._guardrail_decisions: list = []
         self._feedback_results: list = []
         self._started_at = datetime.now()
+        self._iteration = 0
 
         # Components to be injected via attributes
         self.rule_engine = None
@@ -50,6 +51,9 @@ class AgentLoop:
         self.objective_verifier = None
         self.stop_policy = None
 
+        # Approval resume state
+        self._approval_decision: ApprovalStatus | None = None
+
     # ------------------------------------------------------------------
     # Public API
     # ------------------------------------------------------------------
@@ -58,23 +62,52 @@ class AgentLoop:
         """Transition from INITIALIZING to BUILDING_CONTEXT."""
         self._transition(AgentState.BUILDING_CONTEXT)
 
+    def resume_with_approval(self, request_id: str, session_id: str,
+                             decision: ApprovalStatus,
+                             action_fingerprint: str) -> None:
+        """Resume the loop after an approval decision.
+
+        Called by CLI or WebUI after the user approves or rejects.
+        Validates session_id, request_id, and action_fingerprint binding.
+        """
+        if self.state.current_state != AgentState.AWAITING_APPROVAL:
+            raise ValueError(
+                f"Cannot resume: not in AWAITING_APPROVAL "
+                f"(current: {self.state.current_state.value})"
+            )
+        if self.approval_manager is None:
+            raise ValueError("No approval manager configured")
+
+        if decision == ApprovalStatus.APPROVED:
+            self.approval_manager.approve(request_id, session_id, action_fingerprint)
+        elif decision == ApprovalStatus.REJECTED:
+            self.approval_manager.reject(request_id, session_id)
+        self._approval_decision = decision
+
     def run(self) -> SessionResult:
         """Drive the full state machine to a terminal state.
+
+        If the loop enters AWAITING_APPROVAL, it pauses and returns.
+        Call resume_with_approval() then run() again to continue.
 
         Returns
         -------
         SessionResult
-            Terminal state, step counts, trace, and aggregate metrics.
+            Terminal state (or AWAITING_APPROVAL if paused),
+            step counts, trace, and aggregate metrics.
         """
         if self.state.current_state == AgentState.INITIALIZING:
             self.initialize()
 
+        # Handle resume from AWAITING_APPROVAL
+        if self.state.current_state == AgentState.AWAITING_APPROVAL:
+            return self._continue_from_approval()
+
         # BUILDING_CONTEXT → DECIDING
         self._transition(AgentState.DECIDING)
 
-        _iteration = 0
-        while _iteration < self._max_steps:
-            _iteration += 1
+        while self._iteration < self._max_steps:
+            self._iteration += 1
             # ----- DECIDING: call LLM -----
             context = self._build_context()
             llm_response = self.llm.generate(self.state.session_id, context)
@@ -124,18 +157,17 @@ class AgentLoop:
                 elif decision == GuardrailDecision.REQUEST_APPROVAL:
                     self._transition(AgentState.AWAITING_APPROVAL)
                     if self.approval_manager is not None:
-                        approval_result = self.approval_manager.wait_for_approval(action)
-                        self.state.approval_request_id = approval_result.request_id
-                        if approval_result.decision == ApprovalStatus.APPROVED:
-                            self._transition(AgentState.EXECUTING)
-                        elif approval_result.decision in (
-                            ApprovalStatus.REJECTED,
-                            ApprovalStatus.TIMEOUT,
-                        ):
-                            self._transition(AgentState.CANCELLED)
-                            break
+                        req = self.approval_manager.create_request(
+                            session_id=self.state.session_id,
+                            normalized_action=action,
+                            matched_rules=guardrail_result.rule_ids,
+                            risk_summary=guardrail_result.human_readable_message,
+                        )
+                        self.state.pending_action = action
+                        self.state.approval_request_id = req.request_id
+                        # Pause — return so caller can approve/reject
+                        return self._build_result()
                     else:
-                        # No approval manager — cannot proceed
                         self._transition(AgentState.FAILED)
                         break
 
@@ -176,24 +208,46 @@ class AgentLoop:
         ):
             self._transition(AgentState.LIMIT_REACHED)
 
-        # ----- Build result -----
-        duration = (datetime.now() - self._started_at).total_seconds()
-        return SessionResult(
-            session_id=self.state.session_id,
-            terminal_state=self.state.current_state,
-            steps_total=self.state.steps_used,
-            llm_calls_total=self.state.llm_calls_used,
-            token_total=self.state.token_used,
-            cost_total=self.state.cost_used,
-            duration=duration,
-            guardrail_decisions=self._guardrail_decisions,
-            feedback_results=self._feedback_results,
-            trace=self._trace,
-        )
+        return self._build_result()
 
     # ------------------------------------------------------------------
     # Internal helpers
     # ------------------------------------------------------------------
+
+    def _continue_from_approval(self) -> SessionResult:
+        """Continue execution after approval decision."""
+        if self._approval_decision is None:
+            # Check timeout
+            if self.approval_manager is not None and self.state.approval_request_id:
+                req = self.approval_manager._requests.get(self.state.approval_request_id)
+                if req is not None:
+                    timeout_result = self.approval_manager.check_timeout(req)
+                    if timeout_result is not None:
+                        self._approval_decision = ApprovalStatus.TIMEOUT
+
+        if self._approval_decision is None:
+            # Still waiting — return current state
+            return self._build_result()
+
+        if self._approval_decision == ApprovalStatus.APPROVED:
+            self._transition(AgentState.EXECUTING)
+            self.state.steps_used += 1
+            if self.tool_dispatcher is not None and self.state.pending_action is not None:
+                self.tool_dispatcher.dispatch(self.state.pending_action)
+            if self._is_write_action(self.state.pending_action):
+                self._transition(AgentState.INTERMEDIATE_VALIDATION)
+            self._transition(AgentState.FEEDING_BACK)
+            if self._check_stop_policy():
+                return self._build_result()
+            self._transition(AgentState.DECIDING)
+            self._approval_decision = None
+            # Continue the main loop
+            return self.run()
+        elif self._approval_decision in (ApprovalStatus.REJECTED, ApprovalStatus.TIMEOUT):
+            self._transition(AgentState.CANCELLED)
+            return self._build_result()
+
+        return self._build_result()
 
     def _transition(self, new_state: AgentState) -> None:
         """Record a state transition in the trace."""
@@ -208,9 +262,27 @@ class AgentLoop:
         """Build a context string for the LLM call."""
         return f"Session {self.state.session_id}, step {self.state.steps_used}"
 
+    def _build_result(self) -> SessionResult:
+        """Build a SessionResult from the current state."""
+        duration = (datetime.now() - self._started_at).total_seconds()
+        return SessionResult(
+            session_id=self.state.session_id,
+            terminal_state=self.state.current_state,
+            steps_total=self.state.steps_used,
+            llm_calls_total=self.state.llm_calls_used,
+            token_total=self.state.token_used,
+            cost_total=self.state.cost_used,
+            duration=duration,
+            guardrail_decisions=self._guardrail_decisions,
+            feedback_results=self._feedback_results,
+            trace=self._trace,
+        )
+
     @staticmethod
     def _is_write_action(action) -> bool:
         """Return True if the action has side effects requiring validation."""
+        if action is None:
+            return False
         write_tools = {
             "write_file", "edit_file", "delete_file", "create_file",
             "run_command", "execute",
@@ -230,6 +302,4 @@ class AgentLoop:
         elif decision.terminal_state == AgentState.FAILED:
             self._transition(AgentState.FAILED)
             return True
-        # "COMPLETED" is NOT a valid stop_policy decision —
-        # COMPLETED is only reachable via FINAL_VALIDATION + ObjectiveVerifier
         return False

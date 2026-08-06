@@ -10,6 +10,10 @@ class ActionKind(Enum):
     COMPLETE_REQUEST = "complete"
 
 
+import hashlib as _hashlib
+import json as _json
+
+
 @dataclass
 class Action:
     kind: ActionKind
@@ -17,6 +21,16 @@ class Action:
     parameters: Optional[dict] = None
     summary: Optional[str] = None
     raw: str = ""
+
+    @property
+    def action_fingerprint(self) -> str:
+        """Deterministic fingerprint from the action's key fields."""
+        data = _json.dumps({
+            "kind": self.kind.value,
+            "tool_name": self.tool_name or "",
+            "parameters": self.parameters or {},
+        }, sort_keys=True)
+        return _hashlib.sha256(data.encode()).hexdigest()
 
 
 @dataclass(frozen=True)

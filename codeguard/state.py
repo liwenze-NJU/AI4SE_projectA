@@ -21,7 +21,7 @@ from dataclasses import dataclass, field
 from datetime import datetime
 from decimal import Decimal
 from typing import Optional, Any
-from codeguard.action import NormalizedAction
+from codeguard.action import Action, NormalizedAction
 from codeguard.guardrail import GuardrailResult
 
 
@@ -29,7 +29,7 @@ from codeguard.guardrail import GuardrailResult
 class SessionState:
     session_id: str
     current_state: AgentState
-    pending_action: Optional[NormalizedAction] = None
+    pending_action: Optional[Action | NormalizedAction] = None
     guardrail_decision: Optional[GuardrailResult] = None
     approval_request_id: Optional[str] = None
     steps_used: int = 0

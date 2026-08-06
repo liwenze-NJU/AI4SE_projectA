@@ -64,21 +64,55 @@ class FakeGuardrail:
         )
 
 
+from codeguard.guardrail.approval import ApprovalStatus, ApprovalResult, ApprovalRequest
+
+
 class FakeApproval:
     """Scriptable approval manager."""
 
     def __init__(self, decision=ApprovalStatus.APPROVED):
         self._decision = decision
+        self._requests: dict[str, ApprovalRequest] = {}
 
-    def wait_for_approval(self, action):
-        return ApprovalResult(
+    def create_request(self, session_id, normalized_action,
+                       matched_rules=None, risk_summary=""):
+        from datetime import datetime, timedelta
+        req = ApprovalRequest(
             request_id="r1",
-            decision=self._decision,
+            session_id=session_id,
+            normalized_action=normalized_action,
+            action_fingerprint=getattr(normalized_action, 'action_fingerprint', 'fp'),
+            matched_rules=matched_rules or [],
+            risk_summary=risk_summary,
+            workspace_snapshot={},
+            created_at=datetime.now(),
+            expires_at=datetime.now() + timedelta(seconds=300),
+        )
+        self._requests["r1"] = req
+        return req
+
+    def approve(self, request_id, session_id, action_fingerprint):
+        return ApprovalResult(
+            request_id=request_id,
+            decision=ApprovalStatus.APPROVED,
             validated_at=datetime.now(),
         )
 
-    def create_request(self, action):
-        return "r1"
+    def reject(self, request_id, session_id):
+        return ApprovalResult(
+            request_id=request_id,
+            decision=ApprovalStatus.REJECTED,
+            validated_at=datetime.now(),
+        )
+
+    def check_timeout(self, req):
+        if self._decision == ApprovalStatus.TIMEOUT:
+            return ApprovalResult(
+                request_id=req.request_id,
+                decision=ApprovalStatus.TIMEOUT,
+                validated_at=datetime.now(),
+            )
+        return None
 
 
 class FakeToolDispatcher:
@@ -229,6 +263,15 @@ def test_loop_approval_approve():
     loop.feedback_classifier = FakeFeedbackClassifier()
     loop.objective_verifier = FakeObjectiveVerifier(passed=True)
     loop.stop_policy = FakeStopPolicy()
+    # First run: pauses at AWAITING_APPROVAL
+    result = loop.run()
+    assert loop.state.current_state == AgentState.AWAITING_APPROVAL
+    # Approve and resume
+    fp = loop.state.pending_action.action_fingerprint
+    loop.resume_with_approval(
+        request_id="r1", session_id="s1",
+        decision=ApprovalStatus.APPROVED, action_fingerprint=fp,
+    )
     result = loop.run()
     assert result.terminal_state == AgentState.COMPLETED
 
@@ -243,6 +286,15 @@ def test_loop_approval_reject():
     loop.rule_engine = FakeGuardrail(decisions=["REQUEST_APPROVAL"])
     loop.approval_manager = FakeApproval(decision=ApprovalStatus.REJECTED)
     loop.stop_policy = FakeStopPolicy()
+    # First run: pauses at AWAITING_APPROVAL
+    result = loop.run()
+    assert loop.state.current_state == AgentState.AWAITING_APPROVAL
+    # Reject
+    fp = loop.state.pending_action.action_fingerprint
+    loop.resume_with_approval(
+        request_id="r1", session_id="s1",
+        decision=ApprovalStatus.REJECTED, action_fingerprint=fp,
+    )
     result = loop.run()
     assert result.terminal_state == AgentState.CANCELLED
 
@@ -257,6 +309,10 @@ def test_loop_approval_timeout():
     loop.rule_engine = FakeGuardrail(decisions=["REQUEST_APPROVAL"])
     loop.approval_manager = FakeApproval(decision=ApprovalStatus.TIMEOUT)
     loop.stop_policy = FakeStopPolicy()
+    # First run: pauses at AWAITING_APPROVAL
+    result = loop.run()
+    assert loop.state.current_state == AgentState.AWAITING_APPROVAL
+    # Resume — FakeApproval returns TIMEOUT from check_timeout
     result = loop.run()
     assert result.terminal_state == AgentState.CANCELLED
 
