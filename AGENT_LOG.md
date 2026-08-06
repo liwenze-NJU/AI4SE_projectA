@@ -2094,6 +2094,6 @@
 - 规格合规: PASS — 与 SPEC §3.9 窄屏自适应（<768px 单栏堆叠/组件内滚动/44px 触控/横幅常驻）及安全边界一致
 - 代码质量: 0 Critical, 0 Major — 既有 CSS 与 16.3 的 1023px 断点无冲突
 
-**commit hash**: 待提交后补记
+**commit hash**: `6296c9f`
 
 **具备进入 Task 17.1 的条件**: 是 — 564 passed, 1 skipped, 0 failed
