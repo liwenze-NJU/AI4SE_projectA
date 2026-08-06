@@ -1,11 +1,38 @@
-from fastapi import FastAPI, Request
+from fastapi import FastAPI, HTTPException, Request
 from fastapi.responses import RedirectResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
+from pydantic import BaseModel
 from pathlib import Path
 import uuid
 
 _templates = Jinja2Templates(directory=Path(__file__).parent / "templates")
+
+_MOCK_PENDING_REQUEST = {
+    "request_id": "mock-req-1",
+    "action": "write_file(mock://workspace/src/auth.py)",
+    "reasons": ["副作用：修改源文件", "可能合法：与测试修复相关"],
+    "impact": "mock://workspace/src/auth.py · 依赖模块：auth, session",
+    "timeout_seconds": 15,
+}
+
+
+class ApprovalRequest(BaseModel):
+    """JSON body for the approval decision endpoint (mock)."""
+    decision: str
+    request_id: str = "mock-req-1"
+
+
+def _new_demo_session(scenario: str = "demo") -> dict:
+    """Create an in-memory demo session (browser-isolated, mock only)."""
+    return {
+        "scenario": scenario,
+        "state": "INITIALIZING",
+        "current_step": 0,
+        "trace": [],
+        "guardrail_decisions": [],
+        "pending_request": None,
+    }
 
 
 def create_app(mode: str = "demo") -> FastAPI:
@@ -20,14 +47,14 @@ def create_app(mode: str = "demo") -> FastAPI:
     @app.post("/session")
     async def create_session(scenario: str = "a"):
         session_id = str(uuid.uuid4())
-        sessions[session_id] = {"scenario": scenario, "state": "created"}
+        sessions[session_id] = _new_demo_session(scenario=scenario)
         return {"session_id": session_id, "scenario": scenario}
 
     @app.get("/session")
     async def session_entry(scenario: str = "a"):
         """Entry from scenario cards: create a session and go to dashboard."""
         session_id = str(uuid.uuid4())
-        sessions[session_id] = {"scenario": scenario, "state": "created"}
+        sessions[session_id] = _new_demo_session(scenario=scenario)
         return RedirectResponse(url=f"/dashboard?session={session_id}", status_code=303)
 
     @app.get("/")
@@ -42,13 +69,7 @@ def create_app(mode: str = "demo") -> FastAPI:
     async def dashboard(request: Request, session: str = ""):
         """Agent running dashboard (P2)."""
         demo_session_id = session or str(uuid.uuid4())
-        sessions.setdefault(demo_session_id, {
-            "scenario": "demo",
-            "state": "INITIALIZING",
-            "current_step": 0,
-            "trace": [],
-            "guardrail_decisions": [],
-        })
+        sessions.setdefault(demo_session_id, _new_demo_session(scenario="demo"))
         return _templates.TemplateResponse(
             request=request,
             name="dashboard.html",
@@ -73,6 +94,48 @@ def create_app(mode: str = "demo") -> FastAPI:
                 ],
             },
         )
+
+    @app.get("/approval")
+    async def approval(request: Request, session: str = ""):
+        """P3 approval modal (mock): pending action with risk summary + countdown."""
+        demo_session_id = session or str(uuid.uuid4())
+        sessions.setdefault(demo_session_id, _new_demo_session(scenario="demo"))
+        return _templates.TemplateResponse(
+            request=request,
+            name="approval.html",
+            context={
+                "mock_mode": mode == "demo",
+                "session_id": demo_session_id,
+                "request": _MOCK_PENDING_REQUEST,
+            },
+        )
+
+    @app.post("/session/{session_id}/approval")
+    async def submit_approval(session_id: str, payload: ApprovalRequest):
+        """Record an approval decision on the session (approve/reject)."""
+        session = sessions.get(session_id)
+        if not session:
+            raise HTTPException(status_code=404, detail="session not found")
+        if payload.decision not in ("approve", "reject"):
+            raise HTTPException(status_code=400, detail="decision must be approve or reject")
+        if session.get("pending_request") is None:
+            session["pending_request"] = dict(_MOCK_PENDING_REQUEST)
+        if session["pending_request"].get("request_id") != payload.request_id:
+            raise HTTPException(status_code=409, detail="request mismatch")
+        session["pending_request"]["decision"] = payload.decision
+        if payload.decision == "approve":
+            session["state"] = "EXECUTING"
+        else:
+            session["state"] = "CANCELLED"
+        session["guardrail_decisions"].append(
+            {
+                "decision": "ALLOW" if payload.decision == "approve" else "BLOCK",
+                "tool_call": {"command": "write_file", "args": {"path": "mock://workspace/src/auth.py"}, "result_ok": payload.decision == "approve"},
+                "reasons": session["pending_request"]["reasons"],
+                "impact": session["pending_request"]["impact"],
+            }
+        )
+        return {"session_id": session_id, "request_id": payload.request_id, "decision": payload.decision}
 
     @app.get("/session/{session_id}/state")
     async def get_session_state(session_id: str):

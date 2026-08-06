@@ -335,6 +335,26 @@ a:hover {
   min-height: 32px;
 }
 
+.btn-lg {
+  padding: var(--space-3) var(--space-5);
+  font-size: 17px;
+  min-height: 48px;
+}
+
+.btn-danger {
+  background-color: var(--danger);
+  color: #ffffff;
+}
+
+.btn-danger:hover {
+  background-color: color-mix(in oklab, var(--danger), white 12%);
+}
+
+.btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
 /* --------------------------------------------------------------------------
    Main Content Area
    -------------------------------------------------------------------------- */
@@ -1212,4 +1232,187 @@ a:hover {
     width: 100%;
     overflow-x: auto;
   }
+}
+/* --------------------------------------------------------------------------
+   Approval Modal (P3)
+   -------------------------------------------------------------------------- */
+.approval-page {
+  min-height: 100%;
+  position: relative;
+}
+
+.modal-overlay {
+  position: fixed;
+  inset: 0;
+  background-color: hsla(0, 0%, 98%, 0.8);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: var(--space-4);
+  z-index: 50;
+}
+
+.approval-modal {
+  background-color: var(--bg);
+  border-radius: var(--radius-sm);
+  box-shadow: var(--elev-raised);
+  border: 1px solid var(--border-soft);
+  max-width: 560px;
+  width: 100%;
+  max-height: 90vh;
+  overflow-y: auto;
+  padding: var(--space-6);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+
+.approval-header {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.approval-action {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  flex-wrap: wrap;
+  font-size: 16px;
+}
+
+.approval-action-code {
+  background-color: var(--bg-soft);
+  padding: var(--space-2) var(--space-3);
+  border-radius: var(--radius-sm);
+  word-break: break-all;
+}
+
+.approval-mock-badge {
+  flex-shrink: 0;
+}
+
+.approval-section {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.approval-risk-list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.risk-item {
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-2);
+  padding: var(--space-2) 0;
+  border-bottom: 1px solid var(--border-soft);
+  color: var(--fg-2);
+}
+
+.risk-item:last-child {
+  border-bottom: none;
+}
+
+.risk-icon {
+  flex-shrink: 0;
+}
+
+.impact-card {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  background-color: var(--bg-soft);
+  border: 1px solid var(--border-soft);
+  border-radius: var(--radius-sm);
+  padding: var(--space-3);
+  flex-wrap: wrap;
+}
+
+.mono-impact {
+  font-family: var(--font-mono);
+  font-size: 13px;
+  color: var(--fg);
+  word-break: break-all;
+}
+
+.countdown-row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+}
+
+.countdown-bar {
+  flex: 1;
+  height: 8px;
+  background-color: var(--bg-soft);
+  border: 1px solid var(--border-soft);
+  border-radius: 999px;
+  overflow: hidden;
+}
+
+.countdown-fill {
+  height: 100%;
+  background-color: var(--warn);
+  border-radius: 999px;
+  transition: width 1s linear;
+}
+
+.countdown-fill-critical {
+  background-color: var(--danger);
+}
+
+.countdown-mono {
+  font-family: var(--font-mono);
+  font-size: 13px;
+  color: var(--meta);
+  font-feature-settings: "tnum";
+  white-space: nowrap;
+}
+
+.countdown-critical {
+  color: var(--danger);
+  font-weight: 600;
+}
+
+.approval-actions {
+  display: flex;
+  gap: var(--space-3);
+  flex-wrap: wrap;
+}
+
+.approval-actions .btn {
+  flex: 1;
+  min-width: 120px;
+}
+
+.approval-result {
+  padding: var(--space-3) var(--space-4);
+  border-radius: var(--radius-sm);
+  font-weight: 500;
+}
+
+.approval-result-success {
+  background-color: color-mix(in oklab, var(--success), white 85%);
+  color: var(--success);
+}
+
+.approval-result-danger {
+  background-color: color-mix(in oklab, var(--danger), white 85%);
+  color: var(--danger);
+}
+
+.approval-result-timeout {
+  background-color: color-mix(in oklab, var(--meta), white 85%);
+  color: var(--meta);
+}
+
+.approval-result-error {
+  background-color: color-mix(in oklab, var(--danger), white 85%);
+  color: var(--danger);
 }

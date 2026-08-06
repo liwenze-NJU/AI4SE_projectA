@@ -2018,3 +2018,30 @@
 **commit hash**: `8a6de3c`
 
 **具备进入 Task 16.4 的条件**: 是 — 546 passed, 1 skipped, 0 failed
+
+---
+
+## Task 16.4: P3 — Approval modal
+
+**log_id**: T16.4 | **task_id**: Task 16.4 WebUI | **状态**: COMPLETED
+**时间**: 2026-08-06
+**Superpowers 技能**: `superpowers:test-driven-development`
+**branch/worktree**: feature/mvp-core
+
+**RED 阶段**: 6 个测试写入 `tests/test_web_approval.py`（按钮/countdown/风险原因/批准更新 session/拒绝更新 session/未知 session 404），5 个失败（404 路由不存在）；修复 JSON body 绑定后 1 个断言调整
+
+**GREEN 阶段**: 6/6 passed；全量 552 passed, 1 skipped, 0 failed
+
+**实现内容**:
+- `approval.html` — 遮罩 + 居中卡（max 560px）：待审批药丸 + mono 目标动作 + MOCK 角标 + 风险原因列表（⚠/ℹ）+ 影响范围卡 + 倒计时条 + 批准/拒绝并停止/稍后 三按钮 + 结果反馈区
+- `static/approval.js` — POST 批准/拒绝、15s 倒计时（最后 5s 转 danger）、提交后按钮禁用 + 结果药丸 1.5s → 回 P2 dashboard；稍后=history.back
+- `app.py` — `GET /approval`（渲染模态）；`POST /session/{id}/approval`（Pydantic ApprovalRequest：approve→EXECUTING / reject→CANCELLED，回灌 guardrail_decisions，request_id 不匹配 409、未知 session 404、非法 decision 400）；`_new_demo_session()` 辅助函数统一会话结构
+- `style.css` — `.btn-danger`/`.btn-lg` + 模态/倒计时/结果反馈样式
+
+**两阶段评审**:
+- 规格合规: PASS — 与线框图 03/WIREFRAME_SPEC §3 一致（布局/三重冗余/三按钮/倒计时/错误状态）
+- 代码质量: 0 Critical, 0 Major — Pydantic body 绑定 JSON；审批绑定 session_id + request_id
+
+**commit hash**: 待提交后补记
+
+**具备进入 Task 16.5 的条件**: 是 — 552 passed, 1 skipped, 0 failed

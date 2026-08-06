@@ -6936,7 +6936,7 @@ git push github task-16.3-webui-p2
 - Create: `codeguard/web/templates/approval.html`
 - Create: `tests/test_web_approval.py`
 
-- [ ] **Step 1: Write failing tests**
+- [x] **Step 1: Write failing tests** — `tests/test_web_approval.py`（6 tests: 按钮/countdown/风险原因/批准更新 session/拒绝更新 session/未知 session 404）
 
 Write `tests/test_web_approval.py`:
 ```python
@@ -6978,10 +6978,10 @@ Create `codeguard/web/templates/approval.html` with approve/reject buttons, coun
 Run: `pytest tests/test_web_approval.py -v`
 Expected: 2 passed
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit** — `16.4` commit created by current session
 
 ```bash
-git add codeguard/web/templates/approval.html tests/test_web_approval.py
+git add codeguard/web/templates/approval.html codeguard/web/static/approval.js codeguard/web/static/style.css codeguard/web/app.py tests/test_web_approval.py
 git commit -m "feat: add P3 approval modal with approve/reject/timeout"
 git push origin task-16.4-webui-p3
 git push github task-16.4-webui-p3
