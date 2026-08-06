@@ -1,0 +1,53 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>CodeGuard Harness — {% block title %}安全 Mock 演示{% endblock %}</title>
+<link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+  <!-- Mock Banner — sticky, NOT closable, amber background -->
+  <div class="mock-banner" role="banner" aria-label="安全 Mock 演示模式">
+    <div class="mock-banner-inner">
+      <span class="mock-banner-left">
+        <span class="mock-banner-icon" aria-hidden="true">&#x1F6E1;</span>
+        <span class="mock-banner-label">安全 Mock 演示模式</span>
+      </span>
+      <span class="mock-banner-right">
+        未连接真实 Shell &middot; 文件系统 &middot; LLM &middot; API Key &middot; 凭据
+      </span>
+    </div>
+  </div>
+
+  <!-- Top Nav Bar -->
+  <nav class="top-nav" role="navigation" aria-label="主导航">
+    <div class="top-nav-inner">
+      <div class="nav-brand">
+        <span class="nav-brand-text">CodeGuard Harness</span>
+      </div>
+      <div class="nav-center">
+        <div class="scenario-dropdown">
+          <span class="scenario-dropdown-label">场景：</span>
+          <span class="scenario-dropdown-value">{% block scenario_name %}选择场景{% endblock %}</span>
+          <span class="scenario-dropdown-arrow" aria-hidden="true">&#x25BE;</span>
+        </div>
+      </div>
+      <div class="nav-right">
+        <span class="state-pill state-pill-idle">&#x25CB; 未开始</span>
+        <a href="/" class="btn btn-secondary btn-sm nav-back-btn">返回场景</a>
+      </div>
+    </div>
+  </nav>
+
+  <!-- Main Content -->
+  <main class="main-content" role="main">
+    {% block content %}{% endblock %}
+  </main>
+
+  <!-- Footer -->
+  <footer class="app-footer" role="contentinfo">
+    <span class="footer-mono">ScriptedMockLLM &middot; 离线确定性回放 &middot; 不接触真实环境</span>
+  </footer>
+</body>
+</html>

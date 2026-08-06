@@ -1,8 +1,67 @@
-<!DOCTYPE html>
-<html>
-<head><title>CodeGuard Harness - Demo Mode</title></head>
-<body>
-  <div class="mock-banner">MOCK MODE - Demo</div>
-  <h1>CodeGuard Harness WebUI</h1>
-</body>
-</html>
+{% extends "base.html" %}
+{% block title %}场景选择 — CodeGuard Harness{% endblock %}
+{% block scenario_name %}场景选择{% endblock %}
+
+{% block content %}
+<div class="scenarios-page">
+  <!-- Teaching Introduction -->
+  <section class="teaching-intro" aria-labelledby="teaching-heading">
+    <h2 id="teaching-heading" class="teaching-title">理解 Coding Agent Harness 的工作机制</h2>
+    <p class="teaching-body">
+      Agent = LLM + Harness。LLM 只决定下一步动作；Harness 负责上下文、治理护栏、
+      工具执行、测试反馈与停机。危险动作会被 BLOCK 或请求人工审批。
+      每个场景展示了 Harness 在不同情况下的治理行为。
+    </p>
+  </section>
+
+  <!-- Scenario Cards -->
+  <section class="scenario-cards" aria-label="场景选择">
+    <!-- Card A: Path Escape BLOCK -->
+    <article class="scenario-card" tabindex="0" role="button" aria-label="场景一：路径逃逸被 BLOCK">
+      <div class="card-mock-badge">MOCK</div>
+      <div class="card-number">#01</div>
+      <h3 class="card-title">路径逃逸被 BLOCK</h3>
+      <p class="card-description">
+        危险动作拟逃逸 workspace 之外，被护栏硬阻止。
+      </p>
+      <div class="card-pills">
+        <span class="status-pill status-pill-danger">&#x2298; BLOCK 阻止</span>
+      </div>
+      <a href="/session?scenario=a" class="btn btn-secondary card-action">进入演示</a>
+    </article>
+
+    <!-- Card B: Side Effect Needs Approval -->
+    <article class="scenario-card" tabindex="0" role="button" aria-label="场景二：副作用动作待审批">
+      <div class="card-mock-badge">MOCK</div>
+      <div class="card-number">#02</div>
+      <h3 class="card-title">副作用动作待审批</h3>
+      <p class="card-description">
+        有副作用但可能合法，需人工审批后执行。
+      </p>
+      <div class="card-pills">
+        <span class="status-pill status-pill-warning">? 待审批</span>
+      </div>
+      <a href="/session?scenario=b" class="btn btn-secondary card-action">进入演示</a>
+    </article>
+
+    <!-- Card C: Test Failure Feedback Loop -->
+    <article class="scenario-card" tabindex="0" role="button" aria-label="场景三：测试失败反馈闭环">
+      <div class="card-mock-badge">MOCK</div>
+      <div class="card-number">#03</div>
+      <h3 class="card-title">测试失败反馈闭环</h3>
+      <p class="card-description">
+        第一次测试失败 → 反馈分类 → Agent 改动作 → 第二次通过。
+      </p>
+      <div class="card-pills">
+        <span class="status-pill status-pill-warning">&#x21BA; 反馈回灌</span>
+        <span class="card-pills-arrow" aria-hidden="true">&rarr;</span>
+        <span class="status-pill status-pill-success">&#x2713; 已完成</span>
+      </div>
+      <a href="/session?scenario=c" class="btn btn-secondary card-action">进入演示</a>
+    </article>
+  </section>
+
+  <!-- Bottom Hint -->
+  <p class="scenarios-hint">选择一个场景开始确定性回放</p>
+</div>
+{% endblock %}

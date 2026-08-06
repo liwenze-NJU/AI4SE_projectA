@@ -1,0 +1,584 @@
+/* ==========================================================================
+   CodeGuard Harness WebUI — style.css
+   Vercel-inspired design tokens + component styles
+   ========================================================================== */
+
+/* --------------------------------------------------------------------------
+   Design Tokens (Vercel Design System)
+   -------------------------------------------------------------------------- */
+:root {
+  --bg: #ffffff;
+  --surface: #ffffff;
+  --fg: #171717;
+  --fg-2: #4d4d4d;
+  --muted: #666666;
+  --meta: #808080;
+  --border: rgba(0, 0, 0, 0.08);
+  --border-soft: rgba(0, 0, 0, 0.04);
+  --accent: #0070f3;
+  --success: #16a34a;
+  --warn: #eab308;
+  --danger: #dc2626;
+  --success-text: color-mix(in oklab, var(--success), black 22%);
+  --warn-text: color-mix(in oklab, var(--warn), black 28%);
+  --danger-text: color-mix(in oklab, var(--danger), black 14%);
+  --success-tint: color-mix(in oklab, var(--success), white 86%);
+  --warn-tint: color-mix(in oklab, var(--warn), white 80%);
+  --danger-tint: color-mix(in oklab, var(--danger), white 86%);
+  --elev-ring: 0 0 0 1px var(--border);
+  --elev-raised:
+    0 0 0 1px var(--border),
+    0 2px 4px rgba(0, 0, 0, 0.04),
+    0 8px 16px rgba(0, 0, 0, 0.06),
+    0 0 0 1px rgba(250, 250, 250, 0.5) inset;
+  --radius-sm: 6px;
+  --radius-md: 8px;
+  --radius-lg: 12px;
+  --radius-pill: 9999px;
+  --focus-ring: 2px solid var(--accent);
+  --font-body: "Geist", "Geist Sans", -apple-system, "Segoe UI", Arial, sans-serif;
+  --font-mono: "Geist Mono", ui-monospace, "SF Mono", "Cascadia Code", "Consolas", monospace;
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 20px;
+  --space-6: 24px;
+  --space-8: 32px;
+  --space-12: 48px;
+  --space-16: 64px;
+  --space-24: 96px;
+  --section-y: 96px;
+}
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+html {
+  -webkit-text-size-adjust: 100%;
+  -moz-text-size-adjust: 100%;
+  text-size-adjust: 100%;
+}
+
+body {
+  font-family: var(--font-body);
+  font-size: 18px;
+  font-weight: 400;
+  line-height: 1.6;
+  color: var(--fg);
+  background-color: var(--bg);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  font-feature-settings: "liga";
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+}
+
+h1, h2, h3, h4, h5, h6 {
+  font-weight: 600;
+  color: var(--fg);
+  font-feature-settings: "liga";
+}
+
+h2 {
+  font-size: 28px;
+  line-height: 1.2;
+  letter-spacing: -0.02em;
+}
+
+h3 {
+  font-size: 22px;
+  line-height: 1.33;
+  letter-spacing: -0.01em;
+}
+
+p {
+  color: var(--fg-2);
+}
+
+a {
+  color: var(--accent);
+  text-decoration: none;
+}
+
+a:hover {
+  text-decoration: underline;
+}
+
+:focus-visible {
+  outline: var(--focus-ring);
+  outline-offset: 2px;
+}
+
+/* --------------------------------------------------------------------------
+   Mock Banner
+   -------------------------------------------------------------------------- */
+.mock-banner {
+  position: sticky;
+  top: 0;
+  z-index: 100;
+  background-color: var(--warn-tint);
+  border-bottom: 1px solid color-mix(in oklab, var(--warn), white 65%);
+}
+
+.mock-banner-inner {
+  max-width: 1440px;
+  margin: 0 auto;
+  padding: var(--space-2) var(--space-6);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--warn-text);
+}
+
+.mock-banner-left {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  white-space: nowrap;
+}
+
+.mock-banner-icon {
+  font-size: 16px;
+  line-height: 1;
+}
+
+.mock-banner-label {
+  font-weight: 600;
+}
+
+.mock-banner-right {
+  color: var(--meta);
+  font-size: 13px;
+  font-weight: 400;
+  white-space: nowrap;
+}
+
+/* --------------------------------------------------------------------------
+   Top Navigation Bar
+   -------------------------------------------------------------------------- */
+.top-nav {
+  background-color: var(--bg);
+  border-bottom: 1px solid var(--border-soft);
+  position: sticky;
+  top: 0;
+  z-index: 99;
+}
+
+.top-nav-inner {
+  max-width: 1440px;
+  margin: 0 auto;
+  padding: var(--space-3) var(--space-6);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-4);
+  min-height: 52px;
+}
+
+.nav-brand {
+  flex-shrink: 0;
+}
+
+.nav-brand-text {
+  font-size: 18px;
+  font-weight: 600;
+  color: var(--fg);
+  letter-spacing: -0.01em;
+}
+
+.nav-center {
+  flex: 1;
+  display: flex;
+  justify-content: center;
+}
+
+.scenario-dropdown {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  padding: var(--space-1) var(--space-3);
+  border-radius: var(--radius-sm);
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--fg-2);
+  background-color: var(--bg);
+  box-shadow: var(--elev-ring);
+  cursor: default;
+  user-select: none;
+}
+
+.scenario-dropdown-label {
+  color: var(--meta);
+}
+
+.scenario-dropdown-value {
+  font-family: var(--font-mono);
+  font-size: 13px;
+  color: var(--fg);
+  font-feature-settings: "tnum";
+}
+
+.scenario-dropdown-arrow {
+  color: var(--meta);
+  font-size: 12px;
+}
+
+.nav-right {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  flex-shrink: 0;
+}
+
+/* --------------------------------------------------------------------------
+   Status Pills
+   -------------------------------------------------------------------------- */
+.status-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  padding: 0 10px;
+  height: 26px;
+  border-radius: var(--radius-pill);
+  font-size: 13px;
+  font-weight: 600;
+  line-height: 1;
+  white-space: nowrap;
+  font-feature-settings: "liga";
+}
+
+.status-pill-idle {
+  background-color: color-mix(in oklab, var(--meta), white 70%);
+  color: var(--meta);
+}
+
+.status-pill-success {
+  background-color: var(--success-tint);
+  color: var(--success-text);
+}
+
+.status-pill-warning {
+  background-color: var(--warn-tint);
+  color: var(--warn-text);
+}
+
+.status-pill-danger {
+  background-color: var(--danger-tint);
+  color: var(--danger-text);
+}
+
+/* --------------------------------------------------------------------------
+   Buttons
+   -------------------------------------------------------------------------- */
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-1);
+  padding: var(--space-2) var(--space-4);
+  border: none;
+  border-radius: var(--radius-sm);
+  font-family: var(--font-body);
+  font-size: 16px;
+  font-weight: 500;
+  line-height: 1.5;
+  cursor: pointer;
+  text-decoration: none;
+  transition: background-color 150ms ease, box-shadow 150ms ease;
+  min-height: 40px;
+  user-select: none;
+}
+
+.btn:hover {
+  text-decoration: none;
+}
+
+.btn:focus-visible {
+  outline: var(--focus-ring);
+  outline-offset: 2px;
+}
+
+.btn-primary {
+  background-color: var(--fg);
+  color: #ffffff;
+}
+
+.btn-primary:hover {
+  background-color: color-mix(in oklab, var(--fg), white 12%);
+}
+
+.btn-secondary {
+  background-color: var(--bg);
+  color: var(--fg);
+  box-shadow: var(--elev-ring);
+}
+
+.btn-secondary:hover {
+  box-shadow: var(--elev-raised);
+  color: var(--fg);
+}
+
+.btn-sm {
+  font-size: 14px;
+  padding: var(--space-1) var(--space-3);
+  min-height: 32px;
+}
+
+/* --------------------------------------------------------------------------
+   Main Content Area
+   -------------------------------------------------------------------------- */
+.main-content {
+  flex: 1;
+  width: 100%;
+}
+
+/* --------------------------------------------------------------------------
+   Scenarios Page
+   -------------------------------------------------------------------------- */
+.scenarios-page {
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: var(--space-16) var(--space-6) var(--space-12);
+}
+
+.teaching-intro {
+  text-align: center;
+  margin-bottom: var(--space-12);
+}
+
+.teaching-title {
+  margin-bottom: var(--space-4);
+  font-size: 32px;
+  line-height: 1.2;
+  letter-spacing: -0.02em;
+}
+
+.teaching-body {
+  max-width: 720px;
+  margin: 0 auto;
+  font-size: 18px;
+  line-height: 1.7;
+  color: var(--fg-2);
+}
+
+.scenario-cards {
+  display: flex;
+  gap: var(--space-6);
+  justify-content: center;
+  margin-bottom: var(--space-8);
+}
+
+.scenario-card {
+  flex: 1;
+  min-width: 0;
+  max-width: 360px;
+  position: relative;
+  background-color: var(--bg);
+  box-shadow: var(--elev-ring);
+  border-radius: var(--radius-md);
+  padding: var(--space-6);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  transition: box-shadow 200ms ease, transform 200ms ease;
+  cursor: pointer;
+  outline: none;
+  border-left: 4px solid transparent;
+}
+
+.scenario-card:hover {
+  box-shadow: var(--elev-raised);
+  border-left-color: var(--accent);
+}
+
+.scenario-card:focus-visible {
+  outline: var(--focus-ring);
+  outline-offset: 2px;
+}
+
+.scenario-card:active,
+.scenario-card.selected {
+  box-shadow: var(--elev-raised);
+  border-left-color: var(--accent);
+  transform: translateY(-2px);
+  outline: 2px solid var(--accent);
+  outline-offset: -2px;
+}
+
+.card-mock-badge {
+  position: absolute;
+  top: var(--space-4);
+  right: var(--space-4);
+  display: inline-flex;
+  align-items: center;
+  padding: 0 8px;
+  height: 20px;
+  border-radius: var(--radius-pill);
+  background-color: var(--warn-tint);
+  color: var(--warn-text);
+  font-family: var(--font-mono);
+  font-size: 10px;
+  font-weight: 700;
+  line-height: 1;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.card-number {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  background-color: color-mix(in oklab, var(--meta), white 70%);
+  color: var(--meta);
+  font-family: var(--font-mono);
+  font-size: 14px;
+  font-weight: 600;
+  font-feature-settings: "tnum";
+  flex-shrink: 0;
+}
+
+.card-title {
+  font-size: 20px;
+  font-weight: 600;
+  color: var(--fg);
+  line-height: 1.33;
+  letter-spacing: -0.01em;
+}
+
+.card-description {
+  font-size: 16px;
+  line-height: 1.6;
+  color: var(--fg-2);
+  flex: 1;
+}
+
+.card-pills {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  flex-wrap: wrap;
+}
+
+.card-pills-arrow {
+  color: var(--meta);
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.card-action {
+  align-self: flex-end;
+  margin-top: auto;
+}
+
+.scenarios-hint {
+  text-align: center;
+  font-family: var(--font-mono);
+  font-size: 14px;
+  color: var(--meta);
+  margin-top: var(--space-8);
+}
+
+/* --------------------------------------------------------------------------
+   Footer
+   -------------------------------------------------------------------------- */
+.app-footer {
+  background-color: var(--bg);
+  border-top: 1px solid var(--border-soft);
+  padding: var(--space-4) var(--space-6);
+  text-align: center;
+}
+
+.footer-mono {
+  font-family: var(--font-mono);
+  font-size: 13px;
+  color: var(--muted);
+  font-feature-settings: "tnum";
+}
+
+/* --------------------------------------------------------------------------
+   Responsive
+   -------------------------------------------------------------------------- */
+@media (max-width: 767px) {
+  .scenario-cards {
+    flex-direction: column;
+    align-items: center;
+  }
+
+  .scenario-card {
+    max-width: 100%;
+    width: 100%;
+  }
+
+  .scenarios-page {
+    padding: var(--space-8) var(--space-4) var(--space-6);
+  }
+
+  .teaching-title {
+    font-size: 24px;
+  }
+
+  .teaching-body {
+    font-size: 16px;
+  }
+
+  .top-nav-inner {
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: var(--space-2);
+  }
+
+  .mock-banner-inner {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: var(--space-1);
+  }
+
+  .mock-banner-right {
+    font-size: 12px;
+  }
+}
+
+@media (max-width: 375px) {
+  .scenario-cards {
+    gap: var(--space-4);
+  }
+
+  .scenario-card {
+    padding: var(--space-4);
+  }
+
+  .card-title {
+    font-size: 18px;
+  }
+
+  .card-description {
+    font-size: 14px;
+  }
+}
+
+/* --------------------------------------------------------------------------
+   Reduced motion
+   -------------------------------------------------------------------------- */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
