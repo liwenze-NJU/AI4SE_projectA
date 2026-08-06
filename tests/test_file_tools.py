@@ -72,6 +72,14 @@ def test_read_file_rejects_binary(temp_workspace):
         read_file({"path": str(f)}, workspace_root=str(temp_workspace))
 
 
+def test_read_file_rejects_excluded_dir(temp_workspace):
+    """read_file rejects files inside excluded directories (.git etc.)."""
+    (temp_workspace / ".git").mkdir()
+    (temp_workspace / ".git" / "config").write_text("repo config")
+    with pytest.raises(PermissionError, match="excluded directory"):
+        read_file({"path": ".git/config"}, workspace_root=str(temp_workspace))
+
+
 def test_list_directory_excludes_sensitive_dirs(temp_workspace):
     """.git, .venv, node_modules, __pycache__, build, dist are excluded."""
     (temp_workspace / "src").mkdir()

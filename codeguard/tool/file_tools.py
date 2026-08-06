@@ -60,6 +60,12 @@ def _resolve_path(requested: str, workspace_root: str) -> Path:
 def read_file(params: dict, workspace_root: str = "") -> dict:
     path = _resolve_path(params["path"], workspace_root)
 
+    # Excluded directory check
+    if _is_excluded_dir(path, workspace_root):
+        raise PermissionError(
+            f"Cannot read file in excluded directory: {path}"
+        )
+
     # Size limit
     size = path.stat().st_size
     if size > MAX_FILE_SIZE:
