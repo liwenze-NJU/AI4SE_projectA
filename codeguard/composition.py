@@ -14,9 +14,143 @@ from codeguard.guardrail.rules import (
     CredentialLeakRule,
     ModeRestrictionRule,
 )
-from codeguard.guardrail.normalizer import ActionNormalizer
+from codeguard.guardrail.normalizer import ActionNormalizer, SchemaValidator
 from codeguard.feedback.classifier import FeedbackClassifier
 from codeguard.feedback.verifier import ObjectiveVerifier
+from codeguard.tool.registry import ToolRegistry
+from codeguard.tool import ToolDefinition
+
+
+def _register_standard_tools(registry: ToolRegistry) -> None:
+    """Register all standard tools with their parameter schemas."""
+    tools = [
+        ToolDefinition(
+            name="read_file", description="Read a file",
+            parameters_schema={
+                "type": "object",
+                "properties": {"path": {"type": "string"}},
+                "required": ["path"],
+            },
+            handler=lambda p: None, category="FILE", side_effect=False,
+            default_risk="ALLOW", supported_modes=["test", "demo", "local"],
+            timeout_limit=30,
+        ),
+        ToolDefinition(
+            name="write_file", description="Write a file",
+            parameters_schema={
+                "type": "object",
+                "properties": {"path": {"type": "string"}, "content": {"type": "string"}},
+                "required": ["path"],
+            },
+            handler=lambda p: None, category="FILE", side_effect=True,
+            default_risk="ALLOW", supported_modes=["test", "local"],
+            timeout_limit=30,
+        ),
+        ToolDefinition(
+            name="delete_file", description="Delete a file",
+            parameters_schema={
+                "type": "object",
+                "properties": {"path": {"type": "string"}},
+                "required": ["path"],
+            },
+            handler=lambda p: None, category="FILE", side_effect=True,
+            default_risk="REQUEST_APPROVAL", supported_modes=["test", "local"],
+            timeout_limit=30,
+        ),
+        ToolDefinition(
+            name="list_directory", description="List a directory",
+            parameters_schema={
+                "type": "object",
+                "properties": {"path": {"type": "string"}},
+                "required": ["path"],
+            },
+            handler=lambda p: None, category="FILE", side_effect=False,
+            default_risk="ALLOW", supported_modes=["test", "demo", "local"],
+            timeout_limit=30,
+        ),
+        ToolDefinition(
+            name="find_files", description="Find files by pattern",
+            parameters_schema={
+                "type": "object",
+                "properties": {"pattern": {"type": "string"}},
+                "required": ["pattern"],
+            },
+            handler=lambda p: None, category="FILE", side_effect=False,
+            default_risk="ALLOW", supported_modes=["test", "demo", "local"],
+            timeout_limit=30,
+        ),
+        ToolDefinition(
+            name="search_text", description="Search text in files",
+            parameters_schema={
+                "type": "object",
+                "properties": {"pattern": {"type": "string"}},
+                "required": ["pattern"],
+            },
+            handler=lambda p: None, category="FILE", side_effect=False,
+            default_risk="ALLOW", supported_modes=["test", "demo", "local"],
+            timeout_limit=30,
+        ),
+        ToolDefinition(
+            name="run_process", description="Run a process",
+            parameters_schema={
+                "type": "object",
+                "properties": {"program": {"type": "string"}, "args": {"type": "array"}},
+                "required": ["program"],
+            },
+            handler=lambda p: None, category="SHELL", side_effect=True,
+            default_risk="REQUEST_APPROVAL", supported_modes=["test", "local"],
+            timeout_limit=30,
+        ),
+        ToolDefinition(
+            name="run_tests", description="Run tests",
+            parameters_schema={
+                "type": "object",
+                "properties": {},
+                "required": [],
+            },
+            handler=lambda p: None, category="TEST", side_effect=True,
+            default_risk="ALLOW", supported_modes=["test", "demo", "local"],
+            timeout_limit=120,
+        ),
+        ToolDefinition(
+            name="run_typecheck", description="Run type checker",
+            parameters_schema={
+                "type": "object",
+                "properties": {},
+                "required": [],
+            },
+            handler=lambda p: None, category="TEST", side_effect=True,
+            default_risk="ALLOW", supported_modes=["test", "demo", "local"],
+            timeout_limit=120,
+        ),
+        ToolDefinition(
+            name="run_lint", description="Run linter",
+            parameters_schema={
+                "type": "object",
+                "properties": {},
+                "required": [],
+            },
+            handler=lambda p: None, category="TEST", side_effect=True,
+            default_risk="ALLOW", supported_modes=["test", "demo", "local"],
+            timeout_limit=120,
+        ),
+        ToolDefinition(
+            name="apply_patch", description="Apply a patch",
+            parameters_schema={
+                "type": "object",
+                "properties": {"patch": {"type": "string"}},
+                "required": ["patch"],
+            },
+            handler=lambda p: None, category="FILE", side_effect=True,
+            default_risk="ALLOW", supported_modes=["test", "local"],
+            timeout_limit=30,
+        ),
+    ]
+    for t in tools:
+        try:
+            registry.register(t)
+        except ValueError:
+            pass  # already registered by test setup
 
 
 def _make_complete_response(summary: str = "done") -> LLMResponse:
@@ -93,6 +227,9 @@ class CompositionRoot:
         )
         engine.add_rule("credential", CredentialLeakRule().evaluate)
         loop.action_normalizer = ActionNormalizer(workspace_root=workspace_root)
+        loop.schema_validator = SchemaValidator()
+        loop.tool_registry = ToolRegistry()
+        _register_standard_tools(loop.tool_registry)
         loop.rule_engine = engine
         loop.approval_manager = ApprovalManager(approval_timeout=60)
         loop.stop_policy = StopPolicy(

@@ -10,6 +10,7 @@ from codeguard.action import Action, ActionKind, LLMResponse
 from codeguard.llm.mock import ScriptedMockLLM
 from codeguard.guardrail import GuardrailDecision, GuardrailResult
 from codeguard.guardrail.approval import ApprovalStatus, ApprovalResult
+from codeguard.guardrail.normalizer import ActionNormalizer
 
 
 # ---------------------------------------------------------------------------
@@ -229,6 +230,7 @@ def test_loop_full_allow_sequence():
         _r(Action(kind=ActionKind.COMPLETE_REQUEST, summary="done", raw="")),
     ])
     loop = AgentLoop(session_id="s1", llm=mock)
+    loop.action_normalizer = ActionNormalizer(workspace_root=".")
     loop.rule_engine = FakeGuardrail(decisions=["ALLOW"])
     loop.tool_dispatcher = FakeToolDispatcher()
     loop.sensor_runner = FakeSensorRunner()
@@ -250,6 +252,7 @@ def test_loop_block_sequence():
         _r(Action(kind=ActionKind.COMPLETE_REQUEST, summary="done", raw="")),
     ])
     loop = AgentLoop(session_id="s1", llm=mock)
+    loop.action_normalizer = ActionNormalizer(workspace_root=".")
     loop.rule_engine = FakeGuardrail(decisions=["BLOCK", "ALLOW"])
     loop.tool_dispatcher = FakeToolDispatcher()
     loop.sensor_runner = FakeSensorRunner()
@@ -268,6 +271,7 @@ def test_loop_approval_approve():
         _r(Action(kind=ActionKind.COMPLETE_REQUEST, summary="done", raw="")),
     ])
     loop = AgentLoop(session_id="s1", llm=mock)
+    loop.action_normalizer = ActionNormalizer(workspace_root=".")
     loop.rule_engine = FakeGuardrail(decisions=["REQUEST_APPROVAL", "ALLOW"])
     loop.approval_manager = FakeApproval(decision=ApprovalStatus.APPROVED)
     loop.tool_dispatcher = FakeToolDispatcher()
@@ -295,6 +299,7 @@ def test_loop_approval_reject():
                   parameters={"path": "output.txt"}, raw="")),
     ])
     loop = AgentLoop(session_id="s1", llm=mock)
+    loop.action_normalizer = ActionNormalizer(workspace_root=".")
     loop.rule_engine = FakeGuardrail(decisions=["REQUEST_APPROVAL"])
     loop.approval_manager = FakeApproval(decision=ApprovalStatus.REJECTED)
     loop.stop_policy = FakeStopPolicy()
@@ -318,6 +323,7 @@ def test_loop_approval_timeout():
                   parameters={"path": "output.txt"}, raw="")),
     ])
     loop = AgentLoop(session_id="s1", llm=mock)
+    loop.action_normalizer = ActionNormalizer(workspace_root=".")
     loop.rule_engine = FakeGuardrail(decisions=["REQUEST_APPROVAL"])
     loop.approval_manager = FakeApproval(decision=ApprovalStatus.TIMEOUT)
     loop.stop_policy = FakeStopPolicy()
@@ -336,6 +342,7 @@ def test_loop_limit_reached():
                   parameters={"path": "x"}, raw="")),
     ])
     loop = AgentLoop(session_id="s1", llm=mock)
+    loop.action_normalizer = ActionNormalizer(workspace_root=".")
     loop.rule_engine = FakeGuardrail(decisions=["ALLOW"])
     loop.stop_policy = FakeStopPolicy(decision=AgentState.LIMIT_REACHED)
     result = loop.run()
@@ -349,6 +356,7 @@ def test_loop_failed():
                   parameters={"path": "x"}, raw="")),
     ])
     loop = AgentLoop(session_id="s1", llm=mock)
+    loop.action_normalizer = ActionNormalizer(workspace_root=".")
     loop.rule_engine = FakeGuardrail(decisions=["ALLOW"])
     loop.stop_policy = FakeStopPolicy(decision=AgentState.FAILED)
     result = loop.run()
@@ -375,6 +383,7 @@ def test_loop_max_steps_limit_reached():
                   parameters={"path": "x"}, raw=""))
     ] * 10)  # more than max_steps
     loop = AgentLoop(session_id="s1", llm=mock, max_steps=3)
+    loop.action_normalizer = ActionNormalizer(workspace_root=".")
     loop.rule_engine = FakeGuardrail(decisions=["ALLOW"])
     loop.tool_dispatcher = FakeToolDispatcher()
     loop.sensor_runner = FakeSensorRunner()
@@ -394,6 +403,7 @@ def test_loop_stop_policy_completed_ignored():
         _r(Action(kind=ActionKind.COMPLETE_REQUEST, summary="done", raw="")),
     ])
     loop = AgentLoop(session_id="s1", llm=mock)
+    loop.action_normalizer = ActionNormalizer(workspace_root=".")
     loop.rule_engine = FakeGuardrail(decisions=["ALLOW"])
     loop.tool_dispatcher = FakeToolDispatcher()
     loop.sensor_runner = FakeSensorRunner()

@@ -448,3 +448,235 @@ class TestScenarioCCompletedWithFinalValidation:
         assert result.terminal_state != AgentState.COMPLETED, (
             "COMPLETED must not be reached without all required sensors having FINAL PASSED"
         )
+
+
+# ---------------------------------------------------------------------------
+# Fix 1+2: Complete governance pipeline + no fallback normalization
+# ---------------------------------------------------------------------------
+
+from codeguard.tool import ToolDefinition
+from codeguard.tool.registry import ToolRegistry
+
+
+def _make_tool_def(name: str, required_params: list[str] | None = None) -> ToolDefinition:
+    """Create a minimal ToolDefinition for testing."""
+    schema = {
+        "type": "object",
+        "properties": {},
+        "required": required_params or [],
+    }
+    for p in (required_params or []):
+        schema["properties"][p] = {"type": "string"}
+    return ToolDefinition(
+        name=name,
+        description=f"Test tool: {name}",
+        parameters_schema=schema,
+        handler=lambda p: None,
+        category="FILE",
+        side_effect=False,
+        default_risk="ALLOW",
+        supported_modes=["test"],
+        result_schema=None,
+        timeout_limit=30,
+    )
+
+
+class TestCompleteGovernancePipeline:
+    """SPEC §3.2: Action → ToolRegistry.lookup → SchemaValidator
+    → ActionNormalizer → NormalizedAction → RuleEngine."""
+
+    def test_pipeline_call_order(self):
+        """Verify the governance pipeline call order with spy tracking."""
+        root = CompositionRoot(mode="test")
+        loop = root.create_loop(session_id="pipeline-order")
+
+        call_order = []
+
+        # Spy: SchemaValidator
+        original_validate = loop.schema_validator.validate
+        def spy_validate(params, schema):
+            call_order.append("schema_validate")
+            return original_validate(params, schema)
+        loop.schema_validator.validate = spy_validate
+
+        # Spy: ActionNormalizer
+        original_normalize = loop.action_normalizer.normalize
+        def spy_normalize(action):
+            call_order.append("normalize")
+            return original_normalize(action)
+        loop.action_normalizer.normalize = spy_normalize
+
+        # Spy: RuleEngine
+        original_evaluate = loop.rule_engine.evaluate
+        def spy_evaluate(action):
+            call_order.append("rule_engine")
+            return original_evaluate(action)
+        loop.rule_engine.evaluate = spy_evaluate
+
+        # read_file already registered by _register_standard_tools
+
+        loop.llm = ScriptedMockLLM(responses=[
+            _make_response(Action(
+                kind=ActionKind.TOOL_CALL,
+                tool_name="read_file",
+                parameters={"path": "test.txt"},
+            )),
+            _make_response(Action(
+                kind=ActionKind.COMPLETE_REQUEST, summary="done",
+            )),
+        ])
+
+        loop.run()
+
+        # Verify order: schema_validate → normalize → rule_engine
+        assert "schema_validate" in call_order, f"Missing schema_validate in {call_order}"
+        assert "normalize" in call_order, f"Missing normalize in {call_order}"
+        assert "rule_engine" in call_order, f"Missing rule_engine in {call_order}"
+        sv_idx = call_order.index("schema_validate")
+        n_idx = call_order.index("normalize")
+        re_idx = call_order.index("rule_engine")
+        assert sv_idx < n_idx < re_idx, (
+            f"Expected schema_validate < normalize < rule_engine, got {call_order}"
+        )
+
+    def test_unknown_tool_goes_to_feeding_back(self):
+        """Unknown tool → VALIDATION_ERROR → FEEDING_BACK, not executed."""
+        root = CompositionRoot(mode="test")
+        loop = root.create_loop(session_id="unknown-tool")
+
+        dispatched = []
+        class TrackingDispatcher:
+            def dispatch(self, action):
+                dispatched.append(action)
+        loop.tool_dispatcher = TrackingDispatcher()
+
+        # Do NOT register any tools — lookup will fail
+        loop.tool_registry = ToolRegistry()
+
+        loop.llm = ScriptedMockLLM(responses=[
+            _make_response(Action(
+                kind=ActionKind.TOOL_CALL,
+                tool_name="nonexistent_tool",
+                parameters={"path": "test.txt"},
+            )),
+            _make_response(Action(
+                kind=ActionKind.COMPLETE_REQUEST, summary="done",
+            )),
+        ])
+
+        result = loop.run()
+        # Unknown tool → not executed
+        assert len(dispatched) == 0, (
+            f"Unknown tool must not be dispatched, got {len(dispatched)} calls"
+        )
+        # The loop should complete (not crash) because the LLM recovers
+        assert result.terminal_state in (AgentState.COMPLETED, AgentState.LIMIT_REACHED)
+
+    def test_missing_required_param_validation_error(self):
+        """Missing required parameter → VALIDATION_ERROR, tool not executed."""
+        root = CompositionRoot(mode="test")
+        loop = root.create_loop(session_id="missing-param")
+
+        dispatched = []
+        class TrackingDispatcher:
+            def dispatch(self, action):
+                dispatched.append(action)
+        loop.tool_dispatcher = TrackingDispatcher()
+
+        # Replace registry to register custom tool with extra required param
+        loop.tool_registry = ToolRegistry()
+        loop.tool_registry.register(_make_tool_def("write_file", ["path", "content"]))
+
+        # LLM sends action missing "content"
+        loop.llm = ScriptedMockLLM(responses=[
+            _make_response(Action(
+                kind=ActionKind.TOOL_CALL,
+                tool_name="write_file",
+                parameters={"path": "test.txt"},  # missing "content"
+            )),
+            _make_response(Action(
+                kind=ActionKind.COMPLETE_REQUEST, summary="done",
+            )),
+        ])
+
+        result = loop.run()
+        assert len(dispatched) == 0, (
+            f"Action with missing required param must not be dispatched, "
+            f"got {len(dispatched)} calls"
+        )
+
+    def test_wrong_param_type_validation_error(self):
+        """Wrong parameter type → VALIDATION_ERROR, tool not executed."""
+        root = CompositionRoot(mode="test")
+        loop = root.create_loop(session_id="wrong-type")
+
+        dispatched = []
+        class TrackingDispatcher:
+            def dispatch(self, action):
+                dispatched.append(action)
+        loop.tool_dispatcher = TrackingDispatcher()
+
+        # read_file already registered by _register_standard_tools
+
+        # LLM sends action with path as int instead of string
+        loop.llm = ScriptedMockLLM(responses=[
+            _make_response(Action(
+                kind=ActionKind.TOOL_CALL,
+                tool_name="read_file",
+                parameters={"path": 12345},  # should be string
+            )),
+            _make_response(Action(
+                kind=ActionKind.COMPLETE_REQUEST, summary="done",
+            )),
+        ])
+
+        result = loop.run()
+        assert len(dispatched) == 0, (
+            f"Action with wrong param type must not be dispatched, "
+            f"got {len(dispatched)} calls"
+        )
+
+
+class TestNoFallbackNormalization:
+    """SPEC §3.2: Missing ActionNormalizer must fail closed, not fallback."""
+
+    def test_missing_normalizer_fails_closed(self):
+        """action_normalizer=None → FAILED, no RuleEngine or ToolDispatcher calls."""
+        root = CompositionRoot(mode="test")
+        loop = root.create_loop(session_id="no-normalizer")
+
+        # Remove the normalizer
+        loop.action_normalizer = None
+
+        rule_engine_called = []
+        original_evaluate = loop.rule_engine.evaluate
+        def tracking_evaluate(action):
+            rule_engine_called.append(action)
+            return original_evaluate(action)
+        loop.rule_engine.evaluate = tracking_evaluate
+
+        dispatched = []
+        class TrackingDispatcher:
+            def dispatch(self, action):
+                dispatched.append(action)
+        loop.tool_dispatcher = TrackingDispatcher()
+
+        loop.llm = ScriptedMockLLM(responses=[
+            _make_response(Action(
+                kind=ActionKind.TOOL_CALL,
+                tool_name="read_file",
+                parameters={"path": "test.txt"},
+            )),
+        ])
+
+        result = loop.run()
+        # Must fail — no fallback normalization
+        assert result.terminal_state == AgentState.FAILED, (
+            f"Expected FAILED without normalizer, got {result.terminal_state}"
+        )
+        assert len(rule_engine_called) == 0, (
+            "RuleEngine must not be called when normalizer is missing"
+        )
+        assert len(dispatched) == 0, (
+            "ToolDispatcher must not be called when normalizer is missing"
+        )

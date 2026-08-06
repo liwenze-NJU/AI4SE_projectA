@@ -25,8 +25,10 @@ class AgentLoop:
     """Core agent loop driving the state machine.
 
     Components are injected via attributes after construction:
-      rule_engine        — Guardrail evaluator (requires NormalizedAction)
+      tool_registry      — ToolRegistry for tool lookup
+      schema_validator   — SchemaValidator for parameter validation
       action_normalizer  — Action → NormalizedAction converter
+      rule_engine        — Guardrail evaluator (requires NormalizedAction)
       approval_manager   — Human approval handler
       tool_dispatcher    — Tool execution dispatcher
       sensor_runner      — Sensor / validation runner
@@ -49,6 +51,8 @@ class AgentLoop:
         self._iteration = 0
 
         # Components to be injected via attributes
+        self.tool_registry = None
+        self.schema_validator = None
         self.rule_engine = None
         self.action_normalizer: ActionNormalizer | None = None
         self.approval_manager = None
@@ -135,6 +139,14 @@ class AgentLoop:
 
             # Normalize the action before guardrail evaluation
             normalized_action = self._normalize(action)
+            if normalized_action is None:
+                # Pipeline failure (unknown tool, schema error, no normalizer)
+                if self.state.current_state == AgentState.FAILED:
+                    break
+                if self._check_stop_policy():
+                    break
+                self._transition(AgentState.DECIDING)
+                continue
 
             if self.rule_engine is not None:
                 guardrail_result = self.rule_engine.evaluate(normalized_action)
@@ -210,27 +222,49 @@ class AgentLoop:
     # Internal helpers
     # ------------------------------------------------------------------
 
-    def _normalize(self, action) -> 'NormalizedAction':
-        """Normalize an Action through the governance pipeline."""
+    def _normalize(self, action) -> 'NormalizedAction | None':
+        """Run the full governance pipeline (SPEC §3.2, §3.6).
+
+        Action → ToolRegistry.lookup → SchemaValidator
+        → ActionNormalizer → NormalizedAction
+
+        Returns NormalizedAction on success, None on failure.
+        On failure, transitions to FEEDING_BACK so the LLM can retry.
+        """
         from codeguard.action import NormalizedAction
-        if self.action_normalizer is not None:
-            return self.action_normalizer.normalize(action)
-        # Fallback: minimal normalization
-        import hashlib, json
-        params = dict(action.parameters or {})
-        fp_data = json.dumps({
-            "kind": action.kind.value,
-            "tool_name": action.tool_name or "",
-            "parameters": params,
-        }, sort_keys=True)
-        return NormalizedAction(
-            kind=action.kind,
-            tool_name=action.tool_name,
-            normalized_parameters=params,
-            action_fingerprint=hashlib.sha256(fp_data.encode()).hexdigest(),
-            original_raw=action.raw,
-            normalized_at=datetime.now(),
-        )
+
+        # Fail closed: no normalizer → cannot proceed
+        if self.action_normalizer is None:
+            self._transition(AgentState.FAILED)
+            return None
+
+        # Step 1: ToolRegistry.lookup
+        if self.tool_registry is not None:
+            try:
+                self.tool_registry.lookup(action.tool_name or "")
+            except KeyError:
+                # Unknown tool → VALIDATION_ERROR, feed back
+                self._transition(AgentState.FEEDING_BACK)
+                return None
+
+        # Step 2: SchemaValidator
+        if self.schema_validator is not None and self.tool_registry is not None:
+            try:
+                tool_def = self.tool_registry.lookup(action.tool_name or "")
+            except KeyError:
+                self._transition(AgentState.FEEDING_BACK)
+                return None
+            try:
+                self.schema_validator.validate(
+                    action.parameters or {}, tool_def.parameters_schema
+                )
+            except ValueError:
+                # Schema validation failed → VALIDATION_ERROR
+                self._transition(AgentState.FEEDING_BACK)
+                return None
+
+        # Step 3: ActionNormalizer
+        return self.action_normalizer.normalize(action)
 
     def _run_sensors(self, validation_type: str = "INTERMEDIATE") -> None:
         """Run sensors and classify results."""
