@@ -5172,7 +5172,14 @@ git push github task-9.2-memory-retriever
 
 **Worktree:** worktree-memory, branch `task-9.3-memory-lifecycle`
 
-- [ ] **Step 1: Write failing tests**
+- [x] **Step 1: Write failing tests** ✅ (12 new tests)
+- [x] **Step 2: Run to verify failure** ✅ (AttributeError: 12 failed)
+- [x] **Step 3: Implement lifecycle methods** ✅
+- [x] **Step 4: Run to verify pass** ✅ (24 passed in store tests)
+- [x] **Step 5: Refactor** ✅ (clean)
+- [x] **Step 6: SPEC compliance review** ✅ (7/7 per SPEC §3.7)
+- [x] **Step 7: Code quality review** ✅ (0 Critical, 0 Major)
+- [x] **Step 8: Commit** ✅ `9446c4f`
 
 Append to `tests/test_memory_store.py`:
 ```python
@@ -5288,7 +5295,14 @@ git push github task-9.3-memory-lifecycle
 
 **File boundary:** Only `codeguard/config/loader.py` and `tests/test_config_loader.py`
 
-- [ ] **Step 1: Write failing tests**
+- [x] **Step 1: Write failing tests** ✅ (9 tests)
+- [x] **Step 2: Run to verify failure** ✅ (ModuleNotFoundError)
+- [x] **Step 3: Implement ConfigLoader** ✅
+- [x] **Step 4: Run to verify pass** ✅ (9 passed)
+- [x] **Step 5: Refactor** ✅ (clean)
+- [x] **Step 6: SPEC compliance review** ✅ (6/6 per SPEC §3.8)
+- [x] **Step 7: Code quality review** ✅ (0 issues)
+- [x] **Step 8: Commit** ✅ `30495b5`
 
 Write `tests/test_config_loader.py`:
 ```python
@@ -5401,7 +5415,14 @@ git push github task-10.1-config-loader
 
 **Worktree:** worktree-config, branch `task-10.2-config-merger`
 
-- [ ] **Step 1: Write failing tests**
+- [x] **Step 1: Write failing tests** ✅ (28 tests)
+- [x] **Step 2: Run to verify failure** ✅ (ModuleNotFoundError)
+- [x] **Step 3: Implement ConfigMerger** ✅
+- [x] **Step 4: Run to verify pass** ✅ (28 passed)
+- [x] **Step 5: Refactor** ✅ (all 31 SPEC rules covered)
+- [x] **Step 6: SPEC compliance review** ✅ (31/31 per SPEC §3.8)
+- [x] **Step 7: Code quality review** ✅ (0 Critical, 0 Major)
+- [x] **Step 8: Commit** ✅ `5967b8e`
 
 Write `tests/test_config_merger.py`:
 ```python

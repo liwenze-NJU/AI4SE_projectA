@@ -1533,3 +1533,77 @@
 **复审结果**: PASS — SPEC 合规 11/11，代码质量 0 Critical, 0 Major
 
 **branch/worktree**: feature/mvp-core
+
+---
+
+## Task 9.3: Memory lifecycle (propose → approve/reject)
+
+**log_id**: T9.3 | **task_id**: Task 9.3 (Memory lifecycle) | **状态**: COMPLETED
+**时间**: 2026-08-06
+**Superpowers 技能**: `superpowers:test-driven-development`
+
+**RED 阶段**: 12 failed (AttributeError: propose_write/approve_memory/reject_memory not defined)
+
+**GREEN 阶段**: 24 passed (12 org + 12 new) + 383 regression = 395 passed, 1 skipped
+
+**实现**:
+- `propose_write`: 验证 MemoryType 枚举、content 非空、强制 PENDING + LLM_PROPOSED
+- `approve_memory`: 验证 PENDING 状态 → ACTIVE + USER_APPROVED
+- `reject_memory`: 验证 PENDING 状态 → REJECTED
+- 非法状态转换拒绝、不存在记录拒绝
+
+**commit hash**: `9446c4f`
+
+**复审结果**: PASS — SPEC 合规 7/7，代码质量 0 Critical, 0 Major
+
+**branch/worktree**: feature/mvp-core
+
+---
+
+## Task 10.1: ConfigLoader (TOML parsing)
+
+**log_id**: T10.1 | **task_id**: Task 10.1 (ConfigLoader) | **状态**: COMPLETED
+**时间**: 2026-08-06
+**Superpowers 技能**: `superpowers:test-driven-development`
+
+**RED 阶段**: ModuleNotFoundError: No module named 'codeguard.config.loader'
+
+**GREEN 阶段**: 9 passed + 395 regression = 404 passed, 1 skipped
+
+**实现**:
+- `ConfigLoader.load_file`: Python 3.12 内置 tomllib
+- 未知 section → ValueError（含文件路径）
+- 文件不存在 / 空文件 → 空 dict
+- 损坏 TOML → ValueError
+- 不支持 include、环境变量插值、命令替换
+
+**commit hash**: `30495b5`
+
+**复审结果**: PASS — SPEC 合规 6/6，代码质量 0 issues
+
+**branch/worktree**: feature/mvp-core
+
+---
+
+## Task 10.2: ConfigMerger (field-level deterministic merge)
+
+**log_id**: T10.2 | **task_id**: Task 10.2 (ConfigMerger) | **状态**: COMPLETED
+**时间**: 2026-08-06
+**Superpowers 技能**: `superpowers:test-driven-development`
+
+**RED 阶段**: ModuleNotFoundError: No module named 'codeguard.config.merger'
+
+**GREEN 阶段**: 28 passed + 404 regression = 432 passed, 1 skipped
+
+**实现**:
+- `ConfigMerger.merge`: SPEC §3.8 全部 31 条字段级合并规则
+- 交集 / 并集 / 取小值 / 上层覆盖 / 项目只能缩短
+- sensor_order 追加 + 去重；per_tool_timeouts 逐工具取更小值
+- CLI overrides 最高优先级
+- deepcopy 输入，确定性输出
+
+**commit hash**: `5967b8e`
+
+**复审结果**: PASS — SPEC 合规 31/31，代码质量 0 Critical, 0 Major
+
+**branch/worktree**: feature/mvp-core
