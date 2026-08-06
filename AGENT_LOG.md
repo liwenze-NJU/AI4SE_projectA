@@ -2015,6 +2015,6 @@
 - 规格合规: PASS — 三栏布局/水平步进器/护栏三联与 WIREFRAME_SPEC 02 一致；MOCK 横幅保留；会话隔离；窄屏单栏堆叠；无 React/Node.js
 - 代码质量: 0 Critical, 1 Minor（记录不阻塞）— main.js 首屏不更新导航栏状态药丸（保持"未开始"，首次状态变化后正常）；`/dashboard` 每次访问新建 session 不清理（内存态演示可接受）
 
-**commit hash**: 待当前会话提交后补记
+**commit hash**: `8a6de3c`
 
 **具备进入 Task 16.4 的条件**: 是 — 546 passed, 1 skipped, 0 failed
