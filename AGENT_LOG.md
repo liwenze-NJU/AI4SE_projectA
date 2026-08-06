@@ -1075,4 +1075,35 @@
 
 **branch/worktree**: feature/mvp-core
 
+---
+
+## Task 4.2 敏感文件补充
+
+**log_id**: T4.2-SENS | **task_id**: Task 4.2 敏感文件阻塞 | **状态**: COMPLETED
+**时间**: 2026-08-06
+**Superpowers 技能**: `superpowers:test-driven-development`
+
+**内容**：增加集中式敏感文件判断 `_is_sensitive_file`，阻塞 .env、*.key、*.pem。
+
+**RED 阶段**：
+- 4 failed（read_file 未拒绝、list_directory/find_files/search_text 未隐藏敏感文件）
+
+**GREEN 阶段**：
+- 18 passed + 1 skipped + 68 regression = 86 passed
+
+**实现**：
+- `SENSITIVE_FILE_NAMES = {".env"}`，`SENSITIVE_FILE_SUFFIXES = {".key", ".pem"}`
+- `_is_sensitive_file(path)` 检查 `path.name` 和 `path.suffix`
+- read_file 在排除目录检查后、大小检查前拒绝敏感文件
+- list_directory 跳过敏感文件（`p.is_file() and _is_sensitive_file(p)`）
+- find_files 跳过敏感文件
+- search_text 跳过敏感文件（与 `_is_binary` 合并检查）
+- list_directory 深度上限为 1（非递归，`iterdir()` 仅为直接子项），已在 docstring 明确记录
+
+**未扩展**：通用输出总大小限制和 SecretRedactor 统一留给 Task 4.5。
+
+**commit hash**: `74916a1`
+
+**branch/worktree**: feature/mvp-core
+
 **branch/worktree**: feature/mvp-core

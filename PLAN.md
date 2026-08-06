@@ -2732,7 +2732,7 @@ Check: SPEC §3.6 — read_file reads content. list_directory lists entries. fin
 
 Check: `_resolve_path` is a shared validation function. All functions return dict (not ToolResult — ToolDispatcher wraps them). Workspace boundary is enforced at the path resolution level.
 
-- [x] **Step 8: Commit** — `116fba4` (fix: `688741e`, `676bed3`, `d703cee`)
+- [x] **Step 8: Commit** — `116fba4` (fix: `688741e`, `676bed3`, `d703cee`, `74916a1`)
 
 ```bash
 git add codeguard/tool/file_tools.py tests/test_file_tools.py
