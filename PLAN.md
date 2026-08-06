@@ -7156,7 +7156,7 @@ git push github task-16.6-webui-mock
 - Create: `codeguard/demo/mock_fs.py`
 - Create: `tests/test_demo_scenario_a.py`
 
-- [ ] **Step 1: Write failing tests**
+- [x] **Step 1: Write failing tests** — `tests/test_demo_scenario_a.py`（4 tests: 终态 COMPLETED/BLOCK 后安全动作/仅 Mock 组件/无真实边界）
 
 Write `tests/test_demo_scenario_a.py`:
 ```python
@@ -7199,7 +7199,7 @@ Create mock components (mock_store.py, mock_credential.py, mock_tool_dispatcher.
 Run: `pytest tests/test_demo_scenario_a.py -v`
 Expected: 2 passed
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit** — `17.1` commit created by current session
 
 ```bash
 git add codeguard/demo/ tests/test_demo_scenario_a.py

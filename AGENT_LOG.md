@@ -2097,3 +2097,29 @@
 **commit hash**: `6296c9f`
 
 **具备进入 Task 17.1 的条件**: 是 — 564 passed, 1 skipped, 0 failed
+
+---
+
+## Task 17.1: Demo Scenario A — BLOCK -> feedback -> COMPLETED
+
+**log_id**: T17.1 | **task_id**: Task 17.1 Demo | **状态**: COMPLETED
+**时间**: 2026-08-07
+**Superpowers 技能**: `superpowers:test-driven-development`
+**branch/worktree**: feature/mvp-core
+
+**RED 阶段**: 4 个测试写入 `tests/test_demo_scenario_a.py`（终态 COMPLETED/首个决策 BLOCK 后安全动作/仅 Mock 组件/无真实边界导入），ModuleNotFoundError (codeguard.demo)
+
+**GREEN 阶段**: 4/4 passed；全量 568 passed, 1 skipped, 0 failed
+
+**实现内容**:
+- `codeguard/demo/` 包 + 4 个 Mock 组件：`mock_fs.py`（内存文件系统）、`mock_store.py`（内存记忆）、`mock_credential.py`（占位凭据，不触碰 Credential Manager）、`mock_tool_dispatcher.py`（记录式分发，无真实执行）
+- `scenario_a.py` — 脚本化 3 步：`write_file(../secret.txt)` 越界 → WorkspaceBoundaryRule BLOCK（recoverable）→ 反馈回灌 → `read_file(src/auth.py)` 安全 → ALLOW → EXECUTING → COMPLETED
+- 治理装配：WorkspaceBoundary + CredentialLeak + ModeRestriction(demo) + ActionNormalizer(workspace_root)
+
+**两阶段评审**:
+- 规格合规: PASS — SPEC §3.9 演示场景 1（危险动作 BLOCK → 反馈 → 改变 Action）；仅用 ScriptedMockLLM + Mock 边界
+- 代码质量: 0 Critical, 0 Major — 无真实 I/O、无网络、无 subprocess
+
+**commit hash**: 待提交后补记
+
+**具备进入 Task 17.2 的条件**: 是 — 568 passed, 1 skipped, 0 failed
