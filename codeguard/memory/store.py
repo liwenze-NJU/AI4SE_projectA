@@ -112,3 +112,46 @@ class JSONMemoryStore:
         if type is not None:
             records = [r for r in records if r.type == type]
         return records
+
+    def propose_write(self, record: MemoryRecord) -> None:
+        if not isinstance(record.type, MemoryType):
+            raise ValueError(f"Unknown memory type: {record.type}")
+        if not record.content or not record.content.strip():
+            raise ValueError("Memory record content must not be empty")
+        if len(record.content) > self._max_content_size:
+            raise ValueError(
+                f"Record content ({len(record.content)} chars) exceeds "
+                f"max_content_size ({self._max_content_size})"
+            )
+        record.status = MemoryStatus.PENDING
+        record.trust_level = TrustLevel.LLM_PROPOSED
+        self.save(record)
+
+    def approve_memory(self, record_id: str, project_id: str) -> None:
+        data = self._load(project_id)
+        for r in data["records"]:
+            if r["id"] == record_id:
+                if r["status"] != MemoryStatus.PENDING.value:
+                    raise ValueError(
+                        f"Record {record_id} is not in PENDING status "
+                        f"(current: {r['status']})"
+                    )
+                r["status"] = MemoryStatus.ACTIVE.value
+                r["trust_level"] = TrustLevel.USER_APPROVED.value
+                self._save_atomically(project_id, data)
+                return
+        raise ValueError(f"Record {record_id} not found in project {project_id}")
+
+    def reject_memory(self, record_id: str, project_id: str) -> None:
+        data = self._load(project_id)
+        for r in data["records"]:
+            if r["id"] == record_id:
+                if r["status"] != MemoryStatus.PENDING.value:
+                    raise ValueError(
+                        f"Record {record_id} is not in PENDING status "
+                        f"(current: {r['status']})"
+                    )
+                r["status"] = MemoryStatus.REJECTED.value
+                self._save_atomically(project_id, data)
+                return
+        raise ValueError(f"Record {record_id} not found in project {project_id}")

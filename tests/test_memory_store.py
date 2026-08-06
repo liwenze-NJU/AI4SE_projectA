@@ -112,3 +112,81 @@ class TestJSONMemoryStoreCreate:
         record = _make_record(content="x" * 101)
         with pytest.raises(ValueError, match="content.*exceeds"):
             store.save(record)
+
+
+class TestMemoryLifecycle:
+    def test_propose_write_creates_pending(self, temp_workspace):
+        store = JSONMemoryStore(base_dir=str(temp_workspace))
+        record = _make_record(status=MemoryStatus.PENDING, trust_level=TrustLevel.LLM_PROPOSED)
+        store.propose_write(record)
+        loaded = store.get("m1", "p1")
+        assert loaded is not None
+        assert loaded.status == MemoryStatus.PENDING
+        assert loaded.trust_level == TrustLevel.LLM_PROPOSED
+
+    def test_approve_memory_pending_to_active(self, temp_workspace):
+        store = JSONMemoryStore(base_dir=str(temp_workspace))
+        record = _make_record(status=MemoryStatus.PENDING, trust_level=TrustLevel.LLM_PROPOSED)
+        store.propose_write(record)
+        store.approve_memory("m1", "p1")
+        loaded = store.get("m1", "p1")
+        assert loaded.status == MemoryStatus.ACTIVE
+        assert loaded.trust_level == TrustLevel.USER_APPROVED
+
+    def test_reject_memory_pending_to_rejected(self, temp_workspace):
+        store = JSONMemoryStore(base_dir=str(temp_workspace))
+        record = _make_record(status=MemoryStatus.PENDING)
+        store.propose_write(record)
+        store.reject_memory("m1", "p1")
+        loaded = store.get("m1", "p1")
+        assert loaded.status == MemoryStatus.REJECTED
+
+    def test_unknown_type_rejected(self, temp_workspace):
+        store = JSONMemoryStore(base_dir=str(temp_workspace))
+        with pytest.raises(ValueError, match="Unknown memory type"):
+            store.propose_write(_make_record(type="unknown_type"))
+
+    def test_approve_nonexistent_record_raises(self, temp_workspace):
+        store = JSONMemoryStore(base_dir=str(temp_workspace))
+        with pytest.raises(ValueError, match="not found"):
+            store.approve_memory("nonexistent", "p1")
+
+    def test_reject_nonexistent_record_raises(self, temp_workspace):
+        store = JSONMemoryStore(base_dir=str(temp_workspace))
+        with pytest.raises(ValueError, match="not found"):
+            store.reject_memory("nonexistent", "p1")
+
+    def test_cannot_approve_already_active(self, temp_workspace):
+        store = JSONMemoryStore(base_dir=str(temp_workspace))
+        store.save(_make_record(status=MemoryStatus.ACTIVE))
+        with pytest.raises(ValueError, match="not in PENDING"):
+            store.approve_memory("m1", "p1")
+
+    def test_cannot_reject_already_active(self, temp_workspace):
+        store = JSONMemoryStore(base_dir=str(temp_workspace))
+        store.save(_make_record(status=MemoryStatus.ACTIVE))
+        with pytest.raises(ValueError, match="not in PENDING"):
+            store.reject_memory("m1", "p1")
+
+    def test_cannot_approve_rejected(self, temp_workspace):
+        store = JSONMemoryStore(base_dir=str(temp_workspace))
+        store.save(_make_record(status=MemoryStatus.REJECTED))
+        with pytest.raises(ValueError, match="not in PENDING"):
+            store.approve_memory("m1", "p1")
+
+    def test_propose_write_always_forces_pending(self, temp_workspace):
+        store = JSONMemoryStore(base_dir=str(temp_workspace))
+        record = _make_record(status=MemoryStatus.ACTIVE)
+        store.propose_write(record)
+        loaded = store.get("m1", "p1")
+        assert loaded.status == MemoryStatus.PENDING
+
+    def test_propose_write_rejects_null_content(self, temp_workspace):
+        store = JSONMemoryStore(base_dir=str(temp_workspace))
+        with pytest.raises(ValueError, match="content"):
+            store.propose_write(_make_record(content=""))
+
+    def test_propose_write_content_size_limit(self, temp_workspace):
+        store = JSONMemoryStore(base_dir=str(temp_workspace), max_content_size=100)
+        with pytest.raises(ValueError, match="content"):
+            store.propose_write(_make_record(content="x" * 101))
