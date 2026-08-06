@@ -2120,6 +2120,6 @@
 - 规格合规: PASS — SPEC §3.9 演示场景 1（危险动作 BLOCK → 反馈 → 改变 Action）；仅用 ScriptedMockLLM + Mock 边界
 - 代码质量: 0 Critical, 0 Major — 无真实 I/O、无网络、无 subprocess
 
-**commit hash**: 待提交后补记
+**commit hash**: `1080a04`
 
 **具备进入 Task 17.2 的条件**: 是 — 568 passed, 1 skipped, 0 failed
