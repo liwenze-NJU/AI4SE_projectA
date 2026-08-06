@@ -570,6 +570,61 @@ a:hover {
   .mock-banner-right {
     font-size: 12px;
   }
+
+  /* Dashboard: single-column stack (line wireframe 02 narrow-screen reflow) */
+  .dashboard-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .col-left {
+    border-right: none;
+    padding-right: 0;
+  }
+
+  .col-right {
+    border-left: none;
+    padding-left: 0;
+  }
+
+  /* Stepper: horizontal scroll within its own container */
+  .overview-center {
+    width: 100%;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  /* Trace content scrolls inside its component */
+  .trace-container,
+  .trace-list,
+  .guardrail-container {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  /* Approval modal stays within viewport; actions stack vertically */
+  .modal-overlay {
+    padding: var(--space-3);
+  }
+
+  .approval-modal {
+    max-width: 95vw;
+    max-height: 92vh;
+  }
+
+  .approval-actions {
+    flex-direction: column;
+  }
+
+  .approval-actions .btn {
+    min-height: 44px;
+    min-width: 44px;
+  }
+
+  .demo-btn,
+  .btn-lg {
+    min-height: 44px;
+    min-width: 44px;
+  }
 }
 
 @media (max-width: 375px) {

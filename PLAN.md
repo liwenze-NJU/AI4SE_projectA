@@ -7052,7 +7052,7 @@ git push github task-16.5-webui-p4
 - Create: `tests/test_web_mock_security.py`
 - Create: `tests/test_web_narrow_screen.py`
 
-- [ ] **Step 1: Write failing tests**
+- [x] **Step 1: Write failing tests** — `tests/test_web_mock_security.py`（3 tests）+ `tests/test_web_narrow_screen.py`（4 tests，含 CSS 规则检查）
 
 Write `tests/test_web_mock_security.py`:
 ```python
@@ -7132,7 +7132,7 @@ Add to `codeguard/web/static/style.css`:
 Run: `pytest tests/test_web_mock_security.py tests/test_web_narrow_screen.py -v`
 Expected: 4 passed
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit** — `16.6` commit created by current session
 
 ```bash
 git add tests/test_web_mock_security.py tests/test_web_narrow_screen.py codeguard/web/static/style.css

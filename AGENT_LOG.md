@@ -2071,3 +2071,29 @@
 **commit hash**: `887bc18`
 
 **具备进入 Task 16.6 的条件**: 是 — 557 passed, 1 skipped, 0 failed
+
+---
+
+## Task 16.6: Mock security + narrow screen
+
+**log_id**: T16.6 | **task_id**: Task 16.6 WebUI | **状态**: COMPLETED
+**时间**: 2026-08-06
+**Superpowers 技能**: `superpowers:test-driven-development`
+**branch/worktree**: feature/mvp-core
+
+**RED 阶段**: 7 个测试写入（`test_web_mock_security.py` 3 个 + `test_web_narrow_screen.py` 4 个），6 个通过（横幅/演示边界已达标），1 个失败（CSS 缺窄屏模态宽度 + 44px 触控目标）
+
+**GREEN 阶段**: 7/7 passed；全量 564 passed, 1 skipped, 0 failed
+
+**实现内容**:
+- `tests/test_web_mock_security.py` — 4 页 Mock 横幅常驻；/health 报告 demo 边界；源码级检查 app.py 不导入 deepseek/keyring/LocalToolExecutor/requests/openai（SPEC §3.9 安全边界）
+- `tests/test_web_narrow_screen.py` — 375px UA：首页/审批/仪表盘可打开可操作；CSS 规则检查（767px 断点/模态 ≤95vw/44px 触控）
+- `style.css` — 767px 断点补充：dashboard 单栏、步进器横向滚动（-webkit-overflow-scrolling: touch）、trace/护栏容器组件内滚动、approval-modal max-width 95vw、审批按钮与演示按钮 44px 触控目标、模态操作纵向排列
+
+**两阶段评审**:
+- 规格合规: PASS — 与 SPEC §3.9 窄屏自适应（<768px 单栏堆叠/组件内滚动/44px 触控/横幅常驻）及安全边界一致
+- 代码质量: 0 Critical, 0 Major — 既有 CSS 与 16.3 的 1023px 断点无冲突
+
+**commit hash**: 待提交后补记
+
+**具备进入 Task 17.1 的条件**: 是 — 564 passed, 1 skipped, 0 failed
