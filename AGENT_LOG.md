@@ -1500,3 +1500,36 @@
 **复审结果**: PASS — SPEC 合规 10/10，代码质量 0 issues
 
 **branch/worktree**: feature/mvp-core
+
+---
+
+## Task 9.2: MemoryRetriever
+
+**log_id**: T9.2 | **task_id**: Task 9.2 (MemoryRetriever) | **状态**: COMPLETED
+**时间**: 2026-08-06
+**Superpowers 技能**: `superpowers:test-driven-development`
+
+**RED 阶段**: ModuleNotFoundError: No module named 'codeguard.memory.retriever'
+
+**GREEN 阶段**: 27 passed + 356 regression = 383 passed, 1 skipped
+
+**实现**:
+- `MemoryRetriever`: 确定性检索管道
+  1. project_id 隔离（`store.list(project_id)`）
+  2. 只保留 ACTIVE（排除 PENDING/REJECTED/ARCHIVED/DELETED）
+  3. type 过滤（MemoryType 精确匹配）
+  4. tags 精确匹配（any query tag in record tags）
+  5. keywords 匹配（any query keyword in record keywords）
+  6. 排序：trust_level DESC → updated_at DESC → id ASC
+  7. top_k 截断
+  8. context_budget 字符数截断
+- 排序键：`(-_TRUST_ORDER[trust], -updated_at.timestamp(), id)` 保证确定性
+- top_k=0 / context_budget=0 → 空结果
+- 单条超预算确定性排除，不产生超限结果
+- 不修改原始记录集合
+
+**commit hash**: `6f8f670`
+
+**复审结果**: PASS — SPEC 合规 11/11，代码质量 0 Critical, 0 Major
+
+**branch/worktree**: feature/mvp-core
