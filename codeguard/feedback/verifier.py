@@ -12,6 +12,14 @@ class ObjectiveVerifier:
     def __init__(self, required_sensors: list[str] | None = None):
         self._required = required_sensors or []
 
+    @property
+    def required_sensors(self) -> list[str]:
+        return list(self._required)
+
+    @required_sensors.setter
+    def required_sensors(self, value: list[str]) -> None:
+        self._required = list(value)
+
     def verify(self, results: list[FeedbackResult]) -> bool:
         if not self._required:
             return True

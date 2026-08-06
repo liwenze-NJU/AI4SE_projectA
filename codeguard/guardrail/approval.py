@@ -113,6 +113,17 @@ class ApprovalManager:
                                 validated_at=self._clock.now)
         return None
 
+    def get_request(self, request_id: str) -> ApprovalRequest | None:
+        """Public accessor for approval requests."""
+        return self._requests.get(request_id)
+
+    def check_timeout_for_request(self, request_id: str) -> ApprovalResult | None:
+        """Public method: check if a specific request has timed out."""
+        req = self._requests.get(request_id)
+        if req is None:
+            return None
+        return self.check_timeout(req)
+
     def _get_request(self, request_id: str) -> ApprovalRequest:
         req = self._requests.get(request_id)
         if not req:

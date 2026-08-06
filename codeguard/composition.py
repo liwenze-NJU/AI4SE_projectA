@@ -14,6 +14,7 @@ from codeguard.guardrail.rules import (
     CredentialLeakRule,
     ModeRestrictionRule,
 )
+from codeguard.guardrail.normalizer import ActionNormalizer
 from codeguard.feedback.classifier import FeedbackClassifier
 from codeguard.feedback.verifier import ObjectiveVerifier
 
@@ -91,6 +92,7 @@ class CompositionRoot:
             "workspace", WorkspaceBoundaryRule(workspace_root=workspace_root).evaluate
         )
         engine.add_rule("credential", CredentialLeakRule().evaluate)
+        loop.action_normalizer = ActionNormalizer(workspace_root=workspace_root)
         loop.rule_engine = engine
         loop.approval_manager = ApprovalManager(approval_timeout=60)
         loop.stop_policy = StopPolicy(

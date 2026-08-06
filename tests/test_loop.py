@@ -45,14 +45,17 @@ class FakeGuardrail:
         d = self._decisions[self._index % len(self._decisions)]
         self._index += 1
         from codeguard.action import NormalizedAction
-        na = NormalizedAction(
-            kind=action.kind,
-            tool_name=action.tool_name,
-            normalized_parameters=action.parameters,
-            action_fingerprint="fp",
-            original_raw=action.raw,
-            normalized_at=datetime.now(),
-        )
+        if isinstance(action, NormalizedAction):
+            na = action
+        else:
+            na = NormalizedAction(
+                kind=action.kind,
+                tool_name=action.tool_name,
+                normalized_parameters=action.parameters,
+                action_fingerprint="fp",
+                original_raw=action.raw,
+                normalized_at=datetime.now(),
+            )
         return GuardrailResult(
             decision=getattr(GuardrailDecision, d) if isinstance(d, str) else d,
             rule_ids=[],
@@ -60,7 +63,7 @@ class FakeGuardrail:
             human_readable_message="",
             recoverable=self._recoverable,
             normalized_action=na,
-            action_fingerprint="fp",
+            action_fingerprint=na.action_fingerprint,
         )
 
 
@@ -113,6 +116,15 @@ class FakeApproval:
                 validated_at=datetime.now(),
             )
         return None
+
+    def get_request(self, request_id):
+        return self._requests.get(request_id)
+
+    def check_timeout_for_request(self, request_id):
+        req = self._requests.get(request_id)
+        if req is None:
+            return None
+        return self.check_timeout(req)
 
 
 class FakeToolDispatcher:

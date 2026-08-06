@@ -1,17 +1,15 @@
-import hashlib
-import json as _json
-from codeguard.action import Action, NormalizedAction
+"""RuleEngine — deterministic governance rule evaluation.
+
+Per SPEC §3.2, the governance pipeline is:
+  Action → SchemaValidator → ActionNormalizer → NormalizedAction
+  → RuleEngine → PriorityMerger → GuardrailResult
+
+The RuleEngine only accepts NormalizedAction. Raw Action objects are rejected
+with TypeError to enforce the governance pipeline.
+"""
+
+from codeguard.action import NormalizedAction
 from codeguard.guardrail import GuardrailDecision, GuardrailResult
-
-
-def _fingerprint_action(action: Action) -> str:
-    """Generate a deterministic fingerprint from an Action's key fields."""
-    data = _json.dumps({
-        "kind": action.kind.value,
-        "tool_name": action.tool_name or "",
-        "parameters": action.parameters or {},
-    }, sort_keys=True)
-    return hashlib.sha256(data.encode()).hexdigest()
 
 
 _DECISION_PRIORITY = {"BLOCK": 3, "REQUEST_APPROVAL": 2, "ALLOW": 1}
@@ -19,26 +17,52 @@ _VALID_DECISIONS = frozenset(_DECISION_PRIORITY.keys())
 
 
 class PriorityMerger:
-    """Merges multiple rule results by priority: BLOCK > REQUEST_APPROVAL > ALLOW."""
+    """Merges multiple rule results by priority: BLOCK > REQUEST_APPROVAL > ALLOW.
+
+    Recoverable semantics:
+    - Rule results may include a 'recoverable' boolean.
+    - If any BLOCK result has recoverable=False, the merged result is
+      non-recoverable.
+    - Rule exceptions are treated as BLOCK with recoverable=False.
+    - Default for non-BLOCK is recoverable=True.
+    """
 
     def merge(self, results: list[dict]) -> dict:
         if not results:
-            return {"decision": "BLOCK", "rule_ids": ["default_deny"], "reason_codes": ["no_rule_matched"]}
-        merged = {"decision": "ALLOW", "rule_ids": [], "reason_codes": []}
+            return {
+                "decision": "BLOCK",
+                "rule_ids": ["default_deny"],
+                "reason_codes": ["no_rule_matched"],
+                "recoverable": True,
+            }
+        merged = {
+            "decision": "ALLOW",
+            "rule_ids": [],
+            "reason_codes": [],
+            "recoverable": True,
+        }
+        any_non_recoverable_block = False
         for r in results:
-            if _DECISION_PRIORITY.get(r.get("decision", ""), 0) > _DECISION_PRIORITY.get(merged["decision"], 0):
-                merged["decision"] = r["decision"]
+            d = r.get("decision", "")
+            if _DECISION_PRIORITY.get(d, 0) > _DECISION_PRIORITY.get(merged["decision"], 0):
+                merged["decision"] = d
             merged["rule_ids"].append(r.get("rule_id", "unknown"))
             merged["reason_codes"].extend(r.get("reason_codes", []))
+            if d == "BLOCK" and r.get("recoverable") is False:
+                any_non_recoverable_block = True
+
+        if any_non_recoverable_block:
+            merged["recoverable"] = False
         return merged
 
 
 class RuleEngine:
     """Executes all registered rules and merges results by priority.
 
-    Rules can be callables or objects with an evaluate(action) method.
+    Rules must be callables or objects with an evaluate(action) method
+    that accepts NormalizedAction.
     Default-deny: empty ruleset returns BLOCK.
-    Fail-closed: rule exceptions and malformed results are treated as BLOCK.
+    Fail-closed: rule exceptions → BLOCK with recoverable=False.
     """
 
     def __init__(self):
@@ -48,7 +72,12 @@ class RuleEngine:
     def add_rule(self, name: str, rule):
         self._rules[name] = rule
 
-    def evaluate(self, action: Action | NormalizedAction) -> GuardrailResult:
+    def evaluate(self, action: NormalizedAction) -> GuardrailResult:
+        if not isinstance(action, NormalizedAction):
+            raise TypeError(
+                f"RuleEngine.evaluate() requires NormalizedAction, "
+                f"got {type(action).__name__}"
+            )
         results = []
         for name, rule in self._rules.items():
             try:
@@ -56,22 +85,22 @@ class RuleEngine:
                 r = self._validate_result(r, name)
                 results.append(r)
             except Exception:
-                results.append({"decision": "BLOCK", "rule_id": name, "reason_codes": ["rule_error"]})
+                results.append({
+                    "decision": "BLOCK",
+                    "rule_id": name,
+                    "reason_codes": ["rule_error"],
+                    "recoverable": False,
+                })
 
         merged = self._merger.merge(results)
-        fingerprint = (
-            action.action_fingerprint
-            if isinstance(action, NormalizedAction)
-            else _fingerprint_action(action)
-        )
         return GuardrailResult(
             decision=GuardrailDecision(merged["decision"]),
             rule_ids=merged["rule_ids"],
             reason_codes=merged["reason_codes"],
             human_readable_message=self._format_message(merged),
-            recoverable=True,
+            recoverable=merged.get("recoverable", True),
             normalized_action=action,
-            action_fingerprint=fingerprint,
+            action_fingerprint=action.action_fingerprint,
         )
 
     def _invoke_rule(self, rule, action: NormalizedAction) -> dict:
