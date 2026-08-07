@@ -1,5 +1,6 @@
 """CLI key command — manage API keys via Windows Credential Manager."""
 
+import getpass
 import sys
 from codeguard.credentials.store import KeyringCredentialStore
 
@@ -7,7 +8,7 @@ from codeguard.credentials.store import KeyringCredentialStore
 def key_set_command(args: list[str]) -> None:
     """Store an API key for a provider.
 
-    Reads the key interactively from stdin (hidden input).
+    Reads the key interactively via getpass (hidden input, never echoed).
     """
     provider = "deepseek"
     for i, arg in enumerate(args):
@@ -16,8 +17,7 @@ def key_set_command(args: list[str]) -> None:
             break
 
     store = KeyringCredentialStore()
-    print(f"Enter API key for {provider} (input will be hidden):")
-    key = input().strip()
+    key = getpass.getpass(f"Enter API key for {provider}: ").strip()
     if not key:
         print("Error: key must not be empty", file=sys.stderr)
         sys.exit(1)

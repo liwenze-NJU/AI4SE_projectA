@@ -67,9 +67,11 @@ demo 模式运行真实 Harness 核心，外部边界全部 Mock；页面顶部�
    ```
 3. 连通性测试（**手动脚本，不在 CI**，需要真实 Key）：
    ```bat
-   set DEEPSEEK_API_KEY=sk-...
+   python -m codeguard key set --provider deepseek
    python scripts\deepseek_smoke_test.py
    ```
+   smoke test 从 Credential Manager 读取 Key，不通过命令行参数或环境变量传递。**不要**使用
+   `set DEEPSEEK_API_KEY=...`（会进入命令历史）。
 
 测试套件使用 `ScriptedMockLLM`，不依赖真实 LLM、网络或 API Key。
 
