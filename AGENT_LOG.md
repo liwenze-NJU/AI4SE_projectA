@@ -2172,3 +2172,69 @@
 **commit hash**: `4d3f09e`
 
 **具备进入 Task 18.1 的条件**: 是 — 576 passed, 1 skipped, 0 failed
+
+---
+
+## Task 18.1: GitLab CI unit-test
+
+**log_id**: T18.1 | **task_id**: Task 18.1 CI | **状态**: COMPLETED
+**时间**: 2026-08-07
+**Superpowers 技能**: 无（CONFIGURATION 任务）
+**branch/worktree**: feature/mvp-core
+**目标**: 创建 .gitlab-ci.yml（python:3.12 + pip install requirements/dev.txt + pytest -v）
+**验证命令**: python -c "import yaml; yaml.safe_load(...)" + 语法检查
+
+**GREEN 阶段**: YAML 语法校验通过（yaml.safe_load + UTF-8）
+
+**实现内容**: `.gitlab-ci.yml` — python:3.12 镜像；unit-test job（pip install requirements/dev.txt + pytest -v）；仅 main 分支；测试不访问真实 LLM/凭据（SPEC §9.1 约束）
+
+**两阶段评审**: 规格合规 PASS（SPEC §9.1）；代码质量 0 Critical 0 Major
+
+**commit hash**: `2618b58`
+
+**具备进入 Task 18.2 的条件**: 是（纯配置，无测试代码）
+
+---
+
+## Task 18.2: GitHub Actions CI + build-exe
+
+**log_id**: T18.2 | **task_id**: Task 18.2 CI | **状态**: COMPLETED
+**时间**: 2026-08-07
+**Superpowers 技能**: 无（CONFIGURATION 任务）
+**branch/worktree**: feature/mvp-core
+**目标**: .github/workflows/ci.yml（unit-test ubuntu + build-exe windows + SHA-256 + upload-artifact）
+**验证命令**: yaml.safe_load + 结构断言
+
+**GREEN 阶段**: YAML 语法校验通过；build-exe job 9 steps 结构断言通过
+
+**实现内容**: `.github/workflows/ci.yml` — unit-test（ubuntu-latest + python 3.12 + pytest -v）；build-exe（windows-latest，needs unit-test，pyinstaller codeguard.spec + exe --help smoke + certutil SHA-256 + upload-artifact codeguard.exe/.sha256）
+
+**两阶段评审**: 规格合规 PASS（SPEC §9.1 与 PLAN Task 18.2 一致）；代码质量 0 Critical 0 Major
+
+**commit hash**: `f84008c`
+
+**具备进入 Task 19.1 的条件**: 是（纯配置，无测试代码）
+
+---
+
+## Task 19.1: PyInstaller .spec + frozen 资源路径
+
+**log_id**: T19.1 | **task_id**: Task 19.1 Packaging | **状态**: COMPLETED
+**时间**: 2026-08-07
+**Superpowers 技能**: 无（BUILD CONFIG 任务）
+**branch/worktree**: feature/mvp-core
+**目标**: codeguard.spec 打包 templates/static；app.py 增加 sys.frozen 路径分支；pyinstaller 本地构建验证
+**验证命令**: pyinstaller codeguard.spec + .venv python -c "import codeguard.web.app"
+
+**GREEN 阶段**: pyinstaller codeguard.spec 构建成功；exe --help / demo a / web 子命令冒烟全部通过
+
+**实现内容**:
+- `codeguard.spec` — 打包 5 模板 + 3 静态资源（含 approval.js），DATA 路径保留 codeguard/web/ 前缀
+- `codeguard/web/app.py` — sys.frozen 分支：_BASE_DIR = _MEIPASS/codeguard/web；模块级 `app = create_app(mode="demo")`
+- `codeguard/cli/web_cmd.py` — 修复 Critical：uvicorn.run 字符串导入 "codeguard.web.app:app" 在 frozen bundle 中无法导入 → 改为直接传 FastAPI app 对象；支持 PORT 环境变量（Render）
+
+**两阶段评审**: 规格合规 PASS（SPEC §11 分发验收：exe 可运行 CLI/Demo/Web/Key）；代码质量 0 Critical 0 Major（修复 web 子命令启动失败） 
+
+**commit hash**: `c624ab3`
+
+**具备进入 Task 19.2 的条件**: 是（exe 已构建，--help / demo a / web 冒烟通过）
