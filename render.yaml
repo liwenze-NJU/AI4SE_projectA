@@ -1,0 +1,17 @@
+# CodeGuard Harness — Render deployment (Mock-only WebUI demo)
+# Demo mode runs the real harness core with mock external boundaries only:
+# no real LLM API, no keyring, no file-system/network executors (SPEC §11).
+services:
+  - type: web
+    name: codeguard-demo
+    runtime: python
+    buildCommand: pip install -r requirements/dev.txt
+    startCommand: python -m codeguard web
+    healthCheckPath: /health
+    envVars:
+      - key: MODE
+        value: demo
+      - key: HOST
+        value: "0.0.0.0"
+      - key: PORT
+        value: "8080"

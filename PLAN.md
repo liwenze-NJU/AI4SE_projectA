@@ -7527,7 +7527,7 @@ git push github main
 
 **Type:** DEPLOYMENT CONFIG (YAML, no test code)
 
-- [ ] **Step 1: Write complete render.yaml**
+- [x] **Step 1: Write complete render.yaml**
 
 Write `render.yaml`:
 ```yaml
@@ -7541,15 +7541,18 @@ services:
     envVars:
       - key: MODE
         value: demo
+      - key: HOST
+        value: "0.0.0.0"
       - key: PORT
         value: "8080"
 ```
 
-- [ ] **Step 2:** Verify from code: Demo mode imports no real components (DeepSeek, keyring, real FS, Shell, network executors). The `create_app(mode="demo")` call in `codeguard/web/app.py` only uses ScriptedMockLLM, MockToolDispatcher, MockMemoryStore, MockCredentialStore.
+- [x] **Step 2:** Verify from code: Demo mode imports no real components (DeepSeek, keyring, real FS, Shell, network executors). The `create_app(mode="demo")` call in `codeguard/web/app.py` only uses ScriptedMockLLM, MockToolDispatcher, MockMemoryStore, MockCredentialStore.
 
-- [ ] **Step 3:** Deploy to Render, verify public URL, verify browser session isolation.
-- [ ] **Step 4:** Record URL in README.md.
-- [ ] **Step 5:** Commit.
+- [ ] **Step 3:** Deploy to Render, verify public URL, verify browser session isolation. (DEFERRED — requires Render account; local verification done: `python -m codeguard web` with MODE=demo + HOST=0.0.0.0 + PORT=18096 returned `{"status":"ok","mode":"demo","mock":true}`. Fixed Critical: `__main__.py` web dispatch unconditionally forwarded `--port 8080` which overrode the PORT env var.)
+- [ ] **Step 4:** Record URL in README.md. (DEFERRED — no deployed URL yet)
+
+- [x] **Step 5:** Commit.
 
 ```bash
 git add render.yaml

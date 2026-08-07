@@ -69,7 +69,13 @@ def main(args: list[str] | None = None) -> None:
 
     elif parsed.command == "web":
         from codeguard.cli.web_cmd import web_command
-        cli_args = ["--host", parsed.host, "--port", str(parsed.port)]
+        # Only forward explicitly-passed flags so web_cmd defaults
+        # (PORT/HOST env vars, Render) are not overridden.
+        cli_args = []
+        if parsed.port != 8080:
+            cli_args += ["--port", str(parsed.port)]
+        if parsed.host != "127.0.0.1":
+            cli_args += ["--host", parsed.host]
         web_command(cli_args)
 
     elif parsed.command == "config":

@@ -15,7 +15,7 @@ def web_command(args: list[str]) -> None:
     Args:
         args: CLI arguments after 'web'. Supports --port, --host.
     """
-    host = "127.0.0.1"
+    host = os.environ.get("HOST", "127.0.0.1")
     port = int(os.environ.get("PORT", "8080"))
     for i, arg in enumerate(args):
         if arg == "--port" and i + 1 < len(args):
