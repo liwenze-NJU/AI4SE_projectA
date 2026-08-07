@@ -2325,3 +2325,19 @@
 **交付清单**: 45 个测试文件、576 测试、dist/codeguard.exe + .sha256、README/SECURITY/REFLECTION 齐全
 
 **剩余风险**: REFLECTION.md 正文待作者填写；Render 部署 URL 待部署后补
+
+---
+
+## Phase 22-FIX: WebUI step/replay 缺陷修复
+
+**log_id**: T22-FIX | **task_id**: Phase 22 Bugfix | **状态**: RED STARTED
+**时间**: 2026-08-07
+**Superpowers 技能**: systematic-debugging, test-driven-development
+**branch/worktree**: feature/mvp-core
+**目标**: 修复步进-轮询冲突/场景数据未接入/时间线残留
+**根因**:
+1. 后端无 POST /step /replay — 只有 GET /state 只读
+2. main.js advanceStep() 纯本地，从不调后端
+3. pollState() 每2s 拉回 INITIALIZING 覆盖本地状态
+4. resetDashboard() 不清理时间线 "已完成" class
+5. 场景 A/B/C trace/guardrail 数据未接入 WebUI session

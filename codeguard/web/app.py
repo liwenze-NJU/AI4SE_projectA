@@ -8,7 +8,6 @@ import sys
 import uuid
 
 if getattr(sys, "frozen", False):
-    # PyInstaller spec bundles assets under _MEIPASS/codeguard/web/...
     _BASE_DIR = Path(getattr(sys, "_MEIPASS", Path(__file__).parent)) / "codeguard" / "web"
 else:
     _BASE_DIR = Path(__file__).parent
@@ -25,7 +24,6 @@ _MOCK_PENDING_REQUEST = {
 
 
 class ApprovalRequest(BaseModel):
-    """JSON body for the approval decision endpoint (mock)."""
     decision: str
     request_id: str = "mock-req-1"
 
@@ -54,15 +52,184 @@ _MOCK_RESULTS = {
 }
 
 
+# ---------------------------------------------------------------------------
+# Scenario replay data — generated once from codeguard.demo runs
+# ---------------------------------------------------------------------------
+
+def _build_scenario_a_replay():
+    """Run scenario A and capture deterministic trace/guardrail data."""
+    from codeguard.demo.scenario_a import run_scenario_a
+    result = run_scenario_a()
+    frames = []
+    for t in result.trace:
+        frames.append({
+            "state": t["to"].value if hasattr(t["to"], "value") else str(t["to"]),
+            "description": "",
+            "tool_call": None,
+            "failed": False,
+        })
+    if result.guardrail_decisions:
+        for i, d in enumerate(result.guardrail_decisions):
+            dv = d.decision.value if hasattr(d.decision, "value") else str(d.decision)
+            if i < len(frames):
+                frames[i]["description"] = d.human_readable_message
+                frames[i]["tool_call"] = {
+                    "command": d.normalized_action.tool_name if d.normalized_action else "",
+                    "args": d.normalized_action.normalized_parameters if d.normalized_action else {},
+                    "result_ok": dv != "BLOCK",
+                }
+    return {
+        "frames": frames,
+        "guardrail_decisions": [
+            {
+                "decision": d.decision.value if hasattr(d.decision, "value") else str(d.decision),
+                "tool_call": {
+                    "command": d.normalized_action.tool_name if d.normalized_action else "",
+                    "args": d.normalized_action.normalized_parameters if d.normalized_action else {},
+                    "result_ok": (d.decision.value if hasattr(d.decision, "value") else str(d.decision)) != "BLOCK",
+                },
+                "reasons": [d.human_readable_message],
+                "impact": "",
+            }
+            for d in result.guardrail_decisions
+        ],
+        "feedback_results": [],
+        "steps_total": result.steps_total,
+        "llm_calls_total": result.llm_calls_total,
+    }
+
+
+def _build_scenario_b_replay():
+    """Run scenario B (approve) and capture deterministic replay data.
+    B includes approve/reject/timeout branches: replay uses approve path."""
+    from codeguard.demo.scenario_b import run_scenario_b_approve
+    result = run_scenario_b_approve()
+    frames = []
+    for t in result.trace:
+        frames.append({
+            "state": t["to"].value if hasattr(t["to"], "value") else str(t["to"]),
+            "description": "",
+            "tool_call": None,
+            "failed": False,
+        })
+    if result.guardrail_decisions:
+        for i, d in enumerate(result.guardrail_decisions):
+            dv = d.decision.value if hasattr(d.decision, "value") else str(d.decision)
+            if i < len(frames):
+                frames[i]["description"] = d.human_readable_message
+                frames[i]["tool_call"] = {
+                    "command": d.normalized_action.tool_name if d.normalized_action else "",
+                    "args": d.normalized_action.normalized_parameters if d.normalized_action else {},
+                    "result_ok": dv != "BLOCK",
+                }
+    return {
+        "frames": frames,
+        "guardrail_decisions": [
+            {
+                "decision": d.decision.value if hasattr(d.decision, "value") else str(d.decision),
+                "tool_call": {
+                    "command": d.normalized_action.tool_name if d.normalized_action else "",
+                    "args": d.normalized_action.normalized_parameters if d.normalized_action else {},
+                    "result_ok": (d.decision.value if hasattr(d.decision, "value") else str(d.decision)) != "BLOCK",
+                },
+                "reasons": [d.human_readable_message],
+                "impact": "",
+            }
+            for d in result.guardrail_decisions
+        ],
+        "feedback_results": [],
+        "steps_total": result.steps_total,
+        "llm_calls_total": result.llm_calls_total,
+    }
+
+
+def _build_scenario_c_replay():
+    """Run scenario C and capture deterministic trace/feedback data."""
+    from codeguard.demo.scenario_c import run_scenario_c
+    result = run_scenario_c()
+    frames = []
+    for t in result.trace:
+        frames.append({
+            "state": t["to"].value if hasattr(t["to"], "value") else str(t["to"]),
+            "description": "",
+            "tool_call": None,
+            "failed": False,
+        })
+    if result.guardrail_decisions:
+        for i, d in enumerate(result.guardrail_decisions):
+            dv = d.decision.value if hasattr(d.decision, "value") else str(d.decision)
+            if i < len(frames):
+                frames[i]["description"] = d.human_readable_message
+                frames[i]["tool_call"] = {
+                    "command": d.normalized_action.tool_name if d.normalized_action else "",
+                    "args": d.normalized_action.normalized_parameters if d.normalized_action else {},
+                    "result_ok": dv != "BLOCK",
+                }
+    # Mark failed state frames
+    for fb in result.feedback_results:
+        fb_status = getattr(fb, "status", "")
+        if hasattr(fb_status, "value"):
+            fb_status = fb_status.value
+        if "FAILED" in str(fb_status).upper():
+            # mark first EXECUTING/INTERMEDIATE_VALIDATION frame as failed
+            for f in frames:
+                if f["state"] == "intermediate_validation":
+                    f["failed"] = True
+                    f["failure_category"] = "TEST_ASSERTION_FAILURE"
+                    break
+    return {
+        "frames": frames,
+        "guardrail_decisions": [
+            {
+                "decision": d.decision.value if hasattr(d.decision, "value") else str(d.decision),
+                "tool_call": {
+                    "command": d.normalized_action.tool_name if d.normalized_action else "",
+                    "args": d.normalized_action.normalized_parameters if d.normalized_action else {},
+                    "result_ok": (d.decision.value if hasattr(d.decision, "value") else str(d.decision)) != "BLOCK",
+                },
+                "reasons": [d.human_readable_message],
+                "impact": "",
+            }
+            for d in result.guardrail_decisions
+        ],
+        "feedback_results": [
+            {"status": getattr(f, "status", "").value if hasattr(getattr(f, "status", ""), "value")
+             else str(getattr(f, "status", "")),
+             "summary": getattr(f, "summary", "")}
+            for f in result.feedback_results
+        ],
+        "steps_total": result.steps_total,
+        "llm_calls_total": result.llm_calls_total,
+    }
+
+
+_SCENARIO_BUILDERS = {
+    "a": _build_scenario_a_replay,
+    "b": _build_scenario_b_replay,
+    "c": _build_scenario_c_replay,
+}
+
+
 def _new_demo_session(scenario: str = "demo") -> dict:
-    """Create an in-memory demo session (browser-isolated, mock only)."""
+    """Create an in-memory demo session with pre-built replay data."""
+    builder = _SCENARIO_BUILDERS.get(scenario)
+    replay = builder() if builder else {"frames": [], "guardrail_decisions": [],
+                                         "feedback_results": [], "steps_total": 0,
+                                         "llm_calls_total": 0}
     return {
         "scenario": scenario,
         "state": "INITIALIZING",
         "current_step": 0,
         "trace": [],
         "guardrail_decisions": [],
+        "feedback_results": replay["feedback_results"],  # surface for tests
         "pending_request": None,
+        "_replay_feedback": replay["feedback_results"],
+        "replay_frames": replay["frames"],
+        "replay_guardrail_decisions": replay["guardrail_decisions"],
+        "replay_feedback_results": replay["feedback_results"],
+        "steps_total": replay["steps_total"],
+        "llm_calls_total": replay["llm_calls_total"],
     }
 
 
@@ -76,14 +243,19 @@ def create_app(mode: str = "demo") -> FastAPI:
         return {"status": "ok", "mode": mode, "mock": mode == "demo"}
 
     @app.post("/session")
-    async def create_session(scenario: str = "a"):
+    async def create_session(request: Request):
+        body = {}
+        try:
+            body = await request.json()
+        except Exception:
+            pass
+        scenario = body.get("scenario", "a")
         session_id = str(uuid.uuid4())
         sessions[session_id] = _new_demo_session(scenario=scenario)
         return {"session_id": session_id, "scenario": scenario}
 
     @app.get("/session")
     async def session_entry(scenario: str = "a"):
-        """Entry from scenario cards: create a session and go to dashboard."""
         session_id = str(uuid.uuid4())
         sessions[session_id] = _new_demo_session(scenario=scenario)
         return RedirectResponse(url=f"/dashboard?session={session_id}", status_code=303)
@@ -98,7 +270,6 @@ def create_app(mode: str = "demo") -> FastAPI:
 
     @app.get("/dashboard")
     async def dashboard(request: Request, session: str = ""):
-        """Agent running dashboard (P2)."""
         demo_session_id = session or str(uuid.uuid4())
         sessions.setdefault(demo_session_id, _new_demo_session(scenario="demo"))
         return _templates.TemplateResponse(
@@ -128,7 +299,6 @@ def create_app(mode: str = "demo") -> FastAPI:
 
     @app.get("/approval")
     async def approval(request: Request, session: str = ""):
-        """P3 approval modal (mock): pending action with risk summary + countdown."""
         demo_session_id = session or str(uuid.uuid4())
         sessions.setdefault(demo_session_id, _new_demo_session(scenario="demo"))
         return _templates.TemplateResponse(
@@ -143,7 +313,6 @@ def create_app(mode: str = "demo") -> FastAPI:
 
     @app.post("/session/{session_id}/approval")
     async def submit_approval(session_id: str, payload: ApprovalRequest):
-        """Record an approval decision on the session (approve/reject)."""
         session = sessions.get(session_id)
         if not session:
             raise HTTPException(status_code=404, detail="session not found")
@@ -158,19 +327,17 @@ def create_app(mode: str = "demo") -> FastAPI:
             session["state"] = "EXECUTING"
         else:
             session["state"] = "CANCELLED"
-        session["guardrail_decisions"].append(
-            {
-                "decision": "ALLOW" if payload.decision == "approve" else "BLOCK",
-                "tool_call": {"command": "write_file", "args": {"path": "mock://workspace/src/auth.py"}, "result_ok": payload.decision == "approve"},
-                "reasons": session["pending_request"]["reasons"],
-                "impact": session["pending_request"]["impact"],
-            }
-        )
+        session["guardrail_decisions"].append({
+            "decision": "ALLOW" if payload.decision == "approve" else "BLOCK",
+            "tool_call": {"command": "write_file", "args": {"path": "mock://workspace/src/auth.py"},
+                          "result_ok": payload.decision == "approve"},
+            "reasons": session["pending_request"]["reasons"],
+            "impact": session["pending_request"]["impact"],
+        })
         return {"session_id": session_id, "request_id": payload.request_id, "decision": payload.decision}
 
     @app.get("/results")
     async def results(request: Request):
-        """P4 session results + memory summary (mock)."""
         return _templates.TemplateResponse(
             request=request,
             name="results.html",
@@ -180,25 +347,110 @@ def create_app(mode: str = "demo") -> FastAPI:
             },
         )
 
+    # ------------------------------------------------------------------
+    # Session state (for polling)
+    # ------------------------------------------------------------------
+
     @app.get("/session/{session_id}/state")
     async def get_session_state(session_id: str):
-        """Get session state for polling."""
         session = sessions.get(session_id)
         if not session:
             return {"error": "session not found"}
-        return {
-            "session_id": session_id,
-            "scenario": session.get("scenario", ""),
-            "state": session.get("state", "INITIALIZING"),
-            "current_step": session.get("current_step", 0),
-            "trace": session.get("trace", []),
-            "guardrail_decisions": session.get("guardrail_decisions", []),
-        }
+        return _session_state_response(session_id, session)
+
+    # ------------------------------------------------------------------
+    # Step / Replay — backend is the sole source of truth
+    # ------------------------------------------------------------------
+
+    @app.post("/session/{session_id}/step")
+    async def step_session(session_id: str):
+        """Advance the session by one replay frame. Returns updated state."""
+        session = sessions.get(session_id)
+        if not session:
+            raise HTTPException(status_code=404, detail="session not found")
+
+        frames = session.get("replay_frames", [])
+        idx = session.get("current_step", 0)
+
+        # Check if already terminal
+        TERMINAL = {"completed", "failed", "cancelled", "limit_reached"}
+        if session.get("state", "").lower() in TERMINAL:
+            return _session_state_response(session_id, session)
+
+        if idx >= len(frames):
+            return _session_state_response(session_id, session)
+
+        # If AWAITING_APPROVAL and no decision yet, don't auto-advance
+        if session.get("state", "") == "AWAITING_APPROVAL":
+            return _session_state_response(session_id, session)
+
+        frame = frames[idx]
+        new_state = frame["state"].upper()
+
+        # Skip INITIALIZING and BUILDING_CONTEXT (first frame from replay)
+        if new_state == "INITIALIZING" or new_state == "BUILDING_CONTEXT":
+            session["current_step"] = idx + 1
+            # If first step, set state to BUILDING_CONTEXT and continue
+            if new_state == "BUILDING_CONTEXT":
+                session["state"] = "BUILDING_CONTEXT"
+            return _session_state_response(session_id, session)
+
+        prev_state = session.get("state", "INITIALIZING")
+        session["current_step"] = idx + 1
+        session["state"] = new_state
+        session["trace"].append({
+            "from": prev_state,
+            "to": new_state,
+            "at": "",
+        })
+
+        # Bring in guardrail decisions matching this step
+        all_gr = session.get("replay_guardrail_decisions", [])
+        while len(session["guardrail_decisions"]) < len(all_gr):
+            session["guardrail_decisions"].append(
+                all_gr[len(session["guardrail_decisions"])]
+            )
+
+        # Set pending_request for scenario B AWAITING_APPROVAL
+        if new_state == "AWAITING_APPROVAL":
+            session["pending_request"] = dict(_MOCK_PENDING_REQUEST)
+
+        return _session_state_response(session_id, session)
+
+    @app.post("/session/{session_id}/replay")
+    async def replay_session(session_id: str):
+        """Reset session to INITIALIZING and clear all accumulated state."""
+        session = sessions.get(session_id)
+        if not session:
+            raise HTTPException(status_code=404, detail="session not found")
+
+        scenario = session.get("scenario", "demo")
+        sessions[session_id] = _new_demo_session(scenario=scenario)
+        return _session_state_response(session_id, sessions[session_id])
 
     # Mount static files AFTER all routes
     app.mount("/static", StaticFiles(directory=str(_static_dir)), name="static")
 
     return app
+
+
+def _session_state_response(session_id: str, session: dict) -> dict:
+    """Build the standard state response dict."""
+    fb = session.get("feedback_results", [])
+    if not fb:
+        fb = session.get("_replay_feedback",
+                         session.get("replay_feedback_results", []))
+    return {
+        "session_id": session_id,
+        "scenario": session.get("scenario", ""),
+        "state": session.get("state", "INITIALIZING"),
+        "current_step": session.get("current_step", 0),
+        "trace": session.get("trace", []),
+        "guardrail_decisions": session.get("guardrail_decisions", []),
+        "feedback_results": fb,
+        "steps_total": session.get("steps_total", 0),
+        "llm_calls_total": session.get("llm_calls_total", 0),
+    }
 
 
 # Module-level app for `uvicorn.run("codeguard.web.app:app")` (web CLI / exe / Render)

@@ -16,6 +16,8 @@
     EXECUTING:         { label: '执行工具',   icon: '▶', color: 'accent' },
     VALIDATING:        { label: '校验测试',   icon: '✓', color: 'accent' },
     FEEDING_BACK:      { label: '反馈回灌',   icon: '↺', color: 'warn' },
+    INTERMEDIATE_VALIDATION: { label: '校验中', icon: '✓', color: 'accent' },
+    FINAL_VALIDATION:  { label: '最终校验',   icon: '✓', color: 'accent' },
     COMPLETED:         { label: '已完成',     icon: '✓', color: 'success' },
     FAILED:            { label: '已失败',     icon: '✕', color: 'danger' },
     CANCELLED:         { label: '已取消',     icon: '◌', color: 'meta' },
@@ -24,17 +26,44 @@
 
   var RUNNING_STATES = [
     'INITIALIZING', 'BUILDING_CONTEXT', 'DECIDING', 'GOVERNING',
-    'AWAITING_APPROVAL', 'EXECUTING', 'VALIDATING', 'FEEDING_BACK'
+    'AWAITING_APPROVAL', 'EXECUTING', 'VALIDATING', 'FEEDING_BACK',
+    'INTERMEDIATE_VALIDATION', 'FINAL_VALIDATION'
   ];
 
   var TERMINAL_STATES = ['COMPLETED', 'FAILED', 'CANCELLED', 'LIMIT_REACHED'];
 
-  var currentState = 'INITIALIZING';
+  var currentState = '';
   var pollTimer = null;
   var isPaused = false;
 
   function $(sel) { return document.querySelector(sel); }
   function $$(sel) { return document.querySelectorAll(sel); }
+
+  // --- Backend API wrappers (sole source of truth) ---
+
+  async function backendStep() {
+    try {
+      var res = await fetch('/session/' + sessionId + '/step', { method: 'POST' });
+      if (!res.ok) return null;
+      return await res.json();
+    } catch (e) {
+      console.error('Step request failed:', e);
+      return null;
+    }
+  }
+
+  async function backendReplay() {
+    try {
+      var res = await fetch('/session/' + sessionId + '/replay', { method: 'POST' });
+      if (!res.ok) return null;
+      return await res.json();
+    } catch (e) {
+      console.error('Replay request failed:', e);
+      return null;
+    }
+  }
+
+  // --- Polling ---
 
   async function pollState() {
     if (isPaused) return;
@@ -43,7 +72,7 @@
       if (!res.ok) return;
       var data = await res.json();
       if (data.error) return;
-      updateDashboard(data);
+      refreshDashboard(data);
     } catch (e) {
       console.error('Poll failed:', e);
     }
@@ -54,9 +83,10 @@
     pollTimer = setInterval(pollState, POLL_INTERVAL);
   }
 
-  function updateDashboard(data) {
+  // --- Dashboard refresh (from backend data ONLY, no local state) ---
+
+  function refreshDashboard(data) {
     var newState = data.state || 'INITIALIZING';
-    if (newState === currentState) return;
     currentState = newState;
     updateCurrentStateDisplay(newState);
     updateStepper(newState);
@@ -100,11 +130,7 @@
       if (nodeState === state) {
         node.classList.add('current');
       } else if (isTerminal && TERMINAL_STATES.indexOf(nodeState) >= 0) {
-        if (nodeState === state) {
-          node.classList.add('current');
-        } else {
-          node.classList.add('future');
-        }
+        node.classList.add(nodeState === state ? 'current' : 'future');
       } else if (stateIdx >= 0 && RUNNING_STATES.indexOf(nodeState) >= 0 && RUNNING_STATES.indexOf(nodeState) < stateIdx) {
         node.classList.add('completed');
       } else {
@@ -120,18 +146,19 @@
     timelineNodes.forEach(function (node) {
       var nodeState = node.dataset.state;
       var statusEl = node.querySelector('.timeline-status .status-pill');
+      if (!statusEl) return;
       var info = STATE_INFO[nodeState] || { label: nodeState, icon: '○', color: 'idle' };
 
+      // Always reset to idle/waiting FIRST to prevent stale markers
+      statusEl.textContent = '○ 等待中';
+      statusEl.className = 'status-pill status-pill-idle';
+
       if (nodeState === state) {
-        if (statusEl) {
-          statusEl.textContent = info.icon + ' 当前';
-          statusEl.className = 'status-pill status-pill-' + (info.color || 'muted');
-        }
+        statusEl.textContent = info.icon + ' 当前';
+        statusEl.className = 'status-pill status-pill-' + (info.color || 'muted');
       } else if (stateIdx >= 0 && RUNNING_STATES.indexOf(nodeState) >= 0 && RUNNING_STATES.indexOf(nodeState) < stateIdx) {
-        if (statusEl) {
-          statusEl.textContent = '✓ 已完成';
-          statusEl.className = 'status-pill status-pill-success';
-        }
+        statusEl.textContent = '✓ 已完成';
+        statusEl.className = 'status-pill status-pill-success';
       }
     });
   }
@@ -141,7 +168,7 @@
     var traceList = $('#trace-list');
     if (!trace || trace.length === 0) {
       if (placeholder) placeholder.style.display = '';
-      if (traceList) traceList.style.display = 'none';
+      if (traceList) { traceList.style.display = 'none'; traceList.innerHTML = ''; }
       return;
     }
     if (placeholder) placeholder.style.display = 'none';
@@ -155,11 +182,13 @@
         if (entry.failed) {
           div.classList.add('trace-entry-failed');
         }
-        var info = STATE_INFO[entry.state] || STATE_INFO.INITIALIZING;
+        var toState = entry.to || '';
+        var info = STATE_INFO[toState] || STATE_INFO.INITIALIZING;
+        var desc = entry.description || '';
         div.innerHTML =
           '<div class="trace-entry-header">' +
             '<span class="status-pill status-pill-' + info.color + '">' + info.icon + ' ' + info.label + '</span>' +
-            '<span class="trace-entry-desc">' + (entry.description || '') + '</span>' +
+            '<span class="trace-entry-desc">' + desc + '</span>' +
           '</div>';
         if (entry.tool_call) {
           var tc = entry.tool_call;
@@ -176,12 +205,6 @@
               '</div>' +
             '</details>';
         }
-        if (entry.failed) {
-          div.innerHTML +=
-            '<div class="trace-failure-info">' +
-              '<span class="status-pill status-pill-danger">' + (entry.failure_category || 'ERROR') + '</span>' +
-            '</div>';
-        }
         traceList.appendChild(div);
       });
     }
@@ -191,14 +214,14 @@
     var placeholder = document.querySelector('.tool-call-placeholder');
     var detail = $('#tool-call-detail');
     var guardrailDetail = $('#guardrail-detail');
-    var triple = $('#guardrail-triple');
+    var guardrailTriple = $('#guardrail-triple');
 
     if (!decisions || decisions.length === 0) {
       if (placeholder) placeholder.style.display = '';
       if (detail) detail.style.display = 'none';
       if (guardrailDetail) guardrailDetail.style.display = 'none';
-      if (triple) {
-        triple.querySelectorAll('.guardrail-option').forEach(function (opt) {
+      if (guardrailTriple) {
+        guardrailTriple.querySelectorAll('.guardrail-option').forEach(function (opt) {
           opt.classList.remove('active');
         });
       }
@@ -221,8 +244,8 @@
       }
     }
 
-    if (triple) {
-      triple.querySelectorAll('.guardrail-option').forEach(function (opt) {
+    if (guardrailTriple) {
+      guardrailTriple.querySelectorAll('.guardrail-option').forEach(function (opt) {
         opt.classList.remove('active');
         if (opt.dataset.decision === lastDecision.decision) {
           opt.classList.add('active');
@@ -248,6 +271,8 @@
     }
   }
 
+  // --- Buttons ---
+
   var btnStep = $('#btn-step');
   var btnPause = $('#btn-pause');
   var btnReplay = $('#btn-replay');
@@ -255,7 +280,9 @@
   if (btnStep) {
     btnStep.addEventListener('click', function () {
       if (isPaused) return;
-      advanceStep();
+      backendStep().then(function (data) {
+        if (data) refreshDashboard(data);
+      });
     });
   }
 
@@ -271,41 +298,10 @@
     btnReplay.addEventListener('click', function () {
       isPaused = false;
       if (btnPause) btnPause.textContent = '⏸ 暂停';
-      resetDashboard();
-      pollState();
-    });
-  }
-
-  var stepIndex = 0;
-  var DEMO_STATES = RUNNING_STATES.concat(['COMPLETED']);
-
-  function advanceStep() {
-    if (stepIndex >= DEMO_STATES.length - 1) return;
-    stepIndex++;
-    var nextState = DEMO_STATES[stepIndex];
-    updateDashboard({ state: nextState, trace: [], guardrail_decisions: [] });
-  }
-
-  function resetDashboard() {
-    stepIndex = 0;
-    currentState = '';
-    updateDashboard({ state: 'INITIALIZING', trace: [], guardrail_decisions: [] });
-    var placeholder = $('.trace-placeholder');
-    var traceList = $('#trace-list');
-    if (placeholder) placeholder.style.display = '';
-    if (traceList) { traceList.style.display = 'none'; traceList.innerHTML = ''; }
-    var toolPlaceholder = document.querySelector('.tool-call-placeholder');
-    var toolDetail = $('#tool-call-detail');
-    var guardrailDetail = $('#guardrail-detail');
-    if (toolPlaceholder) toolPlaceholder.style.display = '';
-    if (toolDetail) toolDetail.style.display = 'none';
-    if (guardrailDetail) guardrailDetail.style.display = 'none';
-    var triple = $('#guardrail-triple');
-    if (triple) {
-      triple.querySelectorAll('.guardrail-option').forEach(function (opt) {
-        opt.classList.remove('active');
+      backendReplay().then(function (data) {
+        if (data) refreshDashboard(data);
       });
-    }
+    });
   }
 
   startPolling();
