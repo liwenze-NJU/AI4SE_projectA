@@ -2405,3 +2405,58 @@
 **README 修改**: 交付方式改为 GitHub Release；WebUI 说明为 `codeguard.exe web` 启动的本地 WebUI；Render 标注为可选方案（已配置未部署）；测试数更新为 622。
 
 **发布条件**: 分支 `feature/mvp-core`，HEAD `33afd72`，工作区干净，未 push 未 merge。具备 push → 合并 → 创建 GitHub Release 的条件。
+
+---
+
+## Task 23: CLI 帮助修正 + Key 隐藏输入修复 + 最终交付构建
+
+**log_id**: T23 | **task_id**: Task 23 Final Delivery | **状态**: COMPLETED
+**时间**: 2026-08-07
+**Superpowers 技能**: 无（交付收尾任务）
+**branch/worktree**: feature/mvp-core
+
+**目标**:
+1. 修正 CLI 帮助文字，`chat` 从误导性的 "Start interactive agent session" 改为 "Run one agent harness session"
+2. 保留 `getpass.getpass()` 隐藏 Key 输入修复（commit `f5d9893`）
+3. 重新构建 EXE 并生成 SHA-256
+4. 最终测试 + 冒烟 + 凭据扫描
+
+**CLI 帮助修正**:
+- `codeguard/__main__.py:24`: `chat` subparser help → "Run one agent harness session"
+- `codeguard/cli/chat.py:1`: module docstring → "one-shot agent harness session"
+- `codeguard/cli/chat.py:8`: function docstring → "Run one agent harness session."
+- `README.md:35`: chat 说明 → "一次性 Agent Harness 会话"
+- `PLAN.md:257`: chat help → "Run one agent harness session"
+
+**Key 隐藏输入验证**（commit `f5d9893`，本轮未修改）:
+- `codeguard/cli/key_cmd.py:3`: `import getpass`
+- `codeguard/cli/key_cmd.py:20`: `getpass.getpass()` hidden input
+- 用户人工验证 local 模式到达 COMPLETED（不记录任何真实 Key）
+
+**测试**: `pytest -q` → **626 passed, 1 skipped, 0 failed**（13.41s）
+- skip: `test_symlink_outside_workspace_rejected` — Windows 平台 `symlink not available`（非代码缺陷）
+- 专项 `tests/test_key_cmd.py`: **4 passed** — getpass 调用、输出不泄露 Key、空输入报错、update 路径
+
+**git diff --check**: 仅 LF/CRLF 警告（4 个已修改文件），无空白错误
+
+**凭据扫描**: `git grep sk-` → 仅命中脱敏实现代码（`secret.py`、`rules.py`）和测试假 Key（`sk-test-*`、`sk-secret-*`、`sk-old-key` 等），无真实 API Key。`api_key=` 模式仅命中测试代码。
+
+**构建**:
+- `pyinstaller codeguard.spec` → 成功
+- `dist/codeguard.exe` — 18,535,448 bytes，2026-08-07 21:17
+
+**SHA-256**: `b4247ddd90c678663fa32f21695ee00a26983e2652ec85c423317408dccd66f0`
+- `dist/codeguard.exe.sha256` 与实际文件 SHA-256 完全一致
+
+**冒烟测试**（离线，无真实 API Key）:
+- `codeguard.exe --help` → exit 0, chat help 显示 "Run one agent harness session"
+- `codeguard.exe --version` → "0.1.0", exit 0
+- `codeguard.exe config` → exit 0
+- `codeguard.exe key status --provider deepseek` → "Not set", exit 0
+- `codeguard.exe chat --mode test` → "Session completed: completed", exit 0
+- `codeguard.exe demo a` → "Demo a completed: completed", exit 0
+- `codeguard.exe demo b` → "Demo b completed: completed", exit 0
+- `codeguard.exe demo c` → "Demo c completed: completed", exit 0
+- `codeguard.exe web --port 18080` → `/health` 200 `{"status":"ok","mode":"demo","mock":true}`, `/` 200
+
+**commit hash**: 待更新

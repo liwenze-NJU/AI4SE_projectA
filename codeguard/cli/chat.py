@@ -1,11 +1,11 @@
-"""CLI chat command — interactive agent session."""
+"""CLI chat command — one-shot agent harness session."""
 
 import sys
 from codeguard.composition import CompositionRoot
 
 
 def chat_command(args: list[str]) -> None:
-    """Start an interactive agent session.
+    """Run one agent harness session.
 
     Args:
         args: CLI arguments after 'chat'. Supports --mode {test,local,demo}.

@@ -32,7 +32,7 @@ python -m codeguard --help
 
 | 命令 | 说明 |
 |------|------|
-| `python -m codeguard chat [--mode test\|local\|demo]` | 交互式 Agent 会话 |
+| `python -m codeguard chat [--mode test\|local\|demo]` | 一次性 Agent Harness 会话 |
 | `python -m codeguard demo [a\|b\|c]` | 运行预设演示场景 |
 | `python -m codeguard web [--host H] [--port P]` | 启动 WebUI demo（默认 127.0.0.1:8080） |
 | `python -m codeguard key set\|status\|update\|clear --provider deepseek` | 管理 API Key |

@@ -254,7 +254,7 @@ def main():
     parser = argparse.ArgumentParser(prog="codeguard", description="CodeGuard Harness — Governance-driven test feedback loop for coding agents")
     parser.add_argument("--version", action="version", version="0.1.0")
     sub = parser.add_subparsers(dest="command")
-    sub.add_parser("chat", help="Start interactive agent session")
+    sub.add_parser("chat", help="Run one agent harness session")
     sub.add_parser("demo", help="Run demo mode")
     sub.add_parser("web", help="Start WebUI demo")
     key_parser = sub.add_parser("key", help="Manage API keys")
