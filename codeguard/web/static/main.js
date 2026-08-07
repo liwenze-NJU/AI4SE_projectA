@@ -92,39 +92,39 @@
     updateStepper(newState);
     updateTimeline(newState);
 
-    // Merge trace with guardrail annotations from the backend
-    var annotatedTrace = [];
     var grDecisions = data.guardrail_decisions || [];
-
-    (data.trace || []).forEach(function (entry, i) {
-      var annotated = {
-        from: entry.from,
-        to: entry.to,
-        at: entry.at || '',
-        description: entry.description || '',
-        tool_call: entry.tool_call || null,
-        guardrail_decision: entry.guardrail_decision || null,
-        guardrail_reasons: entry.guardrail_reasons || null,
-        failed: entry.failed || false,
-        failure_category: entry.failure_category || ''
-      };
-      annotatedTrace.push(annotated);
-    });
-
-    updateTrace(annotatedTrace);
+    updateTrace(data.trace || []);
     updateGuardrail(grDecisions);
     updateNavPill(newState);
 
-    // Show approval prompt when scenario B is waiting
+    // Terminal-state button UX
+    var terminal = TERMINAL_STATES.indexOf(newState) >= 0;
+    var btnStepEl = $('#btn-step');
+    var btnPauseEl = $('#btn-pause');
+    if (btnStepEl) {
+      btnStepEl.disabled = terminal;
+      if (newState === 'CANCELLED') {
+        btnStepEl.textContent = '已取消';
+      } else if (terminal) {
+        btnStepEl.textContent = '已完成';
+      }
+    }
+    if (btnPauseEl) btnPauseEl.disabled = terminal;
+
+    // Approval bar visibility
     var approvalBar = $('#approval-action-bar');
     if (newState === 'AWAITING_APPROVAL') {
       if (approvalBar) approvalBar.style.display = '';
-      var stepBtn = $('#btn-step');
-      if (stepBtn) stepBtn.textContent = '等待审批中';
+      if (btnStepEl) btnStepEl.textContent = '等待审批中';
     } else {
       if (approvalBar) approvalBar.style.display = 'none';
-      var stepBtn2 = $('#btn-step');
-      if (stepBtn2) stepBtn2.textContent = '步进 ▶';
+      if (btnStepEl && !terminal) btnStepEl.textContent = '步进 ▶';
+    }
+
+    // CANCELLED explanation
+    var cancelledNote = $('#cancelled-note');
+    if (cancelledNote) {
+      cancelledNote.style.display = (newState === 'CANCELLED') ? '' : 'none';
     }
   }
 

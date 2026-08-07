@@ -425,11 +425,38 @@ def create_app(mode: str = "demo") -> FastAPI:
         prev_state = session.get("state", "INITIALIZING")
         session["current_step"] = idx + 1
         session["state"] = new_state
-        session["trace"].append({
+        entry = {
             "from": prev_state,
             "to": new_state,
             "at": "",
-        })
+        }
+
+        # Carry forward frame metadata: failed flag, failure_category,
+        # description, tool_call so they appear in the trace visible
+        # to the frontend.
+        for field in ("failed", "failure_category"):
+            if frame.get(field):
+                entry[field] = frame[field]
+        if frame.get("description"):
+            entry["description"] = frame["description"]
+        if frame.get("tool_call"):
+            entry["tool_call"] = frame["tool_call"]
+
+        # Annotate INTERMEDIATE_VALIDATION frames with feedback summaries
+        if new_state == "INTERMEDIATE_VALIDATION":
+            fb_results = session.get("_replay_feedback",
+                                     session.get("replay_feedback_results", []))
+            visited = session.get("_fb_visited", 0)
+            if visited < len(fb_results):
+                fb_data = fb_results[visited]
+                entry["description"] = fb_data.get("summary", "")
+                entry["failed"] = "FAILED" in str(fb_data.get("status", "")).upper()
+                entry["failure_category"] = (
+                    "TEST_FAILURE" if entry["failed"] else ""
+                )
+                session["_fb_visited"] = visited + 1
+
+        session["trace"].append(entry)
 
         # Bring in the NEXT guardrail decision when hitting a GOVERNING frame.
         # GRs accumulate: first GOVERNING → GR[0], second GOVERNING → GR[0]+GR[1].
