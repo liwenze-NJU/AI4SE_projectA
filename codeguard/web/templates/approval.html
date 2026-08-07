@@ -1,6 +1,9 @@
 {% extends "base.html" %}
 {% block title %}审批 — CodeGuard Harness{% endblock %}
 {% block scenario_name %}{{ scenario_label | default('场景 B · 副作用动作待审批', true) }}{% endblock %}
+{% block nav_back %}
+<a href="/" class="btn btn-secondary btn-sm nav-back-btn">返回场景选择</a>
+{% endblock %}
 
 {% block content %}
 <!-- ======================================================================

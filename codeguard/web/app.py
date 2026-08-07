@@ -433,12 +433,24 @@ def create_app(mode: str = "demo") -> FastAPI:
 
         # Bring in the NEXT guardrail decision when hitting a GOVERNING frame.
         # GRs accumulate: first GOVERNING → GR[0], second GOVERNING → GR[0]+GR[1].
+        # Also annotate the trace entry with the GR info.
         if new_state == "GOVERNING":
             all_gr = session.get("replay_guardrail_decisions", [])
             gr_idx = session.get("_gr_cursor", 0)
             if gr_idx < len(all_gr):
-                session["guardrail_decisions"].append(all_gr[gr_idx])
+                gr_data = all_gr[gr_idx]
+                session["guardrail_decisions"].append(gr_data)
                 session["_gr_cursor"] = gr_idx + 1
+                # Annotate the trace entry we just appended
+                if session["trace"]:
+                    last_trace = session["trace"][-1]
+                    last_trace["guardrail_decision"] = gr_data.get("decision", "")
+                    last_trace["guardrail_reasons"] = gr_data.get("reasons", [])
+                    last_trace["tool_call"] = gr_data.get("tool_call")
+                    last_trace["description"] = (
+                        gr_data.get("reasons", ["Allocated"])[0]
+                        if gr_data.get("reasons") else "Allocated"
+                    )
 
         # Set pending_request for scenario B AWAITING_APPROVAL
         if new_state == "AWAITING_APPROVAL":
@@ -479,6 +491,8 @@ def _session_state_response(session_id: str, session: dict) -> dict:
         "feedback_results": fb,
         "steps_total": session.get("steps_total", 0),
         "llm_calls_total": session.get("llm_calls_total", 0),
+        "pending_approval": session.get("state", "") == "AWAITING_APPROVAL",
+        "approval_request": session.get("pending_request") if session.get("state", "") == "AWAITING_APPROVAL" else None,
     }
 
 

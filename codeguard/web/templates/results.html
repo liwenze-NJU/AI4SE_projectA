@@ -1,6 +1,9 @@
 {% extends "base.html" %}
 {% block title %}会话结果 — CodeGuard Harness{% endblock %}
 {% block scenario_name %}{{ scenario_label | default('场景 C · 测试失败反馈闭环', true) }}{% endblock %}
+{% block nav_back %}
+<a href="/" class="btn btn-secondary btn-sm nav-back-btn">返回场景选择</a>
+{% endblock %}
 
 {% block content %}
 <div class="results-page">

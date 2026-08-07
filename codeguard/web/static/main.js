@@ -91,9 +91,41 @@
     updateCurrentStateDisplay(newState);
     updateStepper(newState);
     updateTimeline(newState);
-    updateTrace(data.trace || []);
-    updateGuardrail(data.guardrail_decisions || []);
+
+    // Merge trace with guardrail annotations from the backend
+    var annotatedTrace = [];
+    var grDecisions = data.guardrail_decisions || [];
+
+    (data.trace || []).forEach(function (entry, i) {
+      var annotated = {
+        from: entry.from,
+        to: entry.to,
+        at: entry.at || '',
+        description: entry.description || '',
+        tool_call: entry.tool_call || null,
+        guardrail_decision: entry.guardrail_decision || null,
+        guardrail_reasons: entry.guardrail_reasons || null,
+        failed: entry.failed || false,
+        failure_category: entry.failure_category || ''
+      };
+      annotatedTrace.push(annotated);
+    });
+
+    updateTrace(annotatedTrace);
+    updateGuardrail(grDecisions);
     updateNavPill(newState);
+
+    // Show approval prompt when scenario B is waiting
+    var approvalBar = $('#approval-action-bar');
+    if (newState === 'AWAITING_APPROVAL') {
+      if (approvalBar) approvalBar.style.display = '';
+      var stepBtn = $('#btn-step');
+      if (stepBtn) stepBtn.textContent = '等待审批中';
+    } else {
+      if (approvalBar) approvalBar.style.display = 'none';
+      var stepBtn2 = $('#btn-step');
+      if (stepBtn2) stepBtn2.textContent = '步进 ▶';
+    }
   }
 
   function updateCurrentStateDisplay(state) {
@@ -175,21 +207,44 @@
     if (traceList) {
       traceList.style.display = '';
       traceList.innerHTML = '';
-      var entries = trace.slice().reverse();
+      // Most recent entry first
+      var entries = trace.slice();
       entries.forEach(function (entry) {
         var div = document.createElement('div');
         div.className = 'trace-entry';
         if (entry.failed) {
           div.classList.add('trace-entry-failed');
         }
+
         var toState = entry.to || '';
         var info = STATE_INFO[toState] || STATE_INFO.INITIALIZING;
+
+        // Build description with guardrail decision if present
+        var grBadge = '';
+        if (entry.guardrail_decision) {
+          var grInfo = STATE_INFO[entry.guardrail_decision] || {
+            label: entry.guardrail_decision,
+            icon: entry.guardrail_decision === 'BLOCK' ? '⊘' :
+                  entry.guardrail_decision === 'ALLOW' ? '✓' :
+                  entry.guardrail_decision === 'REQUEST_APPROVAL' ? '?' : '○',
+            color: entry.guardrail_decision === 'BLOCK' ? 'danger' :
+                   entry.guardrail_decision === 'ALLOW' ? 'success' :
+                   entry.guardrail_decision === 'REQUEST_APPROVAL' ? 'warn' : 'muted'
+          };
+          grBadge =
+            '<span class="status-pill status-pill-' + grInfo.color + '">' +
+              grInfo.icon + ' ' + grInfo.label +
+            '</span> ';
+        }
+
         var desc = entry.description || '';
         div.innerHTML =
           '<div class="trace-entry-header">' +
             '<span class="status-pill status-pill-' + info.color + '">' + info.icon + ' ' + info.label + '</span>' +
+            grBadge +
             '<span class="trace-entry-desc">' + desc + '</span>' +
           '</div>';
+
         if (entry.tool_call) {
           var tc = entry.tool_call;
           div.innerHTML +=
@@ -204,6 +259,12 @@
                 '</span>' +
               '</div>' +
             '</details>';
+        }
+        if (entry.failed) {
+          div.innerHTML +=
+            '<div class="trace-failure-info">' +
+              '<span class="status-pill status-pill-danger">' + (entry.failure_category || 'ERROR') + '</span>' +
+            '</div>';
         }
         traceList.appendChild(div);
       });
