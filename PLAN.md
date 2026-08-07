@@ -7572,7 +7572,7 @@ git push github main
 
 **Type:** DOCUMENTATION (no test code, no implementation code required)
 
-- [ ] **Step 1:** Write README with: what is CodeGuard, quick start, CLI commands, WebUI demo, credential setup, distribution options, security notes, SmartScreen warning, SHA-256 verification, architecture overview, key mechanisms, Render URL.
+- [x] **Step 1:** Write README with: what is CodeGuard, quick start, CLI commands, WebUI demo, credential setup, distribution options, security notes, SmartScreen warning, SHA-256 verification, architecture overview, key mechanisms, Render URL.
 
 ---
 
@@ -7583,7 +7583,7 @@ git push github main
 
 **Type:** DOCUMENTATION (no test code, no implementation code required)
 
-- [ ] **Step 1:** Write SECURITY.md with credential storage (Windows Credential Manager), threat model, fail-closed policy, SecretRedactor, demo isolation, SmartScreen explanation.
+- [x] **Step 1:** Write SECURITY.md with credential storage (Windows Credential Manager), threat model, fail-closed policy, SecretRedactor, demo isolation, SmartScreen explanation.
 
 ---
 
@@ -7596,7 +7596,7 @@ git push github main
 
 **Type:** DOCUMENTATION (runnable scripts, no test code required)
 
-- [ ] **Step 1:** Write runnable scripts that demonstrate each scenario with printed state transitions.
+- [x] **Step 1:** Write runnable scripts that demonstrate each scenario with printed state transitions.
 
 ---
 
@@ -7607,7 +7607,7 @@ git push github main
 
 **Type:** DOCUMENTATION (manual script, not in CI)
 
-- [ ] **Step 1:** Verify script exists and is documented as NOT in CI.
+- [x] **Step 1:** Verify script exists and is documented as NOT in CI.
 
 ---
 
@@ -7617,23 +7617,23 @@ git push github main
 
 #### Task 22.1: Full test suite run (manual verification)
 
-- [ ] Run: `pytest -v`
-- [ ] Verify: All tests pass, no real LLM/API key/network access.
+- [x] Run: `pytest -v`
+- [x] Verify: All tests pass, no real LLM/API key/network access.
 
 #### Task 22.2: Credential leak scan (manual verification)
 
-- [ ] Run: `git grep -n "sk-"` (and other API key patterns)
-- [ ] Verify: No matches.
+- [x] Run: `git grep -n "sk-"` (and other API key patterns)
+- [x] Verify: No matches.
 
 #### Task 22.3: SPEC coverage verification (manual verification)
 
-- [ ] Check: Every SPEC §3 FC module has corresponding test(s).
-- [ ] Check: Every user story (US-1 to US-8) has acceptance test.
-- [ ] Check: §11 acceptance criteria all satisfied.
+- [x] Check: Every SPEC §3 FC module has corresponding test(s).
+- [x] Check: Every user story (US-1 to US-8) has acceptance test.
+- [x] Check: §11 acceptance criteria all satisfied.
 
 #### Task 22.4: .claude/projects/ exclusion (manual verification)
 
-- [ ] Verify: `git status` shows no `.claude/projects/` files staged.
+- [x] Verify: `git status` shows no `.claude/projects/` files staged. (已从跟踪移除 + .gitignore 添加 .claude/projects/)
 
 #### Task 22.5: REFLECTION.md (DOCUMENTATION — reserved for human author)
 

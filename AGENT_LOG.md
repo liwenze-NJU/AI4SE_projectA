@@ -2287,3 +2287,41 @@
 **commit hash**: `bd81411`
 
 **具备进入 Phase 21 的条件**: 是（配置完成；部署步骤 DEFERRED 需用户账号）
+
+---
+
+## Task 21.1: README.md
+
+**log_id**: T21.1 | **task_id**: Task 21.1 Docs | **状态**: COMPLETED
+**时间**: 2026-08-07
+**Superpowers 技能**: 无（DOCUMENTATION 任务）
+**branch/worktree**: feature/mvp-core
+**目标**: 重写 README.md（原 GitLab 模板）含项目介绍/快速开始/CLI/WebUI/凭据/分发/安全/架构/Render URL 占位
+**验证命令**: 无（文档任务）
+
+**GREEN 阶段**: 文档完成 — 全中文 README，覆盖项目介绍/快速开始/CLI 5 子命令/WebUI 3 场景/DeepSeek Key 配置/SmartScreen 警告/SHA-256/CI/Render 部署说明（URL 占位待部署）/架构概览/测试说明
+
+---
+
+## Phase 22: 最终验证
+
+**log_id**: T22 | **task_id**: Phase 22 Verification | **状态**: COMPLETED
+**时间**: 2026-08-07
+**branch/worktree**: feature/mvp-core
+
+**Task 22.1 全量测试**: `pytest -q` → 576 passed, 1 skipped, 0 failed（13.38s）；无真实 LLM/API Key/网络访问
+
+**Task 22.2 凭据扫描**: `git grep sk-` 仅命中 SecretRedactor/rules.py 脱敏实现代码（正则定义），无真实 Key；api_key= 模式 0 命中
+
+**Task 22.3 SPEC 覆盖**:
+- FC-1~FC-9 全部有对应测试（loop/state, guardrail 3 文件, stop_policy, approval_manager, sensor/classifier/parsers/verifier, tool 4 文件, memory 2 文件, config 2 文件, web 9 文件）
+- US-1~US-8 逐一映射验收测试（治理拦截 test_guardrail_rules、审批绑定 test_approval_manager、凭据 test_credentials 13 个、记忆 test_memory_* 51 个等）
+- §11 验收标准在 Phase 16-20 已逐项满足
+
+**Task 22.4 .claude/projects/ 排除**: 发现初始 commit 4f9e7d6 误跟踪 2 个文件 → `git rm --cached` 移除 + .gitignore 添加 `.claude/projects/`，git status 确认无残留
+
+**git diff --check**: 无空白错误；**git status**: 仅预期改动（README/SECURITY/demo/REFLECTION/AGENT_LOG/PLAN/.gitignore + .claude/projects 删除）
+
+**交付清单**: 45 个测试文件、576 测试、dist/codeguard.exe + .sha256、README/SECURITY/REFLECTION 齐全
+
+**剩余风险**: REFLECTION.md 正文待作者填写；Render 部署 URL 待部署后补
