@@ -1,9 +1,9 @@
 {% extends "base.html" %}
 {% block title %}Agent Dashboard — CodeGuard Harness{% endblock %}
-{% block scenario_name %}演示回放{% endblock %}
+{% block scenario_name %}{{ scenario_label | default('场景 A · 路径逃逸被 BLOCK', true) }}{% endblock %}
 
 {% block content %}
-<div class="dashboard-page" data-session-id="{{ session_id }}">
+<div class="dashboard-page" data-session-id="{{ session_id }}" data-scenario="{{ scenario }}">
   <!-- ======================================================================
        Top Overview Bar
        ====================================================================== -->
@@ -11,7 +11,7 @@
     <!-- Left: Scenario + Current State -->
     <div class="overview-left">
       <div class="scenario-display">
-        <span class="scenario-mono" id="scenario-name">demo</span>
+        <span class="scenario-mono" id="scenario-name">{{ scenario_label | default('', true) }}</span>
         <div class="current-state-display">
           <span class="current-state-mono" id="current-state-mono">INITIALIZING</span>
           <span class="current-state-chinese" id="current-state-chinese">初始化中</span>
@@ -102,7 +102,7 @@
       <div class="trace-container" id="trace-container">
         <div class="trace-placeholder">
           <span class="trace-placeholder-icon" aria-hidden="true">&#x25B8;</span>
-          <p>等待开始演示回放</p>
+          <p>等待开始回放</p>
           <p class="trace-placeholder-hint">点击"步进"按钮开始逐步执行</p>
         </div>
         <div class="trace-list" id="trace-list" style="display:none;">

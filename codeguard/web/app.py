@@ -209,6 +209,19 @@ _SCENARIO_BUILDERS = {
     "c": _build_scenario_c_replay,
 }
 
+_SCENARIO_LABELS = {
+    "a": "场景 A · 路径逃逸被 BLOCK",
+    "b": "场景 B · 副作用动作待审批",
+    "c": "场景 C · 测试失败反馈闭环",
+}
+_BACKWARD_LABEL_MAP = {
+    # Map SPEC scenario letters to their full Chinese label for the nav bar.
+    # Used when the session hasn't been created yet (no scenario data).
+    "a": "场景 A · 路径逃逸被 BLOCK",
+    "b": "场景 B · 副作用动作待审批",
+    "c": "场景 C · 测试失败反馈闭环",
+}
+
 
 def _new_demo_session(scenario: str = "demo") -> dict:
     """Create an in-memory demo session with pre-built replay data."""
@@ -255,7 +268,7 @@ def create_app(mode: str = "demo") -> FastAPI:
         return {"session_id": session_id, "scenario": scenario}
 
     @app.get("/session")
-    async def session_entry(scenario: str = "a"):
+    async def session_entry(request: Request, scenario: str = "a"):
         session_id = str(uuid.uuid4())
         sessions[session_id] = _new_demo_session(scenario=scenario)
         return RedirectResponse(url=f"/dashboard?session={session_id}", status_code=303)
@@ -272,12 +285,20 @@ def create_app(mode: str = "demo") -> FastAPI:
     async def dashboard(request: Request, session: str = ""):
         demo_session_id = session or str(uuid.uuid4())
         sessions.setdefault(demo_session_id, _new_demo_session(scenario="demo"))
+        sesh = sessions.get(demo_session_id, {})
+        sc = sesh.get("scenario", "demo")
+        # If scenario letter was passed as query param, use it
+        if not session:
+            sc = "demo"
+        label = _SCENARIO_LABELS.get(sc, _SCENARIO_LABELS.get(sc, "演示回放"))
         return _templates.TemplateResponse(
             request=request,
             name="dashboard.html",
             context={
                 "mock_mode": mode == "demo",
                 "session_id": demo_session_id,
+                "scenario": sc,
+                "scenario_label": label,
                 "states": [
                     {"name": "INITIALIZING", "label": "初始化中", "icon": "◷", "color": "muted"},
                     {"name": "BUILDING_CONTEXT", "label": "构建上下文", "icon": "▤", "color": "muted"},
@@ -301,12 +322,16 @@ def create_app(mode: str = "demo") -> FastAPI:
     async def approval(request: Request, session: str = ""):
         demo_session_id = session or str(uuid.uuid4())
         sessions.setdefault(demo_session_id, _new_demo_session(scenario="demo"))
+        sesh = sessions.get(demo_session_id, {})
+        sc = sesh.get("scenario", "b")
         return _templates.TemplateResponse(
             request=request,
             name="approval.html",
             context={
                 "mock_mode": mode == "demo",
                 "session_id": demo_session_id,
+                "scenario": sc,
+                "scenario_label": _SCENARIO_LABELS.get(sc, "场景 B · 副作用动作待审批"),
                 "request": _MOCK_PENDING_REQUEST,
             },
         )
@@ -344,6 +369,8 @@ def create_app(mode: str = "demo") -> FastAPI:
             context={
                 "mock_mode": mode == "demo",
                 "results": _MOCK_RESULTS,
+                "scenario": "c",
+                "scenario_label": _SCENARIO_LABELS.get("c", "场景 C · 测试失败反馈闭环"),
             },
         )
 
@@ -404,12 +431,14 @@ def create_app(mode: str = "demo") -> FastAPI:
             "at": "",
         })
 
-        # Bring in guardrail decisions matching this step
-        all_gr = session.get("replay_guardrail_decisions", [])
-        while len(session["guardrail_decisions"]) < len(all_gr):
-            session["guardrail_decisions"].append(
-                all_gr[len(session["guardrail_decisions"])]
-            )
+        # Bring in the NEXT guardrail decision when hitting a GOVERNING frame.
+        # GRs accumulate: first GOVERNING → GR[0], second GOVERNING → GR[0]+GR[1].
+        if new_state == "GOVERNING":
+            all_gr = session.get("replay_guardrail_decisions", [])
+            gr_idx = session.get("_gr_cursor", 0)
+            if gr_idx < len(all_gr):
+                session["guardrail_decisions"].append(all_gr[gr_idx])
+                session["_gr_cursor"] = gr_idx + 1
 
         # Set pending_request for scenario B AWAITING_APPROVAL
         if new_state == "AWAITING_APPROVAL":

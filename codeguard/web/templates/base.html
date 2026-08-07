@@ -24,17 +24,15 @@
   <nav class="top-nav" role="navigation" aria-label="主导航">
     <div class="top-nav-inner">
       <div class="nav-brand">
-        <span class="nav-brand-text">CodeGuard Harness</span>
+        <span class="nav-brand-text">CodeGuard</span>
       </div>
       <div class="nav-center">
         <div class="scenario-dropdown">
-          <span class="scenario-dropdown-label">场景：</span>
-          <span class="scenario-dropdown-value">{% block scenario_name %}选择场景{% endblock %}</span>
-          <span class="scenario-dropdown-arrow" aria-hidden="true">&#x25BE;</span>
+          <span class="scenario-dropdown-value">{% block scenario_name %}{% endblock %}</span>
         </div>
       </div>
       <div class="nav-right">
-        <span class="state-pill state-pill-idle">&#x25CB; 未开始</span>
+        {% block nav_extra %}{% endblock %}
         <a href="/" class="btn btn-secondary btn-sm nav-back-btn">返回场景</a>
       </div>
     </div>

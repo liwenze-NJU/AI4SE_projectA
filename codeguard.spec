@@ -20,16 +20,16 @@ a = Analysis(
 
 # Bundle WebUI templates and static assets (frozen path resolved in app.py)
 _web_assets = [
-    'codeguard/web/templates/base.html',
-    'codeguard/web/templates/scenarios.html',
-    'codeguard/web/templates/dashboard.html',
-    'codeguard/web/templates/approval.html',
-    'codeguard/web/templates/results.html',
-    'codeguard/web/static/style.css',
-    'codeguard/web/static/main.js',
-    'codeguard/web/static/approval.js',
+    ('codeguard/web/templates/base.html', 'codeguard/web/templates/base.html', 'DATA'),
+    ('codeguard/web/templates/scenarios.html', 'codeguard/web/templates/scenarios.html', 'DATA'),
+    ('codeguard/web/templates/dashboard.html', 'codeguard/web/templates/dashboard.html', 'DATA'),
+    ('codeguard/web/templates/approval.html', 'codeguard/web/templates/approval.html', 'DATA'),
+    ('codeguard/web/templates/results.html', 'codeguard/web/templates/results.html', 'DATA'),
+    ('codeguard/web/static/style.css', 'codeguard/web/static/style.css', 'DATA'),
+    ('codeguard/web/static/main.js', 'codeguard/web/static/main.js', 'DATA'),
+    ('codeguard/web/static/approval.js', 'codeguard/web/static/approval.js', 'DATA'),
 ]
-a.datas += [(f, f, 'DATA') for f in _web_assets]
+a.datas += _web_assets
 
 pyz = PYZ(a.pure, a.zipped_data, cipher=block_cipher)
 

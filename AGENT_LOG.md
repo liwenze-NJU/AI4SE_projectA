@@ -2341,3 +2341,39 @@
 3. pollState() 每2s 拉回 INITIALIZING 覆盖本地状态
 4. resetDashboard() 不清理时间线 "已完成" class
 5. 场景 A/B/C trace/guardrail 数据未接入 WebUI session
+
+---
+
+## Phase 22-FIX2: Guardrail timing + navbar scenario display
+
+**log_id**: T22-FIX2 | **task_id**: Phase 22 Bugfix 2 | **状态**: COMPLETED
+**时间**: 2026-08-07
+**Superpowers 技能**: systematic-debugging, test-driven-development
+**branch/worktree**: feature/mvp-core
+
+### 根因
+
+**护栏决定时序错误**：`app.py:425-428` 的 `while len(session["guardrail_decisions"]) < len(all_gr)` 一次性将全部 replay GR 注入，不区分帧。场景 A 有 2 个 GR（BLOCK、ALLOW），首次非 BUILDING_CONTEXT 帧就全量出现。
+
+**导航栏信息错误**：`base.html` 对所有页面统一显示"场景：{scenario_name}" + "未开始" + "返回场景"；首页 scenario_name="场景选择"产生冗余"场景：场景选择"；仪表盘 scenario_name="演示回放"且硬编码 `<span>demo</span>`；场景名称未从 session 继承。
+
+### GREEN 阶段
+
+**护栏修复**：`step_session()` 仅在 `new_state == "GOVERNING"` 时从 `replay_guardrail_decisions` 中推进 `_gr_cursor` 游标，每次 GOVERNING 帧追加一个 GR。场景 A：第一次 GOVERNING → BLOCK，第二次 GOVERNING → BLOCK + ALLOW。场景 B：GOVERNING → REQUEST_APPROVAL，AWAITING_APPROVAL 后暂停。
+
+**导航栏修复**：
+- `base.html`：顶部品牌"CodeGuard"（去掉 Harness）；删除"场景："标签、"未开始"pill、下拉箭头；场景名称仅由 `scenario_name` block 决定
+- `scenarios.html`：`scenario_name` block 改空（首页不显示场景名）
+- `dashboard.html`：`scenario_name` + `scenario-mono` 由 `scenario_label` Jinja2 变量渲染；增加 `data-scenario` 属性
+- `approval.html`：`scenario_name` 由 `scenario_label` 变量渲染
+- `results.html`：同上
+- `app.py`：新增 `_SCENARIO_LABELS` 字典（a/b/c 映射中文名）；dashboard/approval/results 端点传递 `scenario` + `scenario_label` 到模板上下文
+
+**测试**：13 个新测试（`tests/test_web_guardrail_timing.py`）：GR 逐 GOVERNING 出现/BLOCK 不删除/B 审批暂停/首页导航/仪表盘场景名/审批页场景名/结果页场景名/无硬编码 "demo"。
+全量：**600 passed, 1 skipped, 0 failed**（原有 587 + 新增 13）
+
+**两阶段评审**：
+- 规格合规 PASS：SPEC §3.9 演示场景护栏决定按顺序出现；§11 离线确定性测试
+- 代码质量 0 Critical 0 Major
+
+**commit hash**: 待更新

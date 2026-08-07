@@ -1,6 +1,6 @@
 {% extends "base.html" %}
 {% block title %}会话结果 — CodeGuard Harness{% endblock %}
-{% block scenario_name %}场景 {{ results.scenario }}{% endblock %}
+{% block scenario_name %}{{ scenario_label | default('场景 C · 测试失败反馈闭环', true) }}{% endblock %}
 
 {% block content %}
 <div class="results-page">

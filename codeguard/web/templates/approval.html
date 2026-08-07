@@ -1,6 +1,6 @@
 {% extends "base.html" %}
 {% block title %}审批 — CodeGuard Harness{% endblock %}
-{% block scenario_name %}场景 B · 副作用动作待审批{% endblock %}
+{% block scenario_name %}{{ scenario_label | default('场景 B · 副作用动作待审批', true) }}{% endblock %}
 
 {% block content %}
 <!-- ======================================================================
