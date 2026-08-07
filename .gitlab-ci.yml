@@ -1,0 +1,16 @@
+# CodeGuard Harness — GitLab CI (course requirement)
+# Runs the full unit-test suite in a clean Python 3.12 container.
+# Constraint: tests never access real LLM, external business APIs, or real credentials.
+
+image: python:3.12
+
+stages:
+  - test
+
+unit-test:
+  stage: test
+  script:
+    - pip install -r requirements/dev.txt
+    - pytest -v
+  only:
+    - main

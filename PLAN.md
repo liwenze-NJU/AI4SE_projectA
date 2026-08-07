@@ -7330,7 +7330,7 @@ git push github task-17.3-demo-c
 
 **Type:** CONFIGURATION (YAML file, no test code)
 
-- [ ] **Step 1: Write complete GitLab CI YAML**
+- [x] **Step 1: Write complete GitLab CI YAML**
 
 Write `.gitlab-ci.yml`:
 ```yaml
@@ -7348,8 +7348,8 @@ unit-test:
     - main
 ```
 
-- [ ] **Step 2:** Verify YAML syntax with `python -c "import yaml; yaml.safe_load(open('.gitlab-ci.yml'))"`.
-- [ ] **Step 3:** Commit.
+- [x] **Step 2:** Verify YAML syntax with `python -c "import yaml; yaml.safe_load(open('.gitlab-ci.yml'))"`.
+- [x] **Step 3:** Commit.
 
 ```bash
 git add .gitlab-ci.yml
