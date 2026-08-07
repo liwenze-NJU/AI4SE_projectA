@@ -7425,7 +7425,7 @@ git push github main
 
 **Type:** BUILD CONFIG (PyInstaller spec, no test code)
 
-- [ ] **Step 1: Write complete codeguard.spec**
+- [x] **Step 1: Write complete codeguard.spec**
 
 Write `codeguard.spec`:
 ```python
@@ -7483,8 +7483,8 @@ else:
 _templates = Jinja2Templates(directory=str(_BASE_DIR / "templates"))
 ```
 
-- [ ] **Step 2:** Run `pyinstaller codeguard.spec` — verify it builds without errors.
-- [ ] **Step 3:** Commit.
+- [x] **Step 2:** Run `pyinstaller codeguard.spec` — verify it builds without errors.
+- [x] **Step 3:** Commit.
 
 ```bash
 git add codeguard.spec

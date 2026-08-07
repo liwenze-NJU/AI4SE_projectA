@@ -4,9 +4,16 @@ from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from pydantic import BaseModel
 from pathlib import Path
+import sys
 import uuid
 
-_templates = Jinja2Templates(directory=Path(__file__).parent / "templates")
+if getattr(sys, "frozen", False):
+    # PyInstaller spec bundles assets under _MEIPASS/codeguard/web/...
+    _BASE_DIR = Path(getattr(sys, "_MEIPASS", Path(__file__).parent)) / "codeguard" / "web"
+else:
+    _BASE_DIR = Path(__file__).parent
+_templates = Jinja2Templates(directory=str(_BASE_DIR / "templates"))
+_static_dir = _BASE_DIR / "static"
 
 _MOCK_PENDING_REQUEST = {
     "request_id": "mock-req-1",
@@ -189,6 +196,10 @@ def create_app(mode: str = "demo") -> FastAPI:
         }
 
     # Mount static files AFTER all routes
-    app.mount("/static", StaticFiles(directory=Path(__file__).parent / "static"), name="static")
+    app.mount("/static", StaticFiles(directory=str(_static_dir)), name="static")
 
     return app
+
+
+# Module-level app for `uvicorn.run("codeguard.web.app:app")` (web CLI / exe / Render)
+app = create_app(mode="demo")
