@@ -2238,3 +2238,26 @@
 **commit hash**: `c624ab3`
 
 **具备进入 Task 19.2 的条件**: 是（exe 已构建，--help / demo a / web 冒烟通过）
+
+---
+
+## Task 19.2: PyInstaller smoke test + SHA-256
+
+**log_id**: T19.2 | **task_id**: Task 19.2 Packaging | **状态**: COMPLETED
+**时间**: 2026-08-07
+**Superpowers 技能**: 无（BUILD VERIFICATION 任务）
+**branch/worktree**: feature/mvp-core
+**目标**: exe --help / demo a 冒烟；certutil SHA-256；确认 dist/build 已 ignore；CI 上传 .exe + .sha256
+**验证命令**: ./dist/codeguard.exe --help; ./dist/codeguard.exe demo a; certutil -hashfile
+
+**GREEN 阶段**: --help / demo a/b/c 冒烟全部 exit 0；SHA-256 生成成功（9c0b95...d1ba6）
+
+**实现内容**:
+- 冒烟测试：--help（usage + 5 子命令）、demo a/b/c 均 exit 0
+- `dist/codeguard.exe.sha256` — certutil -hashfile SHA256 生成
+- `.gitignore` 已含 build/ 与 dist/（无需修改）
+- CI build-exe job 已上传 codeguard.exe + .sha256 产物
+
+**两阶段评审**: 规格合规 PASS（SPEC §11 分发验收）；代码质量 0 Critical 0 Major
+
+**commit hash**: (与 Task 19.2 关联，无代码改动 — 本条目随 docs commit 记录)
