@@ -1,0 +1,37 @@
+name: CI
+
+on: [push, pull_request]
+
+jobs:
+  unit-test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install -r requirements/dev.txt
+      - run: pytest -v
+
+  build-exe:
+    needs: unit-test
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install -r requirements/dev.txt
+      - run: pip install pyinstaller
+      - run: pytest -v
+      - run: pyinstaller codeguard.spec
+      - name: Smoke test
+        run: ./dist/codeguard.exe --help
+      - name: Generate SHA-256
+        run: certutil -hashfile ./dist/codeguard.exe SHA256 | findstr /v "hash" > ./dist/codeguard.exe.sha256
+      - uses: actions/upload-artifact@v4
+        with:
+          name: codeguard-exe
+          path: |
+            ./dist/codeguard.exe
+            ./dist/codeguard.exe.sha256

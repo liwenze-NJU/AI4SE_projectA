@@ -7367,7 +7367,7 @@ git push github main
 
 **Type:** CONFIGURATION (YAML file, no test code)
 
-- [ ] **Step 1: Write complete GitHub Actions YAML**
+- [x] **Step 1: Write complete GitHub Actions YAML**
 
 Write `.github/workflows/ci.yml`:
 ```yaml
@@ -7404,8 +7404,8 @@ jobs:
           name: codeguard-exe
           path: dist/
 
-- [ ] **Step 2:** Verify YAML syntax.
-- [ ] **Step 3:** Commit.
+- [x] **Step 2:** Verify YAML syntax.
+- [x] **Step 3:** Commit.
 
 ```bash
 git add .github/workflows/ci.yml
