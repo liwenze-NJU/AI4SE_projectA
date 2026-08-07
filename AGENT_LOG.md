@@ -2261,3 +2261,29 @@
 **两阶段评审**: 规格合规 PASS（SPEC §11 分发验收）；代码质量 0 Critical 0 Major
 
 **commit hash**: `722742c`（docs 记录；无代码改动 — .gitignore 已含 build/ dist/）
+
+---
+
+## Task 20.1: Render Mock-only WebUI 部署配置
+
+**log_id**: T20.1 | **task_id**: Task 20.1 Deploy | **状态**: COMPLETED
+**时间**: 2026-08-07
+**Superpowers 技能**: 无（DEPLOYMENT CONFIG 任务）
+**branch/worktree**: feature/mvp-core
+**目标**: render.yaml（python runtime + MODE=demo + PORT）；验证 demo 模式零真实组件导入；不实际部署（无 Render 账号）
+**验证命令**: yaml.safe_load + create_app(mode="demo") 导入链检查
+
+**GREEN 阶段**: render.yaml YAML 校验通过；`python -m codeguard web` 本地验证：MODE=demo + HOST=0.0.0.0 + PORT=18096 → `{"status":"ok","mode":"demo","mock":true}`；导入链无 deepseek/keyring/credential 模块
+
+**实现内容**:
+- `render.yaml` — web service codeguard-demo：buildCommand pip install requirements/dev.txt；startCommand python -m codeguard web；healthCheckPath /health；envVars MODE=demo + HOST=0.0.0.0 + PORT=8080
+- 修复 Critical：`__main__.py` web 分支无条件传 `--port 8080` 覆盖 PORT 环境变量 → 改为仅显式参数才转发
+- `web_cmd.py` 增加 HOST 环境变量支持（Render 需要 0.0.0.0 监听）
+
+**两阶段评审**: 规格合规 PASS（SPEC §11 Demo 安全隔离 + WebUI 演示）；代码质量 0 Critical 0 Major
+
+**未执行（DEFERRED）**: PLAN Step 3 实际部署到 Render（无账号）+ Step 4 README 记录 URL — 待用户提供 Render 账号后执行
+
+**commit hash**: `bd81411`
+
+**具备进入 Phase 21 的条件**: 是（配置完成；部署步骤 DEFERRED 需用户账号）
