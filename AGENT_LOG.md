@@ -2260,4 +2260,4 @@
 
 **两阶段评审**: 规格合规 PASS（SPEC §11 分发验收）；代码质量 0 Critical 0 Major
 
-**commit hash**: (与 Task 19.2 关联，无代码改动 — 本条目随 docs commit 记录)
+**commit hash**: `722742c`（docs 记录；无代码改动 — .gitignore 已含 build/ dist/）
