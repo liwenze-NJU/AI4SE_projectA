@@ -104,16 +104,19 @@ GitHub Actions `build-exe` job 在 `windows-latest` 上自动构建并上传
 - `.github/workflows/ci.yml` — GitHub Actions：ubuntu unit-test + windows build-exe。
 - CI 不访问真实 LLM、外部业务 API 或真实凭据；不配置 API Key Secrets。
 
-## Render 部署（Mock-only WebUI）
+## 交付方式
 
-`render.yaml` 定义 Render web 服务（`codeguard-demo`）：
+**正式交付**：GitHub Release（`dist/codeguard.exe` + `dist/codeguard.exe.sha256`）。
 
-- 构建：`pip install -r requirements/dev.txt`
-- 启动：`python -m codeguard web`（demo 模式，`MODE=demo`，`HOST=0.0.0.0`，`PORT=8080`）
-- 健康检查：`/health`
+WebUI 为本地功能：
 
-> 部署 URL：**待部署后记录**（需要 Render 账号，见 Task 20.1 / 21.1）。
-> 线上仅运行 Mock-only WebUI，不暴露真实凭据与外部执行边界。
+```bat
+codeguard.exe web
+```
+
+启动后打开 http://127.0.0.1:8080 即可访问 Mock-only WebUI 演示。
+
+Render 部署为可选方案（`render.yaml` 已配置，当前未部署）。
 
 ## 架构概览
 
@@ -138,7 +141,7 @@ CLI (__main__.py)
 pytest -v
 ```
 
-576 个测试全部离线确定性运行：ScriptedMockLLM / MockToolDispatcher /
+622 个测试全部离线确定性运行：ScriptedMockLLM / MockToolDispatcher /
 MockMemoryStore / MockCredentialStore / FakeClock，无真实 LLM、无网络、无 API Key。
 
 详见 `SECURITY.md`（威胁模型、fail-closed 策略、SecretRedactor、SmartScreen 说明）。

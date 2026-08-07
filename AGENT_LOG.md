@@ -2377,3 +2377,31 @@
 - 代码质量 0 Critical 0 Major
 
 **commit hash**: 待更新
+
+---
+
+## Release 预检 — final local verification
+
+**log_id**: T-RELEASE | **task_id**: Release Pre-check | **状态**: COMPLETED
+**时间**: 2026-08-07
+**branch/worktree**: feature/mvp-core
+
+**测试**: `pytest -v` → 622 passed, 1 skipped (`test_symlink_outside_workspace_rejected` — `symlink not available on this platform`，Windows 平台限制，非代码缺陷)
+
+**构建**:
+- `pyinstaller codeguard.spec` → 成功
+- `dist/codeguard.exe` — 18,535,426 bytes，2026-08-07 17:49
+- SHA-256: `1cf08abd1a49adf86e4c01207a11389b819b1a75e3085395dc27fcc0f5de5b39`
+
+**冒烟测试**:
+- `codeguard.exe --help` → exit 0
+- `codeguard.exe demo a` → `Demo a completed: completed`，exit 0
+- `codeguard.exe demo b` → `Demo b completed: completed`，exit 0
+- `codeguard.exe demo c` → `Demo c completed: completed`，exit 0
+- `codeguard.exe web` → health 200, landing / dashboard / approval / results / CSS / JS 全部 200
+
+**凭据扫描**: `git grep sk-` → 仅命中脱敏实现代码（`secret.py`、`rules.py`），无真实 Key。`api_key=` 模式 0 命中。`.claude/projects/` 不在 tracking 中。
+
+**README 修改**: 交付方式改为 GitHub Release；WebUI 说明为 `codeguard.exe web` 启动的本地 WebUI；Render 标注为可选方案（已配置未部署）；测试数更新为 622。
+
+**发布条件**: 分支 `feature/mvp-core`，HEAD `33afd72`，工作区干净，未 push 未 merge。具备 push → 合并 → 创建 GitHub Release 的条件。
