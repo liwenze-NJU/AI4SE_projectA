@@ -150,6 +150,13 @@ class TestUnicodeSafety:
         result = SensorRunner(sd, cwd=tmp_cwd).run()
         assert "错误信息" in result.raw_output_truncated
 
+    def test_unicode_with_cp1252_parent_env(self, tmp_cwd, monkeypatch):
+        monkeypatch.setenv("PYTHONIOENCODING", "cp1252")
+        monkeypatch.delenv("PYTHONUTF8", raising=False)
+        sd = _sd(args=["-c", "print('中文测试')"])
+        result = SensorRunner(sd, cwd=tmp_cwd).run()
+        assert "中文测试" in result.raw_output_truncated
+
 
 # ── Duration ─────────────────────────────────────────────────────────
 

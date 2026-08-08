@@ -1,3 +1,4 @@
+import os
 import subprocess
 import time
 from codeguard.feedback import SensorDefinition, FeedbackResult
@@ -17,12 +18,16 @@ class SensorRunner:
 
     def run(self) -> FeedbackResult:
         start = time.perf_counter()
+        env = os.environ.copy()
+        env["PYTHONIOENCODING"] = "utf-8"
+        env["PYTHONUTF8"] = "1"
         try:
             proc = subprocess.run(
                 [self._definition.program, *self._definition.args],
-                capture_output=True, text=True, errors="replace",
+                capture_output=True, text=True, encoding="utf-8", errors="replace",
                 timeout=self._definition.timeout,
                 cwd=self._definition.cwd or self._cwd,
+                env=env,
             )
             duration = time.perf_counter() - start
             combined = self._combine_output(proc.stdout, proc.stderr)
