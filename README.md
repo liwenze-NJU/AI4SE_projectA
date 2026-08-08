@@ -44,7 +44,7 @@ codeguard.exe --version
 codeguard.exe config
 ```
 
-预期结果：命令正常退出，版本为 `0.1.0`，帮助中包含 `chat`、`demo`、`web`、`key` 和 `config`。
+预期结果：命令正常退出，版本为 `0.1.1`，帮助中包含 `chat`、`demo`、`web`、`key` 和 `config`。
 
 ### 4. 验收三个离线场景
 
