@@ -1,4 +1,5 @@
 import pytest
+import os
 from datetime import datetime
 from pathlib import Path
 from codeguard.action import ActionKind, NormalizedAction
@@ -66,21 +67,25 @@ class TestWorkspaceBoundaryRule:
         rule = WorkspaceBoundaryRule(workspace_root="/home/user/project")
         assert rule.evaluate(_make_complete())["decision"] == "ALLOW"
 
+    @pytest.mark.skipif(os.name != "nt", reason="Windows path semantics require Windows")
     def test_handles_windows_paths(self):
         rule = WorkspaceBoundaryRule(workspace_root=r"C:\Users\dev\project")
         na = _make_na(params={"path": r"C:\Users\dev\project\src\main.py"})
         assert rule.evaluate(na)["decision"] == "ALLOW"
 
+    @pytest.mark.skipif(os.name != "nt", reason="Windows path semantics require Windows")
     def test_blocks_windows_outside_path(self):
         rule = WorkspaceBoundaryRule(workspace_root=r"C:\Users\dev\project")
         na = _make_na(params={"path": r"C:\Windows\System32\config"})
         assert rule.evaluate(na)["decision"] == "BLOCK"
 
+    @pytest.mark.skipif(os.name != "nt", reason="Windows path semantics require Windows")
     def test_blocks_windows_prefix_bypass(self):
         rule = WorkspaceBoundaryRule(workspace_root=r"C:\Users\dev\project")
         na = _make_na(params={"path": r"C:\Users\dev\project-data\secret"})
         assert rule.evaluate(na)["decision"] == "BLOCK"
 
+    @pytest.mark.skipif(os.name != "nt", reason="Windows path semantics require Windows")
     def test_blocks_windows_dotdot_escape(self):
         rule = WorkspaceBoundaryRule(workspace_root=r"C:\Users\dev\project")
         na = _make_na(params={"path": r"C:\Users\dev\project\..\..\Windows\secret"})
