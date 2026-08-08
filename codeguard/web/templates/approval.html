@@ -1,0 +1,68 @@
+{% extends "base.html" %}
+{% block title %}审批 — CodeGuard Harness{% endblock %}
+{% block scenario_name %}{{ scenario_label | default('场景 B · 副作用动作待审批', true) }}{% endblock %}
+{% block nav_back %}
+<a href="/" class="btn btn-secondary btn-sm nav-back-btn">返回场景选择</a>
+{% endblock %}
+
+{% block content %}
+<!-- ======================================================================
+     P3 Approval Modal (mock) — overlay + centered card, max-width 560px
+     ====================================================================== -->
+<div class="approval-page" data-session-id="{{ session_id }}">
+  <div class="modal-overlay" role="presentation">
+    <div class="approval-modal" role="dialog" aria-modal="true" aria-labelledby="approval-title">
+      <header class="approval-header">
+        <span class="status-pill status-pill-warning">&#x3F; 待审批</span>
+        <h2 id="approval-title" class="approval-action" title="{{ request.action }}">
+          <span class="mono-label">目标动作</span>
+          <code class="tool-call-code approval-action-code">{{ request.action }}</code>
+          <span class="card-mock-badge approval-mock-badge">MOCK</span>
+        </h2>
+      </header>
+
+      <section class="approval-section" aria-label="风险原因">
+        <h3 class="card-section-title">风险原因</h3>
+        <ul class="risk-list approval-risk-list">
+          {% for reason in request.reasons %}
+          <li class="risk-item">
+            <span class="risk-icon" aria-hidden="true">{% if loop.first %}&#x26A0;{% else %}&#x2139;{% endif %}</span>
+            {{ reason }}
+          </li>
+          {% endfor %}
+        </ul>
+      </section>
+
+      <section class="approval-section" aria-label="影响范围">
+        <h3 class="card-section-title">影响范围</h3>
+        <div class="impact-card">
+          <span class="card-mock-badge">MOCK</span>
+          <code class="mono-impact">{{ request.impact }}</code>
+        </div>
+      </section>
+
+      <section class="approval-section" aria-label="超时倒计时">
+        <h3 class="card-section-title">超时倒计时</h3>
+        <div class="countdown-row">
+          <div class="countdown-bar" aria-hidden="true">
+            <div class="countdown-fill" id="countdown-fill" style="width: 100%"></div>
+          </div>
+          <span class="countdown-mono" id="countdown-mono">剩余 {{ "%02d:%02d" | format(request.timeout_seconds // 60, request.timeout_seconds % 60) }}</span>
+        </div>
+      </section>
+
+      <footer class="approval-actions" role="group" aria-label="审批操作">
+        <button class="btn btn-primary btn-lg" id="btn-approve" data-decision="approve">批准</button>
+        <button class="btn btn-danger btn-lg" id="btn-reject" data-decision="reject">拒绝并停止</button>
+        <button class="btn btn-secondary btn-lg" id="btn-later">稍后</button>
+      </footer>
+
+      <div class="approval-result" id="approval-result" role="status" style="display: none;"></div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="/static/approval.js"></script>
+{% endblock %}

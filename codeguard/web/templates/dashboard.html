@@ -1,0 +1,196 @@
+{% extends "base.html" %}
+{% block title %}Agent Dashboard — CodeGuard Harness{% endblock %}
+{% block scenario_name %}{{ scenario_label | default('场景 A · 路径逃逸被 BLOCK', true) }}{% endblock %}
+{% block nav_back %}
+<a href="/" class="btn btn-secondary btn-sm nav-back-btn">返回场景选择</a>
+{% endblock %}
+
+{% block content %}
+<div class="dashboard-page" data-session-id="{{ session_id }}" data-scenario="{{ scenario }}">
+  <!-- ======================================================================
+       Top Overview Bar
+       ====================================================================== -->
+  <section class="overview-bar" aria-label="状态概览">
+    <!-- Left: Scenario + Current State -->
+    <div class="overview-left">
+      <div class="scenario-display">
+        <span class="scenario-mono" id="scenario-name">{{ scenario_label | default('', true) }}</span>
+        <div class="current-state-display">
+          <span class="current-state-mono" id="current-state-mono">INITIALIZING</span>
+          <span class="current-state-chinese" id="current-state-chinese">初始化中</span>
+          <span class="status-pill status-pill-muted" id="current-state-pill">&#x25F7; 初始化中</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- Center: Horizontal State Machine Stepper -->
+    <div class="overview-center">
+      <div class="stepper-horizontal" role="list" aria-label="状态机步骤">
+        {% for state in states %}
+        <div class="stepper-node {% if loop.first %}current{% else %}future{% endif %}"
+             role="listitem"
+             data-state="{{ state.name }}"
+             data-color="{{ state.color }}">
+          <span class="stepper-icon" aria-hidden="true">{{ state.icon }}</span>
+          <span class="stepper-mono">{{ state.name }}</span>
+          <span class="stepper-label">{{ state.label }}</span>
+        </div>
+        {% if not loop.last %}
+        <div class="stepper-connector"></div>
+        {% endif %}
+        {% endfor %}
+        <!-- Terminal states branch -->
+        <div class="stepper-branch" aria-hidden="true"></div>
+        {% for tstate in terminal_states %}
+        <div class="stepper-node terminal future"
+             role="listitem"
+             data-state="{{ tstate.name }}"
+             data-color="{{ tstate.color }}">
+          <span class="stepper-icon" aria-hidden="true">{{ tstate.icon }}</span>
+          <span class="stepper-mono">{{ tstate.name }}</span>
+          <span class="stepper-label">{{ tstate.label }}</span>
+        </div>
+        {% if not loop.last %}
+        <div class="stepper-connector terminal-connector"></div>
+        {% endif %}
+        {% endfor %}
+      </div>
+    </div>
+
+    <!-- Right: Demo Controls -->
+    <div class="overview-right">
+      <button class="btn btn-secondary btn-sm demo-btn" id="btn-step" title="步进">步进 ▶</button>
+      <button class="btn btn-secondary btn-sm demo-btn" id="btn-pause" title="暂停">⏸ 暂停</button>
+      <button class="btn btn-secondary btn-sm demo-btn" id="btn-replay" title="重放">↺ 重放</button>
+    </div>
+  </section>
+
+  <!-- Approval action bar (shown when AWAITING_APPROVAL) -->
+  <div id="approval-action-bar" style="display:none; background:#fff3cd; border:1px solid #ffc107; border-radius:0.5rem; padding:0.75rem 1rem; margin-bottom:0.75rem; text-align:center;">
+    <span style="font-weight:600; margin-right:1rem;">⚠ 此操作需要审批</span>
+    <a id="approval-link" class="btn btn-secondary btn-sm" href="/approval?session={{ session_id }}">进入审批</a>
+    <span style="margin-left:1rem; color:#856404; font-size:0.85rem;">或点击"继续"按钮返回</span>
+  </div>
+
+  <!-- CANCELLED explanation bar -->
+  <div id="cancelled-note" style="display:none; background:#fff0f0; border:1px solid #dc3545; border-radius:0.5rem; padding:0.75rem 1rem; margin-bottom:0.75rem; text-align:center;">
+    <span style="font-weight:600; color:#dc3545;">✕ 审批已拒绝，会话已取消</span>
+    <span style="margin-left:0.5rem; color:#721c24;">待审批动作未执行。可点击重放重新开始。</span>
+  </div>
+
+  <!-- ======================================================================
+       3-Column Dashboard Grid
+       ====================================================================== -->
+  <div class="dashboard-grid">
+    <!-- Left Column: State Machine Timeline -->
+    <aside class="col-left" aria-label="状态机时间线">
+      <h3 class="col-heading">状态机时间线</h3>
+      <div class="timeline" id="timeline">
+        {% for state in states %}
+        <div class="timeline-node"
+             data-state="{{ state.name }}"
+             data-color="{{ state.color }}">
+          <div class="timeline-marker">
+            <span class="timeline-icon" aria-hidden="true">{{ state.icon }}</span>
+          </div>
+          <div class="timeline-content">
+            <span class="timeline-mono">{{ state.name }}</span>
+            <span class="timeline-label">{{ state.label }}</span>
+          </div>
+          <div class="timeline-status">
+            {% if loop.first %}
+            <span class="status-pill status-pill-muted">&#x25F7; 当前</span>
+            {% else %}
+            <span class="status-pill status-pill-idle">&#x25CB; 等待中</span>
+            {% endif %}
+          </div>
+          {% if not loop.last %}
+          <div class="timeline-line"></div>
+          {% endif %}
+        </div>
+        {% endfor %}
+      </div>
+    </aside>
+
+    <!-- Middle Column: Execution Trace -->
+    <section class="col-middle" aria-label="执行轨迹">
+      <h3 class="col-heading">执行轨迹</h3>
+      <div class="trace-container" id="trace-container">
+        <div class="trace-placeholder">
+          <span class="trace-placeholder-icon" aria-hidden="true">&#x25B8;</span>
+          <p>等待开始回放</p>
+          <p class="trace-placeholder-hint">点击"步进"按钮开始逐步执行</p>
+        </div>
+        <div class="trace-list" id="trace-list" style="display:none;">
+          <!-- Trace entries will be inserted here by JS -->
+        </div>
+      </div>
+    </section>
+
+    <!-- Right Column: Tool Calls + Guardrail Decisions -->
+    <aside class="col-right" aria-label="工具调用与护栏决策">
+      <h3 class="col-heading">工具调用 &amp; 护栏决策</h3>
+      <div class="guardrail-container" id="guardrail-container">
+        <!-- Current Tool Call Card -->
+        <div class="tool-call-card" id="tool-call-card">
+          <h4 class="card-section-title">当前工具调用</h4>
+          <div class="tool-call-placeholder">
+            <span class="placeholder-icon" aria-hidden="true">&#x25A7;</span>
+            <p>尚无工具调用</p>
+          </div>
+          <div class="tool-call-detail" id="tool-call-detail" style="display:none;">
+            <div class="tool-call-command">
+              <span class="mono-label">命令</span>
+              <code class="tool-call-code" id="tool-call-code"></code>
+            </div>
+            <div class="tool-call-args">
+              <span class="mono-label">MOCK 参数</span>
+              <code class="tool-call-code" id="tool-call-args"></code>
+            </div>
+            <div class="tool-call-result">
+              <span class="mono-label">结果</span>
+              <span class="status-pill status-pill-success" id="tool-call-result-pill"></span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Guardrail Decision Triple Card -->
+        <div class="guardrail-decision-card" id="guardrail-decision-card">
+          <h4 class="card-section-title">护栏决策</h4>
+          <div class="guardrail-triple" id="guardrail-triple">
+            <div class="guardrail-option guardrail-allow" data-decision="ALLOW">
+              <span class="guardrail-icon">&#x2713;</span>
+              <span class="guardrail-text">ALLOW</span>
+              <span class="guardrail-chinese">允许</span>
+            </div>
+            <div class="guardrail-option guardrail-block" data-decision="BLOCK">
+              <span class="guardrail-icon">&#x2298;</span>
+              <span class="guardrail-text">BLOCK</span>
+              <span class="guardrail-chinese">阻止</span>
+            </div>
+            <div class="guardrail-option guardrail-approval" data-decision="REQUEST_APPROVAL">
+              <span class="guardrail-icon">?</span>
+              <span class="guardrail-text">REQUEST_APPROVAL</span>
+              <span class="guardrail-chinese">请求审批</span>
+            </div>
+          </div>
+          <div class="guardrail-detail" id="guardrail-detail" style="display:none;">
+            <div class="guardrail-reasons" id="guardrail-reasons">
+              <span class="mono-label">风险原因</span>
+              <ul class="risk-list" id="risk-list"></ul>
+            </div>
+            <div class="guardrail-impact" id="guardrail-impact">
+              <span class="mono-label">影响范围</span>
+              <span id="impact-scope"></span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </aside>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="/static/main.js"></script>
+{% endblock %}

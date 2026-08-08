@@ -1,0 +1,1 @@
+"""CLI package — command dispatch modules."""

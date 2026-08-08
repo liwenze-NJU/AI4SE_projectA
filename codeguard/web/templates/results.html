@@ -1,0 +1,113 @@
+{% extends "base.html" %}
+{% block title %}会话结果 — CodeGuard Harness{% endblock %}
+{% block scenario_name %}{{ scenario_label | default('场景 C · 测试失败反馈闭环', true) }}{% endblock %}
+{% block nav_back %}
+<a href="/" class="btn btn-secondary btn-sm nav-back-btn">返回场景选择</a>
+{% endblock %}
+
+{% block content %}
+<div class="results-page">
+  <!-- ======================================================================
+       Terminal State Header
+       ====================================================================== -->
+  <section class="results-hero" aria-label="终态头条">
+    <div class="results-hero-title">
+      <span class="status-pill status-pill-success">&#x2713; COMPLETED 已完成</span>
+      <h2 class="results-hero-heading">{{ results.scenario }}</h2>
+    </div>
+    <dl class="results-metrics" aria-label="运行指标">
+      <div class="metric-item">
+        <dt>耗时</dt>
+        <dd class="metric-mono">{{ "%02d:%02d" | format(results.duration_seconds // 60, results.duration_seconds % 60) }}</dd>
+      </div>
+      <div class="metric-item">
+        <dt>步数</dt>
+        <dd class="metric-mono">{{ results.step_count }}</dd>
+      </div>
+      <div class="metric-item">
+        <dt>护栏</dt>
+        <dd class="metric-mono">
+          ALLOW={{ results.guardrail_counts.ALLOW }}
+          BLOCK={{ results.guardrail_counts.BLOCK }}
+          待审批={{ results.guardrail_counts.REQUEST_APPROVAL }}
+        </dd>
+      </div>
+    </dl>
+  </section>
+
+  <!-- ======================================================================
+       Feedback Loop Card (Scenario C core)
+       ====================================================================== -->
+  <section class="results-card" aria-label="反馈闭环">
+    <h3 class="col-heading">反馈闭环</h3>
+    {% if results.feedback_loop.triggered %}
+    <div class="feedback-loop">
+      {% for step in results.feedback_loop.steps %}
+      <div class="feedback-step feedback-step-{{ step.color }}">
+        <span class="feedback-step-number">{{ loop.index }}</span>
+        <div class="feedback-step-body">
+          <span class="status-pill status-pill-{{ step.color }}">{{ step.title }}</span>
+          <span class="feedback-step-detail">{{ step.detail }}</span>
+        </div>
+        <span class="feedback-step-time">{{ step.time }}</span>
+      </div>
+      {% if not loop.last %}
+      <span class="feedback-arrow" aria-hidden="true">&#8594;</span>
+      {% endif %}
+      {% endfor %}
+    </div>
+    {% else %}
+    <p class="results-empty">本次未触发测试反馈闭环（mono，--meta）</p>
+    {% endif %}
+  </section>
+
+  <!-- ======================================================================
+       Memory Summary Panel
+       ====================================================================== -->
+  <section class="results-card" aria-label="Memory 摘要">
+    <h3 class="col-heading">Memory 摘要</h3>
+    {% if results.memory_entries %}
+    <ul class="memory-list">
+      {% for entry in results.memory_entries %}
+      <li class="memory-entry">
+        <span class="status-pill memory-type-pill">{{ entry.type }}</span>
+        <span class="memory-summary">{{ entry.summary }}</span>
+        <span class="memory-source">{{ entry.source }}</span>
+      </li>
+      {% endfor %}
+    </ul>
+    {% else %}
+    <p class="results-empty">本次会话无 Memory 沉淀</p>
+    {% endif %}
+  </section>
+
+  <!-- ======================================================================
+       Guardrail Decision Summary
+       ====================================================================== -->
+  <section class="results-card" aria-label="护栏决策汇总">
+    <h3 class="col-heading">护栏决策汇总</h3>
+    <div class="guardrail-summary">
+      <div class="guardrail-count-card {% if results.guardrail_counts.ALLOW == 0 %}zero{% endif %}">
+        <span class="guardrail-count-num">{{ results.guardrail_counts.ALLOW }}</span>
+        <span class="status-pill status-pill-success">&#x2713; ALLOW 允许</span>
+      </div>
+      <div class="guardrail-count-card {% if results.guardrail_counts.BLOCK == 0 %}zero{% endif %}">
+        <span class="guardrail-count-num">{{ results.guardrail_counts.BLOCK }}</span>
+        <span class="status-pill status-pill-danger">&#x2298; BLOCK 阻止</span>
+      </div>
+      <div class="guardrail-count-card {% if results.guardrail_counts.REQUEST_APPROVAL == 0 %}zero{% endif %}">
+        <span class="guardrail-count-num">{{ results.guardrail_counts.REQUEST_APPROVAL }}</span>
+        <span class="status-pill status-pill-warning">&#x3F; 待审批</span>
+      </div>
+    </div>
+  </section>
+
+  <!-- ======================================================================
+       Bottom Actions
+       ====================================================================== -->
+  <section class="results-actions" aria-label="导航操作">
+    <a href="/" class="btn btn-primary">返回场景选择</a>
+    <a href="/dashboard" class="btn btn-secondary">重放本场景</a>
+  </section>
+</div>
+{% endblock %}
