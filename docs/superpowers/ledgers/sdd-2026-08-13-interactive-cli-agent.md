@@ -44,11 +44,34 @@
 
 ### Task 2: Build Bounded Runtime Context and Process-Local History
 
-- **Status:** PENDING
-- **Implementer commit(s):**
-- **Spec review:** PENDING
-- **Quality review:** PENDING
-- **Fix rounds:**
+- [x] Step 1: Write failing process-local history tests (collection ERROR — module missing)
+- [x] Step 2: Implement bounded history
+- [x] Step 3: Write failing runtime-context tests (TypeError: no-args)
+- [x] Step 4: Run runtime-context tests to verify RED
+- [x] Step 5: Implement `build_runtime` without breaking legacy `build`
+- [x] Step 6: Run GREEN and regressions (15 targeted; full suite 647 passed, 1 skipped)
+- [x] Step 7: Log and commit
+- **Status:** COMPLETED (2026-08-13) — after 1 Critical fix round
+- **Implementer commit(s):** `5b022fd` (feat), `3325847` (docs backfill), `fd6c898` (fix), `d6a9371` (docs backfill)
+- **Spec review:** ❌ 1st round found **Critical**: infinite loop in `build_runtime` (context.py tool-halving loop never terminates when mandatory fields exceed max_chars with tools present — `len("")//2 == 0`; ValueError path unreachable). Reproduced (exit 124 hang). → Fix round: `fd6c898` (halve if len>1 else del; 2 regression tests; T2-FIX AGENT_LOG entry).
+- **Fix re-review:** ✅ Spec compliant + quality APPROVED (termination proven in all probes incl. max_chars=1, multi-tool, randomized sweep; len<=max_chars invariant held; 649 passed + 1 skipped reproduced)
+- **Fix rounds:** 1 (Critical → fixed → re-reviewed ✅)
+- **Deferred Minor items (recorded for final review):** (a) redactor re-applied to tool strings per halving iteration (efficiency, pre-existing pattern); (b) `_is_over` re-assembles context per iteration (O(n) per step, pre-existing); (c) Task 1 leftovers: stale docstring test_state.py:5, whitespace-only rejection untested.
+
+## Process Change — Risk-Tiered Verification (user directive, 2026-08-13, from Task 3 onward)
+
+1. TDD still mandatory per task (targeted RED → GREEN).
+2. Normal tasks run targeted + related-module regressions only (no full 600+ suite per task).
+3. ONE reviewer per task, reporting BOTH spec-compliance and code-quality/security verdicts in one report.
+4. Reviewer reads only the task brief, implementer report, and diff package — not full PLAN/SPEC/AGENT_LOG/repo history.
+5. Risk-tiered intensity: Task 3 HIGH (real tools/Guardrail/Shell/memory/Mock isolation; full suite after); Task 4 HIGHEST (full spec/security/state-machine review; full suite); Task 5 MEDIUM (targeted + CLI regressions); Task 6 MEDIUM (DeepSeek protocol + error handling); Task 7 HIGHEST (E2E + security; full suite); Task 8 final branch-wide review, full suite, credential scan, build, smoke.
+6. Model tiers: Task 3, 4, 7 and final branch review use Pro (opus); mechanical implementations/small fixes and Task 5/6 ordinary reviews prefer Flash (sonnet/haiku).
+7. Minor issues → ledger, judged at final review; only spec non-compliance, Critical, or Important enter the fix loop.
+8. Reviewer stalled >12 min without new output → check status; if stuck, interrupt and re-dispatch a lean reviewer.
+9. Hard requirements unchanged: TDD, Guardrail/approval safety, Demo/Mock isolation, COMPLETED only after final validation, Task 8 full verification.
+10. No pausing between tasks for permission.
+
+## Task Tracking (revised from here)
 
 ### Task 3: Wire Real Tools, Dispatcher, and Sensors in the Composition Root
 
