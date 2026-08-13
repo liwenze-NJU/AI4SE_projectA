@@ -2460,3 +2460,29 @@
 - `codeguard.exe web --port 18080` → `/health` 200 `{"status":"ok","mode":"demo","mock":true}`, `/` 200
 
 **commit hash**: 待更新
+
+## Task 0: 重建 Python 3.12 基线（Interactive Coding-Agent CLI 分支启动）
+
+**log_id**: I0 | **task_id**: Task 0 Restore Baseline | **状态**: COMPLETED
+**时间**: 2026-08-13
+**Superpowers 技能**: `superpowers:subagent-driven-development`（本分支执行方式）
+**branch/worktree**: feature/interactive-cli-agent / `.worktrees/interactive-cli-agent`
+
+**目标**:
+1. 确认分支为 `feature/interactive-cli-agent`，main 保持课程版 `30581f0`（v0.1.1）
+2. 重建 Python 3.12 虚拟环境（`.venv`，Python 3.12.10，pip 26.2.1）
+3. 安装钉版依赖（pytest 8.3.2、pyinstaller 6.10.0、pytest-asyncio 0.24.0、httpx 0.27.0 等）
+4. 取得新鲜全量测试基线
+
+**验证证据**:
+- `git branch --show-current` → `feature/interactive-cli-agent`
+- `git rev-parse --short main` → `30581f0`（未移动）
+- `.venv\Scripts\python.exe --version` → Python 3.12.10
+- 基线测试: `.venv\Scripts\python.exe -m pytest -q -rs` → **627 passed, 1 skipped, 0 failed**（13.99s）
+  - skip: `test_symlink_outside_workspace_rejected`（Windows 平台 symlink 权限，文档化既有 skip）
+- `git status --short` → 工作区干净（仅新增 `docs/superpowers/ledgers/` 待提交）
+- `git check-ignore -v .venv` → `.gitignore:13` 已忽略，无环境文件被跟踪
+
+**说明**: Task 0 不创建功能 commit；仅记录 ledger（SDD ledger 与 AGENT_LOG 同步更新）。Python 3.12 已由 `py -3.12` 提供（`C:\Users\32197\AppData\Local\Programs\Python\Python312`），无需下载安装，未请求额外许可。
+
+**commit hash**: 无（Task 0 无代码提交）
