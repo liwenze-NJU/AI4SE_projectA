@@ -28,11 +28,19 @@
 
 ### Task 1: Define Conversation Actions and Harness Events
 
-- **Status:** PENDING
-- **Implementer commit(s):**
-- **Spec review:** PENDING
-- **Quality review:** PENDING
-- **Fix rounds:**
+- [x] Step 1: Write failing action and state tests
+- [x] Step 2: Run the targeted tests to verify RED (6 failed, 15 passed + collection error)
+- [x] Step 3: Add the minimal action and state model
+- [x] Step 4: Write failing event-contract tests (collection ERROR — module missing)
+- [x] Step 5: Implement the event protocol
+- [x] Step 6: Run GREEN and regressions (26 targeted + 32 related; full suite 637 passed, 1 skipped)
+- [x] Step 7: Log and commit
+- **Status:** COMPLETED (2026-08-13)
+- **Implementer commit(s):** `f6134ac` (feat), `2d1d982` (docs-only AGENT_LOG hash backfill — noted deviation, spec reviewer judged acceptable)
+- **Spec review:** ✅ compliant (independently verified all 10 requirement groups; 637 passed + 1 skipped reproduced)
+- **Quality review:** ✅ APPROVED (no Critical/Important; 2 Minor: stale docstring in test_state.py:5, untested whitespace-only rejection — deferred polish, tracked)
+- **Fix rounds:** 0
+- **Deferred Minor items:** (a) `tests/test_state.py:5` docstring mentions nonexistent FINALIZING; (b) add parametrized whitespace-only parser rejection test. Tracked for opportunistic fix when Task 2+ touches these files.
 
 ### Task 2: Build Bounded Runtime Context and Process-Local History
 
