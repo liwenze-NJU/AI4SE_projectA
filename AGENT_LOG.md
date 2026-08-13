@@ -2582,4 +2582,4 @@
 - `git diff --check` → 无空白错误（仅 LF/CRLF 行尾提示，仓库既有行为）
 - `docs/superpowers/plans/2026-08-13-interactive-cli-agent.md` 未改动（Task 2 勾选状态不变，diff 保持最小）
 
-**commit hash**: 提交后更新
+**commit hash**: `fd6c898`（`fix: terminate tool truncation in runtime context builder`）
