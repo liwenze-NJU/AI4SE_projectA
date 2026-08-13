@@ -2520,3 +2520,38 @@
 **commit hash**: `f6134ac`（`feat: add conversational action and event contracts`）
 
 **branch/worktree**: feature/interactive-cli-agent
+
+---
+
+## Task 2: 有界运行时上下文与进程本地历史（Bounded Runtime Context and Process-Local History）
+
+**log_id**: T2 | **task_id**: Task 2 Bounded Runtime Context and Process-Local History | **状态**: COMPLETED
+**时间**: 2026-08-13
+**Superpowers 技能**: `superpowers:test-driven-development`
+**branch/worktree**: feature/interactive-cli-agent / `.worktrees/interactive-cli-agent`
+
+**目标**:
+1. 实现进程本地有界聊天历史：`ChatHistory`（max_messages/max_summaries），`ChatMessage(role, content)` 与 `TaskSummary(task_id, request, outcome, summary)` 为 frozen dataclass
+2. 实现 `ContextBuilder.build_runtime(...)` 有界运行时上下文：固定优先级分节、超限时按顺序丢弃（旧对话摘要 → 内存记录 → 工具描述缩短）、强制字段（系统约束/当前任务/最新结果/预算）不丢弃、必要时先截断系统约束、数学上不可能时抛 `ValueError`
+3. 严格 TDD：RED → GREEN → 回归 → 提交；`ContextBuilder.__init__` 增加可选参数 `max_chars=4000`、`redactor=None`，零参构造（composition.py:222 与旧测试）不受影响
+
+**关键输出/修改**:
+- `codeguard/chat/__init__.py`（新建）: 导出 `ChatHistory`、`ChatMessage`、`TaskSummary`
+- `codeguard/chat/history.py`（新建）: `ChatMessage`/`TaskSummary` 为 frozen dataclass；`ChatHistory` 校验 role 仅限 {"user","assistant"}、拒绝空 content（ValueError），`messages`/`summaries` 只读属性返回列表副本（外部修改不影响内部状态），`add_message`/`add_summary` 超限时确定性删除最旧项，`clear_messages()` 仅清空消息、保留任务摘要且不触碰持久化记忆
+- `codeguard/context.py`: `__init__` 增加 `max_chars: int = 4000`、`redactor: SecretRedactor | None = None`（None 时内部创建）；新增 `build_runtime`（7 个命名参数），分节布局为 `## System Constraints` / `## Task` / `## Conversation` / `## Memory` / `## Available Tools` / `## Latest Result` / `## Budget`；所有外部字符串（约束、任务、摘要、记忆内容、工具、最新结果、预算）经注入的 redactor 脱敏；旧 `build()` 方法行为完全不变
+- `tests/test_chat_history.py`（新建）: 7 个测试（计划要求 2 个逐字 + 5 个补充：非法 role 拒绝、空 content 拒绝、最旧摘要淘汰、frozen 行为、只读属性副本）
+- `tests/test_context_runtime.py`（新建）: 3 个测试（计划要求 2 个逐字 + 1 个补充：外部字符串脱敏）
+- `tests/test_context.py`: 未修改（5 个旧测试原样通过）
+- `docs/superpowers/plans/2026-08-13-interactive-cli-agent.md`: Task 2 的 7 个步骤全部勾选 `- [x]`
+
+**验证证据**:
+- RED（Step 1）: `pytest tests/test_chat_history.py -q` → collection ERROR: `ModuleNotFoundError: No module named 'codeguard.chat'`（预期）
+- RED（Step 4）: `pytest tests/test_context_runtime.py -q` → 3 failed（`TypeError: ContextBuilder() takes no arguments`，预期）
+- GREEN（Step 6）: `pytest tests/test_chat_history.py tests/test_context_runtime.py tests/test_context.py -q` → **15 passed**
+- 补充验证: `max_chars=1` 时触发 `ValueError: Cannot fit mandatory runtime context ...`；`max_chars=120` 时截断系统约束后 len==120 且 TASK/ERR 完整保留
+- 全量回归: `pytest -q` → **647 passed, 1 skipped**（基线 637 + 新增 10；skip 为文档化 Windows symlink 平台限制）
+- `git diff --check` → 无空白错误（仅 LF/CRLF 行尾提示，仓库既有行为）
+
+**commit hash**: 待更新（feature commit 后回填）
+
+**branch/worktree**: feature/interactive-cli-agent

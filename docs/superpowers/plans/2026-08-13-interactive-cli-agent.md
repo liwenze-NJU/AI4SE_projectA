@@ -285,7 +285,7 @@ git commit -m "feat: add conversational action and event contracts"
 - Consumes: `MemoryRecord`, `ToolDefinition`, `ToolResult`, `FeedbackResult`, `SecretRedactor`.
 - Produces: `ChatMessage(role: str, content: str)`, `TaskSummary(task_id: str, request: str, outcome: str, summary: str)`, `ChatHistory`, and `ContextBuilder.build_runtime(...) -> str`.
 
-- [ ] **Step 1: Write failing process-local history tests**
+- [x] **Step 1: Write failing process-local history tests**
 
 ```python
 def test_clear_removes_messages_but_keeps_task_summaries():
@@ -313,11 +313,11 @@ Run:
 
 Expected: collection ERROR because the history module does not exist.
 
-- [ ] **Step 2: Implement bounded history**
+- [x] **Step 2: Implement bounded history**
 
 Use frozen dataclasses and list copies from read-only properties. Reject roles outside `{"user", "assistant"}` and empty content. `clear_messages()` must not call the persistent memory store and must not remove task summaries.
 
-- [ ] **Step 3: Write failing runtime-context tests**
+- [x] **Step 3: Write failing runtime-context tests**
 
 ```python
 def test_runtime_context_priority_and_feedback():
@@ -350,7 +350,7 @@ def test_runtime_context_never_truncates_task_or_latest_error():
     assert len(context) <= 240
 ```
 
-- [ ] **Step 4: Run runtime-context tests to verify RED**
+- [x] **Step 4: Run runtime-context tests to verify RED**
 
 Run:
 
@@ -360,7 +360,7 @@ Run:
 
 Expected: FAIL because `ContextBuilder` does not accept these arguments or implement priority truncation.
 
-- [ ] **Step 5: Implement `build_runtime` without breaking legacy `build`**
+- [x] **Step 5: Implement `build_runtime` without breaking legacy `build`**
 
 Add:
 
@@ -379,7 +379,7 @@ def build_runtime(
 
 Build named sections in the specified priority. Redact every external string. When over `max_chars`, drop oldest conversation summaries first, then memory records, then shorten tool descriptions. Reserve space for system constraints, current task, latest result, and budget; if these mandatory fields alone exceed the limit, truncate the system constraints first but retain the complete current task and latest result or raise `ValueError` when that is mathematically impossible.
 
-- [ ] **Step 6: Run GREEN and regressions**
+- [x] **Step 6: Run GREEN and regressions**
 
 ```powershell
 .\.venv\Scripts\python.exe -m pytest tests\test_chat_history.py tests\test_context_runtime.py tests\test_context.py -q
@@ -388,7 +388,7 @@ git diff --check
 
 Expected: all pass; the legacy context tests remain unchanged.
 
-- [ ] **Step 7: Log and commit**
+- [x] **Step 7: Log and commit**
 
 ```powershell
 git add codeguard\chat codeguard\context.py tests\test_chat_history.py tests\test_context_runtime.py tests\test_context.py AGENT_LOG.md docs\superpowers\plans\2026-08-13-interactive-cli-agent.md
