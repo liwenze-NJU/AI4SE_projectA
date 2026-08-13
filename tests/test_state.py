@@ -1,10 +1,10 @@
 from codeguard.state import AgentState
 
 
-def test_agent_state_has_13_values():
-    """SPEC: 13 observable states. FINALIZING is a lifecycle cleanup, not counted."""
+def test_agent_state_has_14_values():
+    """SPEC: 14 observable states. FINALIZING is a lifecycle cleanup, not counted."""
     values = [s.value for s in AgentState]
-    assert len(values) == 13
+    assert len(values) == 14
     assert "initializing" in values
     assert "building_context" in values
     assert "deciding" in values
@@ -18,6 +18,11 @@ def test_agent_state_has_13_values():
     assert "failed" in values
     assert "cancelled" in values
     assert "limit_reached" in values
+    assert "awaiting_user_input" in values
+
+
+def test_agent_state_has_awaiting_user_input():
+    assert AgentState.AWAITING_USER_INPUT.value == "awaiting_user_input"
 
 
 def test_agent_state_terminal():

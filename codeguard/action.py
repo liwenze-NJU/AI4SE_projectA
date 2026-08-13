@@ -7,6 +7,8 @@ from typing import Optional
 
 class ActionKind(Enum):
     TOOL_CALL = "tool_call"
+    ASSISTANT_MESSAGE = "assistant_message"
+    REQUEST_USER_INPUT = "request_user_input"
     COMPLETE_REQUEST = "complete"
 
 
@@ -20,6 +22,8 @@ class Action:
     tool_name: Optional[str] = None
     parameters: Optional[dict] = None
     summary: Optional[str] = None
+    message: Optional[str] = None
+    question: Optional[str] = None
     raw: str = ""
 
     @property
@@ -78,9 +82,12 @@ class ActionParser:
 
         action_type = data["action"]
         if action_type == "complete":
+            summary = data.get("summary")
+            if not isinstance(summary, str) or not summary.strip():
+                raise ValueError("complete requires a non-empty summary")
             return Action(
                 kind=ActionKind.COMPLETE_REQUEST,
-                summary=data.get("summary"),
+                summary=summary,
                 raw=raw,
             )
         elif action_type == "tool_call":
@@ -88,6 +95,24 @@ class ActionParser:
                 kind=ActionKind.TOOL_CALL,
                 tool_name=data.get("tool"),
                 parameters=data.get("parameters"),
+                raw=raw,
+            )
+        elif action_type == "assistant_message":
+            message = data.get("message")
+            if not isinstance(message, str) or not message.strip():
+                raise ValueError("assistant_message requires a non-empty message")
+            return Action(
+                kind=ActionKind.ASSISTANT_MESSAGE,
+                message=message,
+                raw=raw,
+            )
+        elif action_type == "request_user_input":
+            question = data.get("question")
+            if not isinstance(question, str) or not question.strip():
+                raise ValueError("request_user_input requires a non-empty question")
+            return Action(
+                kind=ActionKind.REQUEST_USER_INPUT,
+                question=question,
                 raw=raw,
             )
         else:

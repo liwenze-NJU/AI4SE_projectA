@@ -114,9 +114,37 @@ def test_action_parser_missing_optional_fields():
 
 
 def test_action_parser_complete_without_summary():
-    """COMPLETE_REQUEST without summary defaults to None."""
+    """COMPLETE_REQUEST without summary must be rejected (summary is required)."""
     parser = ActionParser()
     raw = json.dumps({"action": "complete"})
-    action = parser.parse(raw)
-    assert action.kind == ActionKind.COMPLETE_REQUEST
-    assert action.summary is None
+    with pytest.raises(ValueError, match="summary"):
+        parser.parse(raw)
+
+
+def test_action_parser_complete_with_empty_summary():
+    """COMPLETE_REQUEST with an empty summary must be rejected."""
+    parser = ActionParser()
+    raw = json.dumps({"action": "complete", "summary": ""})
+    with pytest.raises(ValueError, match="summary"):
+        parser.parse(raw)
+
+
+def test_parser_accepts_assistant_message():
+    action = ActionParser().parse(
+        '{"action":"assistant_message","message":"I will inspect the tests."}'
+    )
+    assert action.kind is ActionKind.ASSISTANT_MESSAGE
+    assert action.message == "I will inspect the tests."
+
+
+def test_parser_rejects_empty_assistant_message():
+    with pytest.raises(ValueError, match="message"):
+        ActionParser().parse('{"action":"assistant_message","message":""}')
+
+
+def test_parser_accepts_user_input_request():
+    action = ActionParser().parse(
+        '{"action":"request_user_input","question":"Which file should change?"}'
+    )
+    assert action.kind is ActionKind.REQUEST_USER_INPUT
+    assert action.question == "Which file should change?"

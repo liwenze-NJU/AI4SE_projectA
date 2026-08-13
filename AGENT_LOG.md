@@ -2486,3 +2486,37 @@
 **说明**: Task 0 不创建功能 commit；仅记录 ledger（SDD ledger 与 AGENT_LOG 同步更新）。Python 3.12 已由 `py -3.12` 提供（`C:\Users\32197\AppData\Local\Programs\Python\Python312`），无需下载安装，未请求额外许可。
 
 **commit hash**: 无（Task 0 无代码提交）
+
+---
+
+## Task 1: 对话动作与会话事件契约（Conversation Actions and Harness Events）
+
+**log_id**: T1 | **task_id**: Task 1 Conversation Actions and Events | **状态**: COMPLETED
+**时间**: 2026-08-13
+**Superpowers 技能**: `superpowers:test-driven-development`
+**branch/worktree**: feature/interactive-cli-agent / `.worktrees/interactive-cli-agent`
+
+**目标**:
+1. 为交互式 Coding-Agent CLI 定义对话类动作：`ASSISTANT_MESSAGE`、`REQUEST_USER_INPUT`
+2. 定义 Harness 事件契约：`HarnessEventKind`（8 种）、`HarnessEvent`（frozen）、`EventSink`（Protocol）、`NullEventSink`、`CollectingEventSink`
+3. 严格 TDD：RED → GREEN → 回归 → 提交
+
+**关键输出/修改**:
+- `codeguard/action.py`: `ActionKind` 新增 `ASSISTANT_MESSAGE = "assistant_message"`、`REQUEST_USER_INPUT = "request_user_input"`；`Action` 新增 `message`、`question` 字段（`Optional[str] = None`，位于 `summary` 之后）；`ActionParser` 新增两个分支，`complete`/`assistant_message`/`request_user_input` 均要求非空字符串（缺失/空字符串/空白字符串 → `ValueError`，消息分别包含 "summary"/"message"/"question"），未知动作类型仍为错误
+- `codeguard/state.py`: `AgentState` 新增 `AWAITING_USER_INPUT = "awaiting_user_input"`（第 14 个状态）；`SessionState` 新增 `pending_question: Optional[str] = None`
+- `codeguard/events.py`（新建）: `HarnessEventKind` 8 种（state_changed/assistant_message/user_input_requested/tool_started/tool_finished/approval_requested/validation_finished/task_finished）、`HarnessEvent`（frozen dataclass，`payload: dict[str, object]`）、`EventSink`（Protocol）、`NullEventSink`（no-op）、`CollectingEventSink`（`events: list[HarnessEvent]` 确定性测试工具）
+- `tests/test_action.py`: 新增 3 个解析测试（assistant_message 接受/空 message 拒绝/request_user_input 接受）；原 `test_action_parser_complete_without_summary` 更新为要求非空 summary（无 summary 和空 summary 均拒绝），保留 `test_action_parser_complete_request` 有效 summary 断言不变
+- `tests/test_state.py`: `test_agent_state_has_13_values` 更新为 14（新增 "awaiting_user_input" 断言与计数）；新增 `test_agent_state_has_awaiting_user_input`
+- `tests/test_events.py`（新建）: 5 个契约测试（CollectingEventSink 接收 typed event、NullEventSink no-op、frozen 不可变、8 种 kind 顺序与值、EventSink 为 Protocol）
+
+**验证证据**:
+- RED（Step 2）: `pytest tests/test_action.py tests/test_state.py -q` → 6 failed, 15 passed（Unknown action type: assistant_message/request_user_input、complete 无 summary 未拒绝、AgentState 无 AWAITING_USER_INPUT、13 != 14）
+- RED（Step 4）: `pytest tests/test_events.py -q` → collection ERROR: `ModuleNotFoundError: No module named 'codeguard.events'`
+- GREEN: `pytest tests/test_action.py tests/test_state.py tests/test_events.py -q` → 26 passed
+- 回归: `pytest tests/test_loop.py tests/test_llm_mock.py tests/test_llm_deepseek.py -q` → 32 passed
+- `git diff --check` → 无空白错误
+- 全量: `pytest -q` → **637 passed, 1 skipped**（基线 627 + 新增 10；skip 为文档化 Windows symlink 平台限制）
+
+**commit hash**: `658a904`（`feat: add conversational action and event contracts`）
+
+**branch/worktree**: feature/interactive-cli-agent

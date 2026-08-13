@@ -132,7 +132,7 @@ Expected: `.venv` is ignored and the source worktree remains clean. Task 0 creat
 - Consumes: existing `Action`, `ActionKind`, `ActionParser`, `AgentState`.
 - Produces: `ActionKind.ASSISTANT_MESSAGE`, `ActionKind.REQUEST_USER_INPUT`, `AgentState.AWAITING_USER_INPUT`, `HarnessEventKind`, `HarnessEvent`, and `EventSink.emit(event: HarnessEvent) -> None`.
 
-- [ ] **Step 1: Write failing action and state tests**
+- [x] **Step 1: Write failing action and state tests**
 
 Add these focused tests:
 
@@ -162,7 +162,7 @@ def test_agent_state_has_awaiting_user_input():
     assert AgentState.AWAITING_USER_INPUT.value == "awaiting_user_input"
 ```
 
-- [ ] **Step 2: Run the targeted tests to verify RED**
+- [x] **Step 2: Run the targeted tests to verify RED**
 
 Run:
 
@@ -172,7 +172,7 @@ Run:
 
 Expected: FAIL because the enum values and fields do not exist.
 
-- [ ] **Step 3: Add the minimal action and state model**
+- [x] **Step 3: Add the minimal action and state model**
 
 Use these exact fields:
 
@@ -197,7 +197,7 @@ class Action:
 
 Add `AWAITING_USER_INPUT = "awaiting_user_input"` to `AgentState`, plus `pending_question: Optional[str] = None` to `SessionState`. `ActionParser` must require a non-empty string for `message`, `question`, and the existing completion `summary`; unknown actions remain errors.
 
-- [ ] **Step 4: Write failing event-contract tests**
+- [x] **Step 4: Write failing event-contract tests**
 
 ```python
 def test_collecting_sink_receives_typed_event():
@@ -220,7 +220,7 @@ Run:
 
 Expected: collection ERROR because `codeguard.events` does not exist.
 
-- [ ] **Step 5: Implement the event protocol**
+- [x] **Step 5: Implement the event protocol**
 
 Create:
 
@@ -250,7 +250,7 @@ class EventSink(Protocol):
 
 Also implement `NullEventSink` and `CollectingEventSink`; the latter is a deterministic test utility with `events: list[HarnessEvent]`.
 
-- [ ] **Step 6: Run GREEN and regressions**
+- [x] **Step 6: Run GREEN and regressions**
 
 Run:
 
@@ -262,7 +262,7 @@ git diff --check
 
 Expected: all targeted and related tests pass.
 
-- [ ] **Step 7: Log and commit**
+- [x] **Step 7: Log and commit**
 
 ```powershell
 git add codeguard\action.py codeguard\state.py codeguard\events.py tests\test_action.py tests\test_state.py tests\test_events.py AGENT_LOG.md docs\superpowers\plans\2026-08-13-interactive-cli-agent.md

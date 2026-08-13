@@ -11,6 +11,7 @@ class AgentState(Enum):
     INTERMEDIATE_VALIDATION = "intermediate_validation"
     FINAL_VALIDATION = "final_validation"
     FEEDING_BACK = "feeding_back"
+    AWAITING_USER_INPUT = "awaiting_user_input"
     COMPLETED = "completed"
     FAILED = "failed"
     CANCELLED = "cancelled"
@@ -32,6 +33,7 @@ class SessionState:
     pending_action: Optional[NormalizedAction] = None
     guardrail_decision: Optional[GuardrailResult] = None
     approval_request_id: Optional[str] = None
+    pending_question: Optional[str] = None
     steps_used: int = 0
     llm_calls_used: int = 0
     token_used: int = 0
