@@ -2552,6 +2552,6 @@
 - 全量回归: `pytest -q` → **647 passed, 1 skipped**（基线 637 + 新增 10；skip 为文档化 Windows symlink 平台限制）
 - `git diff --check` → 无空白错误（仅 LF/CRLF 行尾提示，仓库既有行为）
 
-**commit hash**: 待更新（feature commit 后回填）
+**commit hash**: `5b022fd`（`feat: add bounded chat history and runtime context`）
 
 **branch/worktree**: feature/interactive-cli-agent
