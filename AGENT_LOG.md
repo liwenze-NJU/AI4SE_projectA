@@ -2517,6 +2517,6 @@
 - `git diff --check` → 无空白错误
 - 全量: `pytest -q` → **637 passed, 1 skipped**（基线 627 + 新增 10；skip 为文档化 Windows symlink 平台限制）
 
-**commit hash**: `658a904`（`feat: add conversational action and event contracts`）
+**commit hash**: `f6134ac`（`feat: add conversational action and event contracts`）
 
 **branch/worktree**: feature/interactive-cli-agent
