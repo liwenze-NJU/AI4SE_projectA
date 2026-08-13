@@ -2555,3 +2555,31 @@
 **commit hash**: `5b022fd`（`feat: add bounded chat history and runtime context`）
 
 **branch/worktree**: feature/interactive-cli-agent
+
+---
+
+## T2 修复: 运行时上下文构造器工具截断死循环（Critical 修复条目）
+
+**log_id**: T2-FIX | **状态**: COMPLETED
+**时间**: 2026-08-13
+**Superpowers 技能**: `superpowers:test-driven-development`（严格 TDD: RED → GREEN → 回归 → 提交）
+**branch/worktree**: feature/interactive-cli-agent / `.worktrees/interactive-cli-agent`
+
+**Critical 发现（spec review）**: `codeguard/context.py` 的 `ContextBuilder.build_runtime` 存在无限循环：当强制字段（系统约束 + 任务 + 最新结果 + 预算，含分节标题）本身超过 `max_chars` 且至少存在一个工具描述时，工具减半循环永不终止。根因：`tools[0] = tools[0][: len(tools[0]) // 2]` 在工具减半为空串 `""` 后仍继续循环（`tools` 非空，`_assemble` 对空工具仍计入 `## Available Tools\n- ` 前缀 23 字符），`len("") // 2 == 0` 使上下文永远无法缩至限制以内，第 96 行 `ValueError` 不可达。复现: `max_chars=60` + 单条 100 字符工具描述 → 永久挂起（`timeout 8` 退出码 124）。
+
+**根因**: 减半循环缺少终止条件——工具缩短至空后应整体删除该工具条目（与"缩短工具描述"语义一致），而非保留空子弹头继续空转；随后流程必须能进入强制字段截断分支（先截断系统约束，数学上不可能时抛 `ValueError`）。
+
+**修复**: `codeguard/context.py` 第三循环改为: 当 `len(tools[0]) > 1` 时继续减半（保证每次迭代严格缩短，最多 log2(n) 次），否则 `del tools[0]` 删除该工具条目（`_assemble` 相应整节消失，无悬挂 `## Available Tools` 标题）。循环出口后原有强制字段截断分支（87-100 行）正常兜底。丢弃顺序（最旧摘要 → 记忆记录 → 工具）、强制字段永不丢弃、先截断系统约束、任务与最新结果完整保留、`len(context) <= max_chars` 与数学上不可能时抛 `ValueError` 的既有行为均不变。
+
+**新增测试**（`tests/test_context_runtime.py`）:
+- `test_runtime_context_raises_when_mandatory_exceeds_limit_with_tools`（规范逐字）: `max_chars=60` + 工具 `"x"*100` → 断言 `ValueError: Cannot fit mandatory runtime context ...`，回归死循环
+- `test_runtime_context_drops_tool_section_when_description_halved_to_empty`: 工具减半至空后被整体删除，`max_chars=70` 时输出不含悬挂的 `## Available Tools` 标题，且 `len(context) <= 70`
+
+**验证证据**:
+- RED: `timeout 8 python -c "<复现片段>"` → 退出码 124（挂起）；`pytest tests/test_context_runtime.py::test_runtime_context_raises_when_mandatory_exceeds_limit_with_tools -q`（`timeout 12`）→ 退出码 124（挂起，RED 证据）
+- GREEN: 复现片段 → 立即抛 `ValueError`，退出码 0；`pytest tests/test_chat_history.py tests/test_context_runtime.py tests/test_context.py -q` → **17 passed**（原 15 + 新 2）
+- 回归: `pytest -q -rs` → **649 passed, 1 skipped**（基线 647 + 新 2；skip 为文档化 Windows symlink 平台限制）
+- `git diff --check` → 无空白错误（仅 LF/CRLF 行尾提示，仓库既有行为）
+- `docs/superpowers/plans/2026-08-13-interactive-cli-agent.md` 未改动（Task 2 勾选状态不变，diff 保持最小）
+
+**commit hash**: 提交后更新

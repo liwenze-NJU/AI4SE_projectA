@@ -76,7 +76,10 @@ class ContextBuilder:
         while self._is_over(red(system_constraints), red(task_request),
                             summaries, records, tools,
                             red(latest_result), red(budget_summary)) and tools:
-            tools[0] = tools[0][: len(tools[0]) // 2]
+            if len(tools[0]) > 1:
+                tools[0] = tools[0][: len(tools[0]) // 2]
+            else:
+                del tools[0]
 
         context = self._assemble(red(system_constraints), red(task_request),
                                  summaries, records, tools,

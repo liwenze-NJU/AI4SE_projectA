@@ -1,5 +1,7 @@
 """Bounded runtime context tests (interactive CLI plan, Task 2)."""
 
+import pytest
+
 from codeguard.context import ContextBuilder
 from codeguard.secret import SecretRedactor
 
@@ -49,3 +51,36 @@ def test_runtime_context_redacts_external_strings():
     assert "sk-other" not in context
     assert "t0ken" not in context
     assert "pw" not in context
+
+
+def test_runtime_context_raises_when_mandatory_exceeds_limit_with_tools():
+    """Tool truncation must terminate even when mandatory fields alone
+    exceed max_chars (regression: previously infinite loop)."""
+    builder = ContextBuilder(max_chars=60, redactor=SecretRedactor())
+    with pytest.raises(ValueError, match="Cannot fit mandatory runtime context"):
+        builder.build_runtime(
+            system_constraints="S",
+            task_request="T",
+            conversation_summaries=[],
+            memory_records=[],
+            tool_descriptions=["x" * 100],
+            latest_result="L",
+            budget_summary="B",
+        )
+
+
+def test_runtime_context_drops_tool_section_when_description_halved_to_empty():
+    """A tool description halved to empty is removed entirely; the
+    assembly must not leave a dangling '## Available Tools' header."""
+    builder = ContextBuilder(max_chars=70, redactor=SecretRedactor())
+    context = builder.build_runtime(
+        system_constraints="S",
+        task_request="T",
+        conversation_summaries=[],
+        memory_records=[],
+        tool_descriptions=["x" * 100],
+        latest_result="L",
+        budget_summary="B",
+    )
+    assert "## Available Tools" not in context
+    assert len(context) <= 70
