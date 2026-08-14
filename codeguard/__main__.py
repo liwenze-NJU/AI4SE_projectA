@@ -21,7 +21,11 @@ def main(args: list[str] | None = None) -> None:
     sub = parser.add_subparsers(dest="command")
 
     # chat
-    chat_parser = sub.add_parser("chat", help="Run one agent harness session")
+    chat_parser = sub.add_parser(
+        "chat",
+        help="Start an interactive governed coding-agent session",
+        description="Start an interactive governed coding-agent session",
+    )
     chat_parser.add_argument("--mode", default="local",
                              choices=["test", "local", "demo"],
                              help="Operating mode (default: local)")

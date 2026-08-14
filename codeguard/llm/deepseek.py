@@ -1,7 +1,34 @@
 import json
 from decimal import Decimal
 import httpx
-from codeguard.action import Action, ActionKind, LLMResponse
+from codeguard.action import Action, ActionKind, ActionParser, LLMResponse
+from codeguard.secret import SecretRedactor
+
+# ---------------------------------------------------------------------------
+# Strict action protocol (system prompt)
+# ---------------------------------------------------------------------------
+# Exactly four action kinds are permitted. The provider MUST reply with one
+# single JSON object and nothing else; prose outside the JSON is forbidden.
+# Every response is re-parsed by ActionParser and `complete` still undergoes
+# the final validation loop, so it must carry a real summary.
+
+ACTION_PROTOCOL_PROMPT = (
+    "You are CodeGuard, a governed coding agent. You must respond with "
+    "EXACTLY ONE JSON object and nothing else — no prose outside the JSON, "
+    "no markdown fences, no commentary before or after it. The JSON object "
+    'must have an "action" field with exactly one of these four values:\n'
+    '1. "tool_call" — invoke a registered tool. Required fields: '
+    '"tool" (string, the tool name) and "parameters" (object).\n'
+    '2. "assistant_message" — reply to the user. Required field: '
+    '"message" (non-empty string).\n'
+    '3. "request_user_input" — ask the user a question. Required field: '
+    '"question" (non-empty string).\n'
+    '4. "complete" — declare the task done. Required field: "summary" '
+    "(non-empty string describing the outcome). A complete response still "
+    "undergoes final validation; if validation fails the task continues, "
+    "so do not declare completion prematurely.\n"
+    "Respond with one of these four JSON objects only."
+)
 
 
 class DeepSeekAdapter:
@@ -13,12 +40,15 @@ class DeepSeekAdapter:
     def __init__(self, api_key: str, model: str = "deepseek-v4-flash",
                  base_url: str = "https://api.deepseek.com/v1",
                  timeout: int = 60,
-                 http_client: httpx.Client | None = None):
+                 http_client: httpx.Client | None = None,
+                 secret_redactor: SecretRedactor | None = None):
         self._api_key = api_key
         self._model = model
         self._base_url = base_url.rstrip("/")
         self._timeout = timeout
         self._client = http_client or httpx.Client(timeout=timeout)
+        self._redactor = secret_redactor if secret_redactor is not None \
+            else SecretRedactor()
 
     def __repr__(self) -> str:
         return f"DeepSeekAdapter(model={self._model!r}, base_url={self._base_url!r})"
@@ -33,7 +63,10 @@ class DeepSeekAdapter:
                 },
                 json={
                     "model": self._model,
-                    "messages": [{"role": "user", "content": context}],
+                    "messages": [
+                        {"role": "system", "content": ACTION_PROTOCOL_PROMPT},
+                        {"role": "user", "content": context},
+                    ],
                     "max_tokens": 4096,
                 },
             )
@@ -81,24 +114,15 @@ class DeepSeekAdapter:
         )
 
     def _parse_action(self, content: str) -> Action:
+        if not isinstance(content, str) or not content.strip():
+            raise ValueError("Empty message from DeepSeek API (no action JSON)")
         try:
-            action_data = json.loads(content) if content else {}
-        except json.JSONDecodeError:
-            action_data = {"action": "complete", "summary": content[:100]}
-
-        action_type = action_data.get("action", "complete")
-        if action_type == "tool_call":
-            return Action(
-                kind=ActionKind.TOOL_CALL,
-                tool_name=action_data.get("tool", ""),
-                parameters=action_data.get("parameters", {}),
-                raw=content,
-            )
-        return Action(
-            kind=ActionKind.COMPLETE_REQUEST,
-            summary=action_data.get("summary", ""),
-            raw=content,
-        )
+            return ActionParser().parse(content)
+        except ValueError as e:
+            # Never echo raw provider text into the error: it may carry
+            # secrets. Redact before wrapping.
+            detail = self._redactor.redact(str(e))
+            raise ValueError(f"Invalid action response from DeepSeek: {detail}") from e
 
     def _estimate_cost(self, token_used: int) -> Decimal:
         return Decimal(token_used * 2) / Decimal("1000000")
