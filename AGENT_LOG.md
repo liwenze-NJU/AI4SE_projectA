@@ -3065,5 +3065,5 @@
 - 凭据扫描: 无真实凭据（上轮结果不变）
 - 未创建 tag/Release；未合并 main（main 仍 30581f0）
 
-**commit hash**: `T8-FIX3-COMMIT`（提交后回填）
+**commit hash**: `382f474`（`fix: dedupe assistant replies before emit and emit terminal events on every end`）
 
