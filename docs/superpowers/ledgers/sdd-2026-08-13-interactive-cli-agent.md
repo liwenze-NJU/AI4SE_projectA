@@ -132,6 +132,17 @@
 - **Deferred Minor items (recorded for final review):** (a) SPEC.md:1074 威胁模型表中同样的 `CommandWhitelistRule` 旧表述未改（超出授权文件范围）; (b) B2 原文引用行号漂移（实际在 README:135/SECURITY 取消语义 bullet）; (c) README 中课程版基线 626 行已标注; (d) `__init__.py`/`__main__.py` 无尾换行（pre-existing style）; (e) tag/Release 需用户授权，本次未创建。
 - **Evidence（AGENT_LOG T8 条目）:** 全量 751 passed + 1 skipped ×3（31.56s/31.87s/31.21s 独立复现）; smoke `--help`/demo a/b/c exit 0; 凭据扫描 0 真实命中; PyInstaller exit 0（dist 17,466,702 bytes，gitignored）; exe smoke `--help`/`demo a`/`--version 0.2.0-interactive`/`web --port 8765` /health HTTP 200 `{"status":"ok","mode":"demo","mock":true}`（树杀进程）; `--version` → `0.2.0-interactive`; main 仍 30581f0; 双远端 == HEAD `ae8d8e7`。
 
+### T8-FIX2: 人工验收发布阻断修复（4 项, systematic-debugging + TDD）
+
+- **Status:** COMPLETED (2026-08-14)
+- **Implementer commit(s):** `132e0ed`（fix）, `6c02aee`（docs 回填）; 双远端 == HEAD
+- **P1 (Critical) 重复 assistant_message 无限循环 → fixed:** 根因=对话动作不进 governance → 无 fingerprint → StopPolicy no-progress 永远看不到。修复双层：(a) 协议提示新增对话规则（assistant_message 后无工具需求必须 complete、禁止重复相同消息）; (b) 运行时防御——对话动作指纹写入 `action_fingerprint_history`（3 连击触发 StopPolicy）+ `_MAX_CONSECUTIVE_CONVERSATION_ACTIONS=5` 兜底（任意连续对话动作超界 → LIMIT_REACHED，工具调用/complete 重置计数）。6 个新测试：相同消息 ≤5 次调用即止、指纹入历史、assistant→tool→complete 正常、文本任务正常完成、2 条不同消息正常、7 条不同消息也在界内终止。
+- **P2 (Important/Critical) 跨任务上下文丢失 → fixed:** 根因=成功任务 TaskSummary.summary 恒为空串。修复：loop 发射 TASK_FINISHED 携带真实有界摘要（transcript 尾消息+outcome）；session 捕获 sink.task_summary 并用于 TaskSummary；`_summaries_for` 每行含 request。E2E 断言：任务 2 的 LLM 上下文（contexts[2]）实际含 "BLUE-731" 与 "记住"；任务 1 summary 非空含 "已记住"。
+- **P3 (Critical) frozen EXE 传感器命令失效 → fixed（含实证推翻初始假设）:** 探针 exe 实证：PyInstaller onefile 下 `sys._base_executable == sys.executable == exe 自身`（原 `_base_executable` 方案前提错误）。新 resolver：`CODEGUARD_PYTHON` env 覆盖 → 非 frozen 用当前解释器（venv 3.12 带 pytest）→ frozen 用 PATH 外部 python → fail-closed 回退（传感器可见 FAILED，绝不用 exe 冒充解释器）。4 个 resolver 单测 + 2 个传感器装配测试。EXE 实测（重建 17,469,461 bytes）：无 override 时 PASSED 项目显示 `[validation] pytest: FAILED`（本机 PATH python=3.9 无 pytest，诚实失败）；`CODEGUARD_PYTHON=<venv python>` 时含通过测试项目 `[validation] pytest: PASSED`、含失败测试项目 `[validation] pytest: FAILED`（证明传感器真实运行）。管道 stdin 实测可驱动 REPL（echo 管道 + EOF 退出码 0）。
+- **P4 README 新旧冲突 → fixed:** 主叙事改为交互式 REPL（line 7/85/193/219/222/424 一次性表述全部修正）；新增「管道输入（非 TTY 场景）」实测小节；line 154 引用可解析；CODEGUARD_PYTHON 指引写入。
+- **Deferred Minor (recorded):** (a) 本机 PATH python=3.9 无 pytest → frozen EXE 需操作者设 `CODEGUARD_PYTHON` 才能 PASSED（已写入 README）; (b) 管道下审批/澄清交互行为未逐项验证（README 已声明）; (c) SPEC.md:1074 `CommandWhitelistRule` 旧表述仍未改（超出授权范围）。
+- **Evidence:** P3 RED 3 failed/2 passed → GREEN 34 passed; 4 文件组 107 passed; 全量 **764 passed, 1 skipped** (35.49s); 凭据扫描 0 真实命中; `git diff --check` clean; **未经人工复验未创建 tag/Release; 未合并 main（main 仍 30581f0）。**
+
 ## Final Acceptance (deferred to Task 8)
 
 - [x] `main` remains at course version v0.1.1 and contains none of the enhanced commits.
