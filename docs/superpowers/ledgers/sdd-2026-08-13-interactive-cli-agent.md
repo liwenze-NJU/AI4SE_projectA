@@ -85,11 +85,12 @@
 
 ### Task 4: Feed Tasks, Tool Results, and Validation Back into AgentLoop
 
-- **Status:** COMPLETED (2026-08-14, implementer 中断于 TDD RED 阶段后恢复补齐实现)
-- **Implementer commit(s):** `d37005c`（`feat: feed runtime results through the governed agent loop`）
-- **Spec review:** PENDING
-- **Quality review:** PENDING
-- **Fix rounds:** 0
+- **Status:** COMPLETED (2026-08-14, implementer 中断于 TDD RED 阶段后恢复补齐实现; 1 Important fix round)
+- **Implementer commit(s):** `d37005c`（feat）, `2b4eb30`（docs 回填）, `f296291`（review fix）, `73e5eda`（T4-FIX docs 回填）
+- **Spec review:** ✅ 1st round compliant（8 项全部满足，证据与实现一致；全量 698 passed, 1 skipped 复现）
+- **Quality review:** ⚠️ 1st round APPROVED_WITH_MINOR + 1 Important：F1 approval-resume 路径不区分工具失败（无 failure 标记且被传感器反馈覆盖）→ Fix round: `f296291`（抽取 `_dispatch_tool` 共享两路径；`_run_sensors` 追加而非覆盖工具结果；RED 1 failed → GREEN 29 → 回归 61 → 全量 699 passed, 1 skipped）
+- **Fix rounds:** 1 (Important → fixed → 修复已在同轮验证；T4-FIX AGENT_LOG 条目)
+- **Deferred Minor items (recorded for final review):** (a) F2: ASSISTANT_MESSAGE/USER_INPUT_REQUESTED 事件 payload 未截断（上下文本身有界，仅影响 sink 渲染）; (b) F3: approval REJECTED/TIMEOUT 转 CANCELLED 未发射 TASK_FINISHED（与 cancel() 不一致，pre-existing 路径）; (c) F4: demo-mode loop 因 dispatcher/sensor_runner 为 None 导致 `start_task` 恒 FAILED（fail-closed 符合 brief，待 Task 5/8 决策）; (d) F5: `_validate_production_wiring` 若 redactor 本身缺失则诊断不脱敏（组件名非机密，影响极低）; (e) F6: cancelled 后 `resume_with_user_input` 抛 ValueError 而非返回 CANCELLED 结果（尚无 CLI 调用方）; (f) brief item 4 "parser error" 反馈未接线——loop 内无解析路径（解析错误在 adapter 层，属 Task 6 范畴）。
 - **Resume note:** implementer 子代理在切换模型时被中断，现场保留了 RED 测试（9 个新测试，`start_task` 缺失）与 3 个未提交文件（mock.py received_contexts、composition.py project_id 注入、2 个测试文件）。恢复后未重制 RED，直接补齐 loop.py 实现 → GREEN 27 passed → 回归 60 passed → 全量 698 passed, 1 skipped。
 
 ### Task 5: Implement ChatSession and CLI Event Rendering
