@@ -2833,3 +2833,21 @@
 - `git diff --check` → 无空白错误
 
 **commit hash**: `6167ea1`（`fix: redact hyphenated sk-keys and stop leaking parser cause`）
+
+---
+
+## Task 7: 确定性端到端交互式编码测试（Deterministic End-to-End Interactive Coding Test）
+
+**log_id**: T7 | **task_id**: Task 7 Deterministic End-to-End Interactive Coding Test | **状态**: STARTED
+**时间**: 2026-08-14
+**Superpowers 技能**: `superpowers:subagent-driven-development` + `superpowers:test-driven-development`
+**branch/worktree**: feature/interactive-cli-agent / `.worktrees/interactive-cli-agent`
+
+**目标**:
+1. 创建 `tests/test_interactive_cli_e2e.py`：ScriptedMockLLM 驱动完整 ChatSession + CompositionRoot(mode="test")，在一个 CLI 进程中安全修改并验证临时项目（两轮 REPL 任务）
+2. 负例：空批准拒绝、工作区逃逸 BLOCK、REQUEST_USER_INPUT 恢复、/cancel 与 Ctrl+C 阻止后续工具、重复非法 JSON → LIMIT_REACHED、最终传感器失败阻止 COMPLETED、/clear 不清结构化记忆、demo 组合无法修改临时项目
+3. 只做测试要求的集成修复；不添加 E2E 专用 flag；不绕过 Guardrail
+4. 风险分级：Task 7 HIGHEST（全量测试 + 安全组；opus reviewer）
+
+**验证命令**: 目标 `pytest tests/test_interactive_cli_e2e.py -q`；安全组 `pytest tests/test_guardrail_engine.py tests/test_guardrail_rules.py tests/test_approval_manager.py tests/test_web_mock_security.py -q`；全量 `pytest -q -rs`
+
