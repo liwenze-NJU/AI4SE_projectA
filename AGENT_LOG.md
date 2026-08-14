@@ -2684,3 +2684,22 @@
 
 **commit hash**: `f296291`（`fix: feed approval-resume tool failures back as failures`）
 
+
+---
+
+## Task 5: 实现 ChatSession 与 CLI 事件渲染（Implement ChatSession and CLI Event Rendering）
+
+**log_id**: T5 | **task_id**: Task 5 Implement ChatSession and CLI Event Rendering | **状态**: STARTED
+**时间**: 2026-08-14
+**Superpowers 技能**: `superpowers:subagent-driven-development` + `superpowers:test-driven-development`
+**branch/worktree**: feature/interactive-cli-agent / `.worktrees/interactive-cli-agent`
+
+**目标**:
+1. `ChatSession.run() -> int`、`CLIEventSink`、可注入 `InputReader`/`OutputWriter` callables
+2. 命令：/help /status /clear /exit /cancel；REPL 输入启动一个任务并等待终态或批准/澄清暂停
+3. 稳定前缀渲染（CodeGuard > / [tool] / [guardrail] / [approval] / [validation] / [task]）；批准提示 [y/N]；Ctrl+C 取消
+4. `chat_command(args)` 解析 --mode 并构造 `CompositionRoot(mode, workspace_root=Path.cwd())` + ChatSession
+5. 风险分级：Task 5 MEDIUM（目标测试 + CLI 回归，不跑全量；reviewer 用 sonnet/haiku）
+
+**验证命令**: 目标 `pytest tests/test_chat_session.py tests/test_cli.py tests/test_events.py tests/test_chat_history.py -q`
+
