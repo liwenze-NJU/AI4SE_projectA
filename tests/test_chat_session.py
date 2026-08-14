@@ -289,7 +289,9 @@ def test_start_task_receives_history_summaries(fake_io, history):
     assert kind == "start_task"
     assert task_id  # generated UUID, non-empty
     assert request == "new task"
-    assert summaries == ["old summary"]
+    # T8-FIX2 P2: each summary line carries the request so user content
+    # always flows into the next task's LLM context.
+    assert summaries == ["[old request] (completed): old summary"]
 
 
 # ---------------------------------------------------------------------------

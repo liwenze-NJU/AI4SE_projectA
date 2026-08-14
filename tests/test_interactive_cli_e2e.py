@@ -441,3 +441,44 @@ def test_demo_composition_cannot_modify_the_project(tmp_path):
     summary = history.summaries[-1].summary
     assert "tool_dispatcher" in summary
     assert "sensor_runner" in summary
+
+
+# ---------------------------------------------------------------------------
+# T8-FIX2 P2 — cross-task context (BLUE-731)
+# ---------------------------------------------------------------------------
+
+def test_previous_task_request_and_summary_reach_next_task_context(tmp_path):
+    """Task 1's request content (BLUE-731) must flow into task 2's first LLM
+    context via conversation_summaries, and task 1's TaskSummary must carry a
+    non-empty summary (no empty-string summaries on success)."""
+    responses = [
+        # task 1: text-reply flow, no tool calls
+        _resp(Action(ActionKind.ASSISTANT_MESSAGE, message="已记住", raw="")),
+        _resp(Action(ActionKind.COMPLETE_REQUEST, summary="done", raw="")),
+        # task 2: harmless inspection, completes immediately
+        _resp(Action(ActionKind.TOOL_CALL, tool_name="read_file",
+                     parameters={"path": "value.py"}, raw="")),
+        _resp(Action(ActionKind.COMPLETE_REQUEST, summary="inspected", raw="")),
+    ]
+    history = ChatHistory(max_messages=50, max_summaries=10)
+    _root, loops, io, session = _make_session(tmp_path, responses, history=history)
+    io.queue("记住 BLUE-731 的修复方案", "inspect the project", "/exit")
+    assert session.run() == 0
+
+    loop = loops[0]
+    contexts = loop.llm.received_contexts
+
+    # Task 1 consumed decisions 1-2 (assistant_message + complete).
+    # Task 2's first decision is index 2 and must carry task 1's request.
+    assert len(contexts) == 4
+    assert "BLUE-731" in contexts[2]
+    assert "记住" in contexts[2]
+
+    # Task 1's summary is non-empty and carries the loop-emitted content:
+    # the last assistant message plus the outcome (never an empty string).
+    assert len(history.summaries) == 2
+    summary1 = history.summaries[0]
+    assert summary1.request == "记住 BLUE-731 的修复方案"
+    assert summary1.outcome == "completed"
+    assert summary1.summary != ""
+    assert "已记住" in summary1.summary

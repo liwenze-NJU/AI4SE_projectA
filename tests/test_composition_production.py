@@ -229,14 +229,18 @@ class TestComposedSensors:
             assert r.status in ("PASSED", "FAILED", "TIMEOUT", "UNAVAILABLE")
 
     def test_sensor_command_is_not_duplicated_interpreter(self, tmp_path, monkeypatch):
-        """Regression: sensor args must not repeat sys.executable (program is
-        prepended by SensorRunner), otherwise every validation tool fails."""
+        """Regression: sensor args must not repeat the interpreter (program
+        is prepended by SensorRunner), otherwise every validation tool
+        fails.  The program comes from the resolver (T8-FIX2 P3)."""
+        import codeguard.composition as comp
+        monkeypatch.setattr(comp, "_python_executable",
+                            lambda: "C:/resolved/python.exe")
         monkeypatch.setattr(KeyringCredentialStore, "get", lambda self, provider: "sk-test")
         loop = CompositionRoot(mode="local", workspace_root=tmp_path).create_loop("s1")
         for r in loop.sensor_runner._runners:
             if r.definition.name == "pytest":
-                assert r.definition.program == sys.executable
-                assert r.definition.args[0] != sys.executable, (
+                assert r.definition.program == "C:/resolved/python.exe"
+                assert "C:/resolved/python.exe" not in r.definition.args, (
                     f"args must not duplicate interpreter: {r.definition.args}"
                 )
                 assert r.definition.args[:2] == ["-m", "pytest"], r.definition.args
@@ -250,6 +254,98 @@ class TestComposedSensors:
         results = loop.sensor_runner.run_all()
         pytest_result = next(r for r in results if r.sensor_id == "pytest")
         assert pytest_result.status == "PASSED", pytest_result.raw_output_truncated
+
+
+# ---------------------------------------------------------------------------
+# T8-FIX2 P3 — frozen-interpreter resolver (env → external python → fallback)
+# ---------------------------------------------------------------------------
+
+class TestPythonExecutableResolver:
+    """T8-FIX2 P3: under a PyInstaller onefile build sys.executable IS the
+    frozen exe (empirically verified: sys._base_executable equals the exe
+    too), so an external interpreter is required for ``python -m pytest``
+    sensors.  Priority: CODEGUARD_PYTHON env override → current interpreter
+    when not frozen (dev venv) → external ``python`` on PATH (frozen) →
+    sys.executable fallback (fail-closed when frozen)."""
+
+    def test_env_override_wins(self, monkeypatch):
+        """CODEGUARD_PYTHON is an explicit operator choice and must win."""
+        import codeguard.composition as comp
+        monkeypatch.setenv("CODEGUARD_PYTHON", "C:/custom/python.exe")
+        monkeypatch.setattr(comp.shutil, "which",
+                            lambda name: "C:/path/python.exe")
+        monkeypatch.setattr(comp.sys, "executable", "C:/frozen/codeguard.exe",
+                            raising=False)
+        assert comp._python_executable() == "C:/custom/python.exe"
+
+    def test_non_frozen_uses_current_interpreter(self, monkeypatch):
+        """Development runs: the current interpreter (venv) is a real,
+        pytest-capable Python and must win over any PATH python."""
+        import codeguard.composition as comp
+        monkeypatch.delenv("CODEGUARD_PYTHON", raising=False)
+        monkeypatch.setattr(comp.sys, "frozen", False, raising=False)
+        monkeypatch.setattr(comp.shutil, "which",
+                            lambda name: "C:/python/python.exe")
+        monkeypatch.setattr(comp.sys, "executable", "C:/venv/python.exe",
+                            raising=False)
+        assert comp._python_executable() == "C:/venv/python.exe"
+
+    def test_frozen_prefers_external_python(self, monkeypatch):
+        """Frozen onefile: sys.executable IS codeguard.exe, so an external
+        python on PATH must win over the frozen exe."""
+        import codeguard.composition as comp
+        monkeypatch.delenv("CODEGUARD_PYTHON", raising=False)
+        monkeypatch.setattr(comp.sys, "frozen", True, raising=False)
+        monkeypatch.setattr(comp.shutil, "which",
+                            lambda name: "C:/python/python.exe")
+        monkeypatch.setattr(comp.sys, "executable", "C:/frozen/codeguard.exe",
+                            raising=False)
+        assert comp._python_executable() == "C:/python/python.exe"
+
+    def test_frozen_falls_back_to_executable_fail_closed(self, monkeypatch):
+        """Frozen with no external python and no override: fail closed with
+        sys.executable so the sensor reports the failure (UNAVAILABLE/FAILED
+        → final validation cannot pass) instead of pretending to pass."""
+        import codeguard.composition as comp
+        monkeypatch.delenv("CODEGUARD_PYTHON", raising=False)
+        monkeypatch.setattr(comp.sys, "frozen", True, raising=False)
+        monkeypatch.setattr(comp.shutil, "which", lambda name: None)
+        monkeypatch.setattr(comp.sys, "executable", "C:/frozen/codeguard.exe",
+                            raising=False)
+        assert comp._python_executable() == "C:/frozen/codeguard.exe"
+
+    def test_wired_local_loop_pytest_sensor_uses_resolver_program(
+            self, tmp_path, monkeypatch):
+        """The wired local-mode loop's pytest sensor must use the resolver
+        value as program, keeping structured program+args and
+        configuration-owned args."""
+
+        def fake_resolver():
+            return "C:/resolved/python.exe"
+
+        import codeguard.composition as comp
+        monkeypatch.setattr(comp, "_python_executable", fake_resolver)
+        monkeypatch.setattr(KeyringCredentialStore, "get", lambda self, provider: "sk-test")
+        loop = CompositionRoot(mode="local", workspace_root=tmp_path).create_loop("s1")
+        pytest_runner = next(
+            r for r in loop.sensor_runner._runners if r.definition.name == "pytest"
+        )
+        assert pytest_runner.definition.program == "C:/resolved/python.exe"
+        assert pytest_runner.definition.args[:2] == ["-m", "pytest"]
+
+    def test_validation_tool_definition_uses_resolver_program(self, monkeypatch):
+        """The run_tests tool handler's sensor definition must use the
+        resolver value as program (frozen exe must not run pytest as
+        `codeguard.exe -m pytest`)."""
+        import codeguard.composition as comp
+
+        def fake_resolver():
+            return "C:/resolved/python.exe"
+
+        monkeypatch.setattr(comp, "_python_executable", fake_resolver)
+        td = comp._make_validation_tool_definition("run_tests", "pytest")
+        handler_definition = td.handler.__closure__[0].cell_contents
+        assert handler_definition.program == "C:/resolved/python.exe"
 
 
 # ---------------------------------------------------------------------------

@@ -44,6 +44,7 @@ class CLIEventSink:
     def __init__(self, write: OutputWriter) -> None:
         self._write = write
         self.assistant_messages: list[str] = []
+        self.task_summary: str | None = None
 
     def emit(self, event: HarnessEvent) -> None:
         kind = event.kind
@@ -89,6 +90,10 @@ class CLIEventSink:
         elif kind == HarnessEventKind.TASK_FINISHED:
             outcome = self._bounded(payload.get("outcome"))
             summary = self._bounded(payload.get("summary"))
+            if summary:
+                # Captured for the completed-task summary (T8-FIX2 P2):
+                # cross-task context must carry real content from task 1.
+                self.task_summary = summary
             line = "[task]"
             if outcome:
                 line += f" {str(outcome).upper()}"
@@ -241,7 +246,15 @@ class ChatSession:
         return self._history or ChatHistory(max_messages=50, max_summaries=10)
 
     def _summaries_for(self, history: ChatHistory) -> list[str]:
-        return [s.summary for s in history.summaries]
+        """Render task summaries for the next task's LLM context.
+
+        Each line includes the REQUEST so user content always flows into
+        the next task's context (T8-FIX2 P2): never just the summary text.
+        """
+        return [
+            f"[{s.request}] ({s.outcome}): {s.summary}"
+            for s in history.summaries
+        ]
 
     def _end_task(self) -> None:
         self._task_active = False
@@ -270,6 +283,7 @@ class ChatSession:
         self._current_task_id = str(uuid.uuid4())
         self._current_request = line
         sink = CLIEventSink(self._write)
+        self._sink_task_summary = None
         if hasattr(loop, "event_sink"):
             loop.event_sink = sink
 
@@ -317,13 +331,14 @@ class ChatSession:
                 continue
 
             # Terminal state: record assistant text and the final summary.
+            self._sink_task_summary = sink.task_summary
             for message in sink.assistant_messages:
                 history.add_message("assistant", message)
             history.add_summary(TaskSummary(
                 task_id=self._current_task_id or "",
                 request=line,
                 outcome=state.value,
-                summary=str(result.error or ""),
+                summary=self._task_summary_text(state, result),
             ))
             if state == AgentState.FAILED and loop.state.guardrail_decision:
                 decision = loop.state.guardrail_decision
@@ -333,6 +348,23 @@ class ChatSession:
             break
 
         self._end_task()
+
+    def _task_summary_text(self, state: AgentState, result: SessionResult) -> str:
+        """Build a meaningful TaskSummary text, never empty on completion.
+
+        The TASK_FINISHED summary emitted by the loop (a bounded transcript
+        excerpt) is preferred; a redacted error for failures, or a fixed
+        fallback per outcome, otherwise (T8-FIX2 P2).
+        """
+        if result.error:
+            return str(result.error)
+        if self._sink_task_summary:
+            return self._sink_task_summary
+        if state == AgentState.COMPLETED:
+            return "completed"
+        if state == AgentState.CANCELLED:
+            return "cancelled by user"
+        return state.value
 
     # ------------------------------------------------------------------
     # Pauses

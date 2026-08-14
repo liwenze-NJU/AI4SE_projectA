@@ -4,7 +4,7 @@ CodeGuard Harness 是课程项目 A「Coding Agent Harness」的实现。项目�
 
 本仓库同时提供两种本地入口：
 
-- Windows CLI / EXE：运行离线演示、一次性 Harness 会话、API Key 管理和 WebUI。
+- Windows CLI / EXE：交互式 Coding Agent 会话（`chat` REPL）、离线演示、API Key 管理和 WebUI。
 - 本地 WebUI：以确定性的 Mock 数据逐步展示 BLOCK、人工审批和测试失败修复闭环。
 
 > 面向老师和助教：如果只想快速验收，请直接阅读下一节「5 分钟验收指南」。
@@ -82,8 +82,8 @@ codeguard.exe web
 
 | 版本 | 分支 | 版本号 | 用途 |
 | --- | --- | --- | --- |
-| 课程版 | `main` | `0.1.1` | 课程验收基线：一次性 Harness 会话、离线演示、Mock WebUI |
-| 增强版 | `feature/interactive-cli-agent` | `0.2.0-interactive` | 本分支：新增交互式 Coding Agent 会话（`codeguard chat`） |
+| 课程版 | `main` | `0.1.1` | 课程验收基线：一次性 Harness 会话、离线演示、Mock WebUI（保留供对比） |
+| 增强版 | `feature/interactive-cli-agent` | `0.2.0-interactive` | 本分支（当前主叙事）：交互式 Coding Agent REPL（`codeguard chat`） |
 
 ```cmd
 rem 课程版（默认克隆得到）
@@ -151,8 +151,25 @@ codeguard.exe key clear --provider deepseek  rem 测试完毕后建议立即清�
 - WebUI 仍为离线 Mock 机制演示，不支持真实项目编程会话。
 - 不支持多 Agent 并行；一次会话中同时只有一个任务。
 - 不提供 Git push、发布或工作区外副作用工具，相关动作默认 BLOCK。
-- 交互式 REPL 需要真实终端（TTY）；通过管道注入输入不被支持。
+- 交互式 REPL 正常使用需要真实终端（TTY）；管道输入在测试模式下可用（见下方「管道输入」说明），但交互体验（审批、澄清提问）仍面向 TTY。
 - Windows EXE 未签名，SmartScreen 可能提示未知发布者，请核对 SHA-256。
+
+### 管道输入（非 TTY 场景）
+
+`chat` 的 REPL 在非 TTY 下也能工作：管道或重定向的输入逐行驱动任务，EOF 后自动退出（退出码 0）。以下输出是在 Windows 11 上对发布 EXE 实测所得（`cwd` 为含 `test_ok.py` 的临时项目目录，`chat --mode test` 使用 ScriptedMockLLM 完全离线）：
+
+```text
+codeguard> [validation] pytest: PASSED
+[task] COMPLETED: completed
+codeguard>
+```
+
+实测命令与结论：
+
+- `echo <任务> | codeguard.exe chat --mode test`（或 `codeguard.exe chat --mode test < input.txt`）均可在非 TTY 管道下驱动测试模式任务；每条输入启动一个受治理任务并运行到终态，EOF 后退出。
+- `--mode test` 的终态验证会运行**真实 pytest 传感器**（cwd=工作区目录，即启动时所在目录）：临时项目含通过测试时输出 `[validation] pytest: PASSED`；含失败测试时输出 `[validation] pytest: FAILED`。`--mode demo` 的传感器表面为空，不会输出 `[validation]` 行。
+- 交互式体验（审批提示 `[y/N]`、澄清提问 `CodeGuard asks:`、`/status` 等）面向 TTY：管道下审批/澄清输入的交互行为未在本次验收中逐项验证，日常使用请使用真实终端。
+- 子进程传感器的解释器解析：`CODEGUARD_PYTHON` 环境变量显式指定时优先使用；否则冻结 EXE（onefile）下从 PATH 取外部 `python`，未找到时传感器失败可见（`[validation] pytest: FAILED`）而不是用 EXE 自身冒充解释器。安装 EXE 的机器若无可用 pytest 解释器，请设置 `CODEGUARD_PYTHON`（例如指向带 pytest 的 `python.exe`）后再运行带真实传感器的模式。
 
 ## 项目实现了什么
 
@@ -173,7 +190,7 @@ INITIALIZING
 
 主要模块包括：
 
-- `AgentLoop`：驱动状态转换和一次性 Harness 会话。
+- `AgentLoop`：驱动状态转换的显式状态机；每次 REPL 输入启动一个受治理的任务并运行到终态。
 - `ScriptedMockLLM`：提供可重复、离线、确定性的测试模型。
 - Guardrail 管线：Schema 校验、动作规范化、规则执行和优先级合并。
 - ApprovalManager：将审批请求绑定到会话和动作指纹，支持批准、拒绝与超时。
@@ -193,13 +210,15 @@ codeguard.exe --help
 
 | 命令 | 用途 |
 | --- | --- |
-| `chat` | 运行一次 Harness 会话 |
+| `chat` | 启动交互式 Coding Agent 会话（REPL，默认 `--mode local`） |
 | `demo` | 运行离线 Mock 场景 A/B/C |
 | `web` | 启动本地 Mock WebUI |
 | `key` | 安全设置、检查、更新或清除 API Key |
 | `config` | 显示当前有效配置 |
 
-### 一次性 Harness 会话
+### 交互式 Coding Agent 会话（`chat` REPL）
+
+`chat` 是持续多轮聊天 REPL：输入一条编程任务后启动一个受治理的任务，任务结束回到提示符等待下一条输入；`/exit`（或 EOF）退出。详细行为（命令表、审批提示、澄清提问、历史与记忆）见上文「增强版」章节。
 
 ```cmd
 codeguard.exe chat --mode test
@@ -213,13 +232,13 @@ codeguard.exe chat --mode local
 - `demo`：使用隔离的 Mock 演示环境，不接触真实系统资源。
 - `local`：使用本地配置和已保存的 DeepSeek 凭据，允许走真实模型适配器路径。
 
-`chat` 当前表示「运行一次 Harness 会话」，成功时输出类似：
+`chat` 启动一个交互式 REPL，任务完成后回到提示符继续等待输入，成功时输出类似：
 
 ```text
-Session completed: completed
+[task] COMPLETED: <摘要>
 ```
 
-它不是持续多轮聊天 REPL，也不会逐字流式显示模型回答。课程版优先实现并验证了 Harness 的治理、反馈和终态判定。
+每个任务都会显示治理与验证事件（`[tool]`、`[approval]`、`[validation]`），并在终态打印 `[task]` 摘要；任务间上下文通过任务摘要携带（含上一任务的请求内容）。课程版 `main` / v0.1.1 的 `chat` 是一次性 Harness 会话，不是持续多轮聊天 REPL——本增强分支已将其升级为 REPL。
 
 ### API Key 管理
 
@@ -422,14 +441,14 @@ AI4SE_projectA/
 
 课程版的目标是证明 Harness 核心机制可运行、可测试、可审计，因此当前存在以下明确限制：
 
-- `chat` 是一次性 Harness 会话，不是持续多轮聊天 REPL。
+增强分支（当前主叙事）的 `chat` 是持续多轮聊天 REPL（见上文）；课程版 `main` / v0.1.1 的 `chat` 是一次性 Harness 会话，不是持续多轮聊天 REPL。
 - 不提供模型选择菜单、流式回复或长对话历史界面。
 - WebUI 仅用于离线 Mock 机制演示，不直接操作真实项目。
 - Windows EXE 未签名，可能触发 SmartScreen。
 - 当前构建和人工验收以 Windows x64 为主，其他平台需从源码运行并自行验证。
 - Render 公网部署为可选项，尚未实际执行。
 
-受课程提供的模型/API Token 额度限制，本项目把有限预算优先投入到状态机、治理护栏、审批、工具安全、反馈闭环、确定性 Mock、自动化测试和可复现交付上。持续聊天、模型切换、流式输出等实用体验未在本次课程交付中继续扩展。这不影响课程要求中的 Harness 核心机制与演示；后续若继续开发，可在新分支中增加多轮会话、模型配置、流式响应、持久化 WebUI 和更完整的真实项目执行体验。
+受课程提供的模型/API Token 额度限制，本项目把有限预算优先投入到状态机、治理护栏、审批、工具安全、反馈闭环、确定性 Mock、自动化测试和可复现交付上。模型切换、流式输出等实用体验未在本次课程交付中继续扩展。这不影响课程要求中的 Harness 核心机制与演示；后续若继续开发，可在新分支中增加模型配置、流式响应、持久化 WebUI 和更完整的真实项目执行体验。
 
 ## 课程文档索引
 

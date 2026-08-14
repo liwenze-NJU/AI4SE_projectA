@@ -27,6 +27,12 @@ ACTION_PROTOCOL_PROMPT = (
     "(non-empty string describing the outcome). A complete response still "
     "undergoes final validation; if validation fails the task continues, "
     "so do not declare completion prematurely.\n"
+    "Conversational rules (MUST follow):\n"
+    '- When you reply with "assistant_message" and the task needs no '
+    "further tool calls, your NEXT response MUST be \"complete\".\n"
+    '- Never repeat the same "assistant_message" text.\n'
+    "- If you have already answered the user and there is nothing more to "
+    'do, emit "complete" instead of another "assistant_message".\n'
     "Respond with one of these four JSON objects only."
 )
 

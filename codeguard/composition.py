@@ -32,6 +32,7 @@ from codeguard.events import EventSink, NullEventSink
 
 import hashlib
 import os
+import shutil
 import sys
 import tempfile
 
@@ -47,6 +48,35 @@ import tempfile
 #
 # `program` is the interpreter (prepended by SensorRunner), so `args` must
 # NOT repeat sys.executable — SensorRunner executes [program, *args].
+
+
+def _python_executable() -> str:
+    """Resolve the Python interpreter for subprocess-based sensors.
+
+    Priority: CODEGUARD_PYTHON env override (explicit operator choice) →
+    the current interpreter when it is a real Python (development runs;
+    the venv interpreter is the correct and pytest-capable choice) →
+    external ``python`` on PATH (PyInstaller onefile builds, where
+    sys.executable IS codeguard.exe — empirically verified:
+    sys._base_executable equals the exe too, so ``codeguard.exe -m pytest``
+    is never valid) → sys.executable fallback.
+    The final fallback only fires under a frozen build with no external
+    python and no override: the sensor then fails loudly (UNAVAILABLE/FAILED
+    → final validation cannot pass) instead of pretending to succeed.
+    """
+    override = os.environ.get("CODEGUARD_PYTHON")
+    if override:
+        return override
+    if not getattr(sys, "frozen", False):
+        # Development / non-frozen runs: the current interpreter is a real
+        # Python with the project dependencies installed (venv).
+        return sys.executable
+    external = shutil.which("python")
+    if external:
+        return external
+    return sys.executable
+
+
 _VALIDATION_TOOL_DEFS = {
     "run_tests": ("pytest", ["-m", "pytest", "-q"], 120),
     "run_lint": ("ruff", ["-m", "ruff", "check"], 120),
@@ -90,7 +120,7 @@ def _make_validation_tool_definition(name: str, sensor_name: str) -> ToolDefinit
     """
     _, args, timeout = _VALIDATION_TOOL_DEFS[name]
     definition = SensorDefinition(
-        name=sensor_name, program=sys.executable, args=args,
+        name=sensor_name, program=_python_executable(), args=args,
         cwd=None, timeout=timeout, parser="generic", required=True,
     )
 
@@ -490,7 +520,7 @@ class CompositionRoot:
                     if name == "run_tests" or importlib.util.find_spec(sensor_name):
                         sensors.append(SensorRunner(
                             SensorDefinition(
-                                name=sensor_name, program=sys.executable,
+                                name=sensor_name, program=_python_executable(),
                                 args=args, cwd=workspace_root, timeout=timeout,
                                 parser="generic", required=True,
                             ),
@@ -505,7 +535,7 @@ class CompositionRoot:
         _, args, timeout = _VALIDATION_TOOL_DEFS["run_tests"]
         return [SensorRunner(
             SensorDefinition(
-                name="pytest", program=sys.executable, args=args,
+                name="pytest", program=_python_executable(), args=args,
                 cwd=workspace_root, timeout=timeout, parser="generic",
                 required=False,
             ),

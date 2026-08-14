@@ -621,3 +621,94 @@ def test_start_task_fails_closed_when_components_missing():
     result = loop.start_task("t1", "Do the work", [])
     assert result.terminal_state == AgentState.FAILED
     assert "tool_registry" in result.error
+
+
+# ---------------------------------------------------------------------------
+# T8-FIX2 P1 — bounded conversational loops
+# ---------------------------------------------------------------------------
+
+def test_identical_assistant_messages_reach_limit_within_small_bound():
+    """Repeated identical ASSISTANT_MESSAGE replies must terminate at
+    LIMIT_REACHED with a small number of LLM calls — never max_llm_calls=100
+    (real API cost per call)."""
+    responses = [
+        _r(Action(kind=ActionKind.ASSISTANT_MESSAGE, message="Same reply", raw=""))
+    ] * 6
+    loop = _make_task_loop(responses=responses)
+    result = loop.start_task("t1", "Do the work", [])
+    assert result.terminal_state == AgentState.LIMIT_REACHED
+    assert result.llm_calls_total <= 5
+    assert result.llm_calls_total != 100
+
+
+def test_assistant_message_fingerprint_recorded_in_history():
+    """Conversation actions must append a deterministic fingerprint to
+    action_fingerprint_history so the StopPolicy no-progress check sees
+    them (identical messages trip the 3-consecutive threshold)."""
+    import hashlib
+
+    responses = [
+        _r(Action(kind=ActionKind.ASSISTANT_MESSAGE, message="Same reply", raw="")),
+        _r(Action(kind=ActionKind.COMPLETE_REQUEST, summary="done", raw="")),
+    ]
+    loop = _make_task_loop(responses=responses)
+    result = loop.start_task("t1", "Do the work", [])
+    assert result.terminal_state == AgentState.COMPLETED
+    assert len(loop.state.action_fingerprint_history) == 1
+    expected = hashlib.sha256(
+        f"assistant_message:Same reply".encode("utf-8")
+    ).hexdigest()
+    assert loop.state.action_fingerprint_history[0] == expected
+
+
+def test_assistant_then_tool_then_complete_still_completes():
+    """The conversational bounds must never break the normal
+    assistant_message → tool_call → complete flow (user requirement 4/5)."""
+    responses = [
+        _r(Action(kind=ActionKind.ASSISTANT_MESSAGE, message="On it", raw="")),
+        _r(Action(kind=ActionKind.TOOL_CALL, tool_name="read_file",
+                  parameters={"path": "x"}, raw="")),
+        _r(Action(kind=ActionKind.COMPLETE_REQUEST, summary="done", raw="")),
+    ]
+    loop = _make_task_loop(responses=responses)
+    result = loop.start_task("t1", "Do the work", [])
+    assert result.terminal_state == AgentState.COMPLETED
+    assert result.llm_calls_total == 3
+
+
+def test_text_reply_then_complete_completes():
+    """A pure text-reply task (assistant_message → complete) completes."""
+    responses = [
+        _r(Action(kind=ActionKind.ASSISTANT_MESSAGE, message="Answer", raw="")),
+        _r(Action(kind=ActionKind.COMPLETE_REQUEST, summary="done", raw="")),
+    ]
+    loop = _make_task_loop(responses=responses)
+    result = loop.start_task("t1", "Do the work", [])
+    assert result.terminal_state == AgentState.COMPLETED
+    assert result.llm_calls_total == 2
+
+
+def test_two_different_assistant_messages_then_complete_completes():
+    """Two DIFFERENT assistant messages followed by complete completes."""
+    responses = [
+        _r(Action(kind=ActionKind.ASSISTANT_MESSAGE, message="First", raw="")),
+        _r(Action(kind=ActionKind.ASSISTANT_MESSAGE, message="Second", raw="")),
+        _r(Action(kind=ActionKind.COMPLETE_REQUEST, summary="done", raw="")),
+    ]
+    loop = _make_task_loop(responses=responses)
+    result = loop.start_task("t1", "Do the work", [])
+    assert result.terminal_state == AgentState.COMPLETED
+    assert result.llm_calls_total == 3
+
+
+def test_varied_assistant_messages_reach_limit_within_bound():
+    """5+ varied (non-identical) consecutive assistant messages must also
+    terminate at LIMIT_REACHED within a small bound (defense-in-depth)."""
+    responses = [
+        _r(Action(kind=ActionKind.ASSISTANT_MESSAGE, message=f"msg {i}", raw=""))
+        for i in range(7)
+    ]
+    loop = _make_task_loop(responses=responses)
+    result = loop.start_task("t1", "Do the work", [])
+    assert result.terminal_state == AgentState.LIMIT_REACHED
+    assert result.llm_calls_total <= 5

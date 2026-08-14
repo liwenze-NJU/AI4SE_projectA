@@ -15,6 +15,8 @@ inline test doubles without needing real implementations.
 
 from datetime import datetime
 from decimal import Decimal
+import hashlib
+import json
 from codeguard.state import AgentState, SessionState, SessionResult
 from codeguard.action import ActionKind
 from codeguard.events import HarnessEvent, HarnessEventKind
@@ -39,6 +41,13 @@ class AgentLoop:
       stop_policy        — Stop condition evaluator
     """
 
+    # Defense-in-depth bound (T8-FIX2 P1): consecutive conversation actions
+    # (assistant_message / request_user_input) with no tool call and no
+    # completion in between terminate the task at LIMIT_REACHED within this
+    # small bound.  A single assistant_message followed by complete is
+    # always below the bound, so normal text-reply flows are unaffected.
+    _MAX_CONSECUTIVE_CONVERSATION_ACTIONS = 5
+
     def __init__(self, session_id: str, llm, max_steps: int = 50):
         self.state = SessionState(
             session_id=session_id,
@@ -51,6 +60,7 @@ class AgentLoop:
         self._feedback_results: list = []
         self._started_at = datetime.now()
         self._iteration = 0
+        self._consecutive_conversation_actions = 0
 
         # Components to be injected via attributes
         self.tool_registry = None
@@ -178,6 +188,7 @@ class AgentLoop:
         self.state.approval_request_id = None
         self.state.guardrail_decision = None
         self._approval_decision = None
+        self._consecutive_conversation_actions = 0
         self._started_at = datetime.now()
         self.state.current_state = AgentState.INITIALIZING
         return self.run()
@@ -208,12 +219,37 @@ class AgentLoop:
             return self._build_result()
         self._cancelled = True
         self._transition(AgentState.CANCELLED)
-        self._emit(HarnessEventKind.TASK_FINISHED, {"outcome": "cancelled"})
+        self._emit(HarnessEventKind.TASK_FINISHED, self._task_finished_payload())
         return self._build_result()
 
     # ------------------------------------------------------------------
     # Event emission
     # ------------------------------------------------------------------
+
+    def _task_finished_payload(self) -> dict:
+        """Compose the TASK_FINISHED payload with a real bounded summary.
+
+        The summary is composed from the task transcript (the last
+        assistant message, truncated to 500 chars) plus the outcome; on
+        failure the redacted error is included.  A task that performed no
+        assistant reply falls back to the completion summary or outcome
+        text, so the summary is never empty (T8-FIX2 P2).
+        """
+        outcome = self.state.current_state.value
+        assistant_messages = [
+            m for m in self._transcript if isinstance(m, str) and m.strip()
+        ]
+        transcript = assistant_messages[-1] if assistant_messages else ""
+        if transcript:
+            summary = f"{outcome}: {transcript}"[:500]
+        else:
+            summary = outcome
+        payload: dict = {"outcome": outcome, "summary": summary}
+        if self._cancelled:
+            payload["summary"] = "cancelled by user"
+        elif self.state.current_state == AgentState.FAILED and self._latest_result:
+            payload["summary"] = self._latest_result[:500]
+        return payload
 
     def _emit(self, kind: HarnessEventKind, payload: dict) -> None:
         """Emit a bounded harness event through the injected sink (if any)."""
@@ -263,6 +299,7 @@ class AgentLoop:
 
             # COMPLETE_REQUEST → FINAL_VALIDATION
             if action.kind == ActionKind.COMPLETE_REQUEST:
+                self._consecutive_conversation_actions = 0
                 if not self._run_final_validation():
                     # FINAL_VALIDATION failed → FEEDING_BACK → retry
                     self._transition(AgentState.FEEDING_BACK)
@@ -271,7 +308,7 @@ class AgentLoop:
                     self._transition(AgentState.DECIDING)
                     continue
                 self._transition(AgentState.COMPLETED)
-                self._emit(HarnessEventKind.TASK_FINISHED, {"outcome": "completed"})
+                self._emit(HarnessEventKind.TASK_FINISHED, self._task_finished_payload())
                 break
 
             # ----- Conversation actions (never governed) -----
@@ -280,6 +317,15 @@ class AgentLoop:
                 self._transcript.append(message)
                 self._emit(HarnessEventKind.ASSISTANT_MESSAGE, {"message": message})
                 self._latest_result = f"Assistant: {message}"
+                # Deterministic fingerprint so the StopPolicy no-progress
+                # check sees repeated conversation replies (T8-FIX2 P1).
+                self.state.action_fingerprint_history.append(
+                    self._conversation_fingerprint(
+                        ActionKind.ASSISTANT_MESSAGE, message
+                    )
+                )
+                if not self._count_conversation_action():
+                    break
                 self._transition(AgentState.FEEDING_BACK)
                 if self._check_stop_policy():
                     break
@@ -290,6 +336,15 @@ class AgentLoop:
                 question = action.question or ""
                 self.state.pending_question = question
                 self._emit(HarnessEventKind.USER_INPUT_REQUESTED, {"question": question})
+                # A resumed loop re-enters DECIDING; identical questions
+                # repeated 3x consecutively trip the no-progress check too
+                # (acceptable and desired per T8-FIX2 P1).
+                self.state.action_fingerprint_history.append(
+                    self._conversation_fingerprint(
+                        ActionKind.REQUEST_USER_INPUT, question
+                    )
+                )
+                self._consecutive_conversation_actions += 1
                 self._transition(AgentState.AWAITING_USER_INPUT)
                 return self._build_result()
 
@@ -357,6 +412,7 @@ class AgentLoop:
 
             # ----- EXECUTING -----
             self.state.steps_used += 1
+            self._consecutive_conversation_actions = 0
 
             if self.tool_dispatcher is not None:
                 self._dispatch_tool(action)
@@ -644,6 +700,35 @@ class AgentLoop:
             "run_command", "execute",
         }
         return action.tool_name in write_tools if action.tool_name else False
+
+    @staticmethod
+    def _conversation_fingerprint(kind: ActionKind, content: str) -> str:
+        """Deterministic fingerprint for conversation actions (T8-FIX2 P1).
+
+        Reuses the hashing style of ActionNormalizer: sha256 of
+        f"{kind}:{content}".  Conversation actions never enter governance,
+        so the loop itself records the fingerprint for the StopPolicy
+        no-progress check.
+        """
+        raw = f"{kind.value}:{content}"
+        return hashlib.sha256(raw.encode("utf-8")).hexdigest()
+
+    def _count_conversation_action(self) -> bool:
+        """Count one consecutive conversation action; return True when the
+        loop may continue, False when the defense-in-depth bound is hit.
+
+        The bound resets on any tool call or completion so normal
+        assistant → tool → complete flows are never affected.
+        """
+        self._consecutive_conversation_actions += 1
+        if self._consecutive_conversation_actions >= self._MAX_CONSECUTIVE_CONVERSATION_ACTIONS:
+            self._latest_result = (
+                "Consecutive conversational replies without tool use or "
+                "completion — emit complete when the task is done"
+            )
+            self._transition(AgentState.LIMIT_REACHED)
+            return False
+        return True
 
     def _check_stop_policy(self) -> bool:
         """Evaluate the stop policy.  Returns True if the loop should terminate."""
