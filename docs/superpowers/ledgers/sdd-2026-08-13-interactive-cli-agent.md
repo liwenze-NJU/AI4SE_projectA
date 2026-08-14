@@ -153,6 +153,16 @@
 - **验证:** RED 4 failed（逐字复现）→ GREEN 4 passed; 回归 7 文件组 151 passed; 全量 **768 passed, 1 skipped**; 重建 EXE + 传感器 smoke（`[validation] pytest: PASSED` → `[task] COMPLETED`）; 凭据扫描 0 真实命中; 未创建 tag/Release; main 仍 30581f0。
 - **Deferred Minor:** 无新增。
 
+### T8-FIX4: 连续 assistant_message 拦截（语义重复）+ 终态格式修正（人工验收第三轮）
+
+- **Status:** COMPLETED (2026-08-14)
+- **Implementer commit(s):** `e53958f`（fix）, `03109e9`（docs 回填）; 双远端 == HEAD
+- **验收复现:** 两条不同字符串的连续 ASSISTANT_MESSAGE（BLUE-731 / 会话代号是 BLUE-731。）都显示；`[task] COMPLETED: completed: ...` 双状态词。
+- **根因:** (1) T8-FIX3 只做精确字符串去重，无法拦截语义重复; (2) `_task_finished_payload` 在 summary 里拼 outcome，而 sink 渲染再加一次。
+- **修复:** `_assistant_displayed_since_progress` 布尔标志——无 tool_call/request_user_input 间隔时每任务最多显示一条连续 assistant_message；第二条 emit 前拦截、不入 transcript/ChatHistory、反馈协议纠正（complete/tool_call/request_user_input）；真实工具执行或澄清回答后标志重置（有进展的两条消息都显示）；不做语义相似度启发式。`_task_finished_payload` outcome/summary 分离，CLI 恰好一个状态词。
+- **验证:** RED 2 failed → GREEN 3 passed（+T8-FIX3 组 7 passed 复核）; 回归 86 passed; 全量 **771 passed, 1 skipped**; 重建 EXE + smoke（`[task] COMPLETED: Validation pytest: PASSED — Exit code: 0` 单状态词确认）; 未创建 tag/Release; main 仍 30581f0。
+- **Deferred Minor:** 无新增。
+
 ## Final Acceptance (deferred to Task 8)
 
 - [x] `main` remains at course version v0.1.1 and contains none of the enhanced commits.
