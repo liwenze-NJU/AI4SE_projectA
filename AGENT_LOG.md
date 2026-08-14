@@ -2748,3 +2748,21 @@
 - `docs/superpowers/plans/2026-08-13-interactive-cli-agent.md`: Task 5 的 8 个步骤全部勾选
 
 **commit hash**: `c3877d0`（`feat: add interactive chat session and CLI rendering`）
+
+---
+
+## Task 6: 更新 DeepSeek 协议与 CLI 元数据（Update DeepSeek Protocol and CLI Metadata）
+
+**log_id**: T6 | **task_id**: Task 6 Update DeepSeek Protocol and CLI Metadata | **状态**: STARTED
+**时间**: 2026-08-14
+**Superpowers 技能**: `superpowers:subagent-driven-development` + `superpowers:test-driven-development`
+**branch/worktree**: feature/interactive-cli-agent / `.worktrees/interactive-cli-agent`
+
+**目标**:
+1. 严格 DeepSeek 动作协议：system message 精确列出 tool_call/assistant_message/request_user_input/complete 四种动作；仅允许一个 JSON 对象；禁止 JSON 外散文；complete 需 summary 且仍经最终验证
+2. 解析委托共享 `ActionParser`；删除宽松的 invalid-JSON-to-complete 回退
+3. chat help 改为 "Start an interactive governed coding-agent session"；版本保持 0.1.1（0.2.0-interactive 属 Task 8）
+4. 风险分级：Task 6 MEDIUM（目标测试 + CLI 回归；reviewer 用 sonnet/haiku）
+
+**验证命令**: 目标 `pytest tests/test_llm_deepseek.py tests/test_cli.py tests/test_scaffold.py -q`
+
