@@ -114,11 +114,13 @@
 
 ### Task 7: Deterministic End-to-End Interactive Coding Test
 
-- **Status:** PENDING
-- **Implementer commit(s):**
-- **Spec review:** PENDING
-- **Quality review:** PENDING
-- **Fix rounds:**
+- **Status:** COMPLETED (2026-08-14; zero production changes — Tasks 3-6 集成已正确)
+- **Implementer commit(s):** `f7a40cf`（test）, `692bf8b`（docs 回填）; 已按 push policy 推送双远端（origin + github 均 692bf8b）
+- **Spec review:** ✅ compliant（6 项全部满足；RED 3 failed/7 passed 根因=模块级 assert 不被 pytest 收集 → exit 5 → sensor FAILED，测试侧修复未削弱断言；E2E 10 passed + 安全组 85 passed + 全量 751 passed, 1 skipped 复现）
+- **Quality review:** ✅ APPROVED_WITH_MINOR（无 Critical/Important）
+- **Fix rounds:** 0
+- **Key decisions (documented in test docstring):** (1) scripted 响应用 Action 对象（loop 消费 next_action 而非 raw JSON）；(2) 真实 pytest 传感器每轮运行，微型临时项目必须用 `test_*` 函数；(3) "重复非法 JSON → LIMIT_REACHED" 采用治理失败路径（4× 相同工作区逃逸 write → recoverable BLOCK 同指纹 → 真实 StopPolicy no-progress 状态机）；(4) 失败必需最终传感器用测试级 `objective_verifier.required_sensors = ["pytest"]` 装配（同类于 ALLOW 覆盖惯例）；(5) demo 隔离为最强证明（LLM 调用前 fail closed、文件未创建、received_contexts == []）；(6) /clear 与结构化记忆用 loop 自身 memory_store/project_id 验证。
+- **Deferred Minor items (recorded for final review):** (1) E2E 断言触及 `loop._feedback_results`/`state.action_fingerprint_history` 私有状态（考虑改断言渲染输出）；(2) test (f) 可直接断言 `objective_verifier.verify()` 返回 False 以隔离 verifier 阻断与 no-progress 终止；(3) test (g) 记忆记录为测试植入而非任务产出；(4) RED 状态仅存于 AGENT_LOG，无法从提交树复现（协议已记录确切失败）。
 
 ### Task 8: Documentation, Full Verification, and Enhanced Release Candidate
 
