@@ -50,3 +50,29 @@ def test_normalize_complete_request():
     action = Action(kind=ActionKind.COMPLETE_REQUEST, summary="done")
     na = normalizer.normalize(action)
     assert na.action_fingerprint == "COMPLETE_REQUEST"
+
+
+def test_schema_validator_enforces_integer_bounds():
+    validator = SchemaValidator()
+    schema = {
+        "type": "object",
+        "properties": {
+            "timeout": {"type": "integer", "minimum": 1, "maximum": 300},
+            "args": {"type": "array", "items": {"type": "string"}},
+        },
+        "required": [],
+    }
+    validator.validate({"timeout": 30}, schema)  # within bounds: ok
+    with pytest.raises(ValueError, match="<= 300"):
+        validator.validate({"timeout": 999999}, schema)
+    with pytest.raises(ValueError, match=">= 1"):
+        validator.validate({"timeout": 0}, schema)
+    with pytest.raises(ValueError, match="should be integer"):
+        validator.validate({"timeout": "30"}, schema)
+    with pytest.raises(ValueError, match="should be integer"):
+        validator.validate({"timeout": True}, schema)
+    validator.validate({"args": ["-q", "tests"]}, schema)  # string array: ok
+    with pytest.raises(ValueError, match="should be array"):
+        validator.validate({"args": "-q"}, schema)
+    with pytest.raises(ValueError, match="args\\[0\\].*should be string"):
+        validator.validate({"args": [123]}, schema)

@@ -146,7 +146,7 @@ def test_scenario_b_approve():
         _make_response(Action(
             kind=ActionKind.TOOL_CALL,
             tool_name="write_file",
-            parameters={"path": "output.txt"},
+            parameters={"path": "output.txt", "content": "output"},
             raw="",
         )),
         _make_response(Action(
@@ -194,7 +194,7 @@ def test_scenario_b_reject():
         _make_response(Action(
             kind=ActionKind.TOOL_CALL,
             tool_name="write_file",
-            parameters={"path": "output.txt"},
+            parameters={"path": "output.txt", "content": "output"},
             raw="",
         )),
     ])
@@ -237,7 +237,7 @@ def test_scenario_b_timeout():
         _make_response(Action(
             kind=ActionKind.TOOL_CALL,
             tool_name="write_file",
-            parameters={"path": "output.txt"},
+            parameters={"path": "output.txt", "content": "output"},
             raw="",
         )),
     ])
@@ -275,7 +275,7 @@ def test_scenario_b_wrong_fingerprint_rejected():
         _make_response(Action(
             kind=ActionKind.TOOL_CALL,
             tool_name="write_file",
-            parameters={"path": "output.txt"},
+            parameters={"path": "output.txt", "content": "output"},
             raw="",
         )),
     ])
@@ -310,7 +310,7 @@ def test_scenario_b_wrong_session_rejected():
         _make_response(Action(
             kind=ActionKind.TOOL_CALL,
             tool_name="write_file",
-            parameters={"path": "output.txt"},
+            parameters={"path": "output.txt", "content": "output"},
             raw="",
         )),
     ])
@@ -361,6 +361,10 @@ def test_scenario_c_fail_repair_cycle():
     """
     root = CompositionRoot(mode="test")
     loop = root.create_loop(session_id="scenario-c")
+
+    # This scenario focuses on the feedback loop, not approval: make the
+    # write tool ALLOW so the loop reaches the sensor boundary directly.
+    loop.tool_registry.lookup("write_file").default_risk = "ALLOW"
 
     # Scripted sensor runner: first call returns FAILED, second returns PASSED
     fail_result = FeedbackResult(
@@ -510,6 +514,10 @@ def test_no_progress_repeated_failure():
     loop.stop_policy = StopPolicy(
         max_steps=50, max_llm_calls=100, no_progress_threshold=3,
     )
+
+    # This scenario focuses on the no-progress stop policy, not approval:
+    # make the write tool ALLOW so the loop reaches the sensor boundary.
+    loop.tool_registry.lookup("write_file").default_risk = "ALLOW"
 
     # Sensor that always returns FAILED with the same fingerprint
     fail_result = FeedbackResult(

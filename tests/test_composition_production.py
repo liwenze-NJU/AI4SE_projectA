@@ -228,6 +228,29 @@ class TestComposedSensors:
         for r in results:
             assert r.status in ("PASSED", "FAILED", "TIMEOUT", "UNAVAILABLE")
 
+    def test_sensor_command_is_not_duplicated_interpreter(self, tmp_path, monkeypatch):
+        """Regression: sensor args must not repeat sys.executable (program is
+        prepended by SensorRunner), otherwise every validation tool fails."""
+        monkeypatch.setattr(KeyringCredentialStore, "get", lambda self, provider: "sk-test")
+        loop = CompositionRoot(mode="local", workspace_root=tmp_path).create_loop("s1")
+        for r in loop.sensor_runner._runners:
+            if r.definition.name == "pytest":
+                assert r.definition.program == sys.executable
+                assert r.definition.args[0] != sys.executable, (
+                    f"args must not duplicate interpreter: {r.definition.args}"
+                )
+                assert r.definition.args[:2] == ["-m", "pytest"], r.definition.args
+
+    def test_pytest_sensor_can_pass_with_real_suite(self, tmp_path, monkeypatch):
+        """A real passing pytest suite must yield a PASSED sensor result."""
+        (tmp_path / "test_ok.py").write_text("def test_ok():\n    assert True\n",
+                                             encoding="utf-8")
+        monkeypatch.setattr(KeyringCredentialStore, "get", lambda self, provider: "sk-test")
+        loop = CompositionRoot(mode="local", workspace_root=tmp_path).create_loop("s1")
+        results = loop.sensor_runner.run_all()
+        pytest_result = next(r for r in results if r.sensor_id == "pytest")
+        assert pytest_result.status == "PASSED", pytest_result.raw_output_truncated
+
 
 # ---------------------------------------------------------------------------
 # Memory wiring (plan Step 6)

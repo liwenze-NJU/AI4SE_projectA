@@ -44,10 +44,13 @@ import tempfile
 # They never accept user-supplied program strings.  Only tools available in
 # the current environment are registered, so composition never constructs a
 # command that cannot resolve.
+#
+# `program` is the interpreter (prepended by SensorRunner), so `args` must
+# NOT repeat sys.executable — SensorRunner executes [program, *args].
 _VALIDATION_TOOL_DEFS = {
-    "run_tests": ("pytest", [sys.executable, "-m", "pytest", "-q"], 120),
-    "run_lint": ("ruff", [sys.executable, "-m", "ruff", "check"], 120),
-    "run_typecheck": ("mypy", [sys.executable, "-m", "mypy"], 120),
+    "run_tests": ("pytest", ["-m", "pytest", "-q"], 120),
+    "run_lint": ("ruff", ["-m", "ruff", "check"], 120),
+    "run_typecheck": ("mypy", ["-m", "mypy"], 120),
 }
 
 
@@ -120,54 +123,43 @@ def _run_sensor_for_tool(definition: SensorDefinition, workspace_root: str) -> d
             "error_category": result.failure_category}
 
 
-def _make_standard_tools(full_governance: bool = False) -> list[ToolDefinition]:
+def _make_standard_tools() -> list[ToolDefinition]:
     """Build all standard tools with complete schemas and real handlers.
 
-    ``full_governance`` (caller-provided workspace in test mode, or local
-    mode) registers complete schemas matching the real handlers and declares
-    the real per-tool risk (writes/patch/process -> REQUEST_APPROVAL).
-    Legacy wiring (default test/demo loops) keeps the historical schemas and
-    risks so existing integration scenarios remain unchanged.
+    Every tool carries the complete schema matching its real handler and
+    declares the real per-tool risk (writes/patch/process -> REQUEST_APPROVAL).
+    No legacy variant is kept: a single wiring exists for every mode.
     """
     # write_file: complete schema requires path + content
-    write_required = ["path", "content"] if full_governance else ["path"]
-    write_props = {"path": {"type": "string"}, "content": {"type": "string"}}
-    if full_governance:
-        write_props["sha256_fingerprint"] = {"type": "string"}
-    write_risk = "REQUEST_APPROVAL" if full_governance else "ALLOW"
+    write_required = ["path", "content"]
+    write_props = {
+        "path": {"type": "string"},
+        "content": {"type": "string"},
+        "sha256_fingerprint": {"type": "string"},
+    }
+    write_risk = "REQUEST_APPROVAL"
 
     # apply_patch: complete schema requires path + old_string + new_string
-    if full_governance:
-        patch_required = ["path", "old_string", "new_string"]
-        patch_props = {
-            "path": {"type": "string"},
-            "old_string": {"type": "string"},
-            "new_string": {"type": "string"},
-        }
-        patch_risk = "REQUEST_APPROVAL"
-    else:
-        patch_required = ["patch"]
-        patch_props = {"patch": {"type": "string"}}
-        patch_risk = "ALLOW"
+    patch_required = ["path", "old_string", "new_string"]
+    patch_props = {
+        "path": {"type": "string"},
+        "old_string": {"type": "string"},
+        "new_string": {"type": "string"},
+    }
+    patch_risk = "REQUEST_APPROVAL"
 
     # find_files / search_text: pattern required, optional base_dir
     find_required = ["pattern"]
-    find_props = {"pattern": {"type": "string"}}
-    if full_governance:
-        find_props["base_dir"] = {"type": "string"}
+    find_props = {"pattern": {"type": "string"}, "base_dir": {"type": "string"}}
 
     # run_process: program required; args/cwd/bounded timeout
-    if full_governance:
-        process_props = {
-            "program": {"type": "string"},
-            "args": {"type": "array", "items": {"type": "string"}},
-            "cwd": {"type": "string"},
-            "timeout": {"type": "integer", "minimum": 1, "maximum": 300},
-        }
-        process_required = ["program"]
-    else:
-        process_props = {"program": {"type": "string"}, "args": {"type": "array"}}
-        process_required = ["program"]
+    process_props = {
+        "program": {"type": "string"},
+        "args": {"type": "array", "items": {"type": "string"}},
+        "cwd": {"type": "string"},
+        "timeout": {"type": "integer", "minimum": 1, "maximum": 300},
+    }
+    process_required = ["program"]
     process_risk = "REQUEST_APPROVAL"
 
     tools = [
@@ -262,10 +254,9 @@ def _make_standard_tools(full_governance: bool = False) -> list[ToolDefinition]:
     return tools
 
 
-def _register_standard_tools(registry: ToolRegistry,
-                             full_governance: bool = False) -> None:
+def _register_standard_tools(registry: ToolRegistry) -> None:
     """Register all standard tools with their parameter schemas."""
-    for t in _make_standard_tools(full_governance=full_governance):
+    for t in _make_standard_tools():
         try:
             registry.register(t)
         except ValueError:
@@ -412,13 +403,6 @@ class CompositionRoot:
     # ------------------------------------------------------------------
 
     def _wire_common(self, loop: AgentLoop, workspace_root: str) -> None:
-        # Full governance (complete schemas + ToolRiskRule) applies when the
-        # caller provided a workspace root, and always in local mode.  Default
-        # test/demo loops keep the historical 3-rule wiring and schemas so the
-        # legacy integration scenarios remain byte-for-byte compatible.
-        full_governance = (
-            self._mode == "local" or self._temp_sandbox is None
-        )
         loop.secret_redactor = SecretRedactor()
         loop.tracer = Tracer(secret_redactor=loop.secret_redactor)
         loop.context_builder = ContextBuilder()
@@ -426,8 +410,7 @@ class CompositionRoot:
         loop.action_normalizer = ActionNormalizer(workspace_root=workspace_root)
         loop.schema_validator = SchemaValidator()
         loop.tool_registry = ToolRegistry()
-        _register_standard_tools(loop.tool_registry,
-                                 full_governance=full_governance)
+        _register_standard_tools(loop.tool_registry)
 
         engine = RuleEngine()
         engine.add_rule(
@@ -437,10 +420,9 @@ class CompositionRoot:
         engine.add_rule(
             "unregistered", UnregisteredToolRule(loop.tool_registry).evaluate
         )
-        if full_governance:
-            engine.add_rule(
-                "tool_risk", ToolRiskRule(loop.tool_registry).evaluate
-            )
+        engine.add_rule(
+            "tool_risk", ToolRiskRule(loop.tool_registry).evaluate
+        )
         if self._mode == "demo":
             engine.add_rule(
                 "mode_restriction", ModeRestrictionRule(mode="demo").evaluate
