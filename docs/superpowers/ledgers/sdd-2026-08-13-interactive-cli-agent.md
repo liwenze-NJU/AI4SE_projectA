@@ -143,6 +143,16 @@
 - **Deferred Minor (recorded):** (a) 本机 PATH python=3.9 无 pytest → frozen EXE 需操作者设 `CODEGUARD_PYTHON` 才能 PASSED（已写入 README）; (b) 管道下审批/澄清交互行为未逐项验证（README 已声明）; (c) SPEC.md:1074 `CommandWhitelistRule` 旧表述仍未改（超出授权范围）。
 - **Evidence:** P3 RED 3 failed/2 passed → GREEN 34 passed; 4 文件组 107 passed; 全量 **764 passed, 1 skipped** (35.49s); 凭据扫描 0 真实命中; `git diff --check` clean; **未经人工复验未创建 tag/Release; 未合并 main（main 仍 30581f0）。**
 
+### T8-FIX3: 重复消息去重 + 全终态稳定事件（人工验收第二轮）
+
+- **Status:** COMPLETED (2026-08-14)
+- **Implementer commit(s):** `382f474`（fix）, `ef2d966`（docs 回填）; 双远端 == HEAD
+- **验收复现:** 第二任务连续输出三次相同 "CodeGuard > 会话代号是 BLUE-731。" 后静默返回 codeguard>（无 [validation]/[task]/LIMIT_REACHED 显示）。
+- **根因:** (1) ASSISTANT_MESSAGE 分支 emit 先于重复检测（3 条全部渲染后才停）; (2) 运行时无协议防御（DeepSeek 不遵守提示）; (3) 非 COMPLETED 终态（LIMIT_REACHED/FAILED）无 TASK_FINISHED 事件，break 路径静默返回。
+- **修复:** 先查重再 emit（`_delivered_assistant_messages` per-task 集合，同回复最多显示一次）；首次重复写入协议纠正反馈（"already delivered. Do not repeat it..."）进入下一轮上下文；`_emit_task_finished_once()` 统一覆盖所有终态路径（run 结尾 + cancel + cancelled 入口 + fail-closed 诊断 + approval-resume 各终态）——4 种终态均有稳定 `[task]` 输出；不伪造 COMPLETED（重复循环终态为 LIMIT_REACHED）。
+- **验证:** RED 4 failed（逐字复现）→ GREEN 4 passed; 回归 7 文件组 151 passed; 全量 **768 passed, 1 skipped**; 重建 EXE + 传感器 smoke（`[validation] pytest: PASSED` → `[task] COMPLETED`）; 凭据扫描 0 真实命中; 未创建 tag/Release; main 仍 30581f0。
+- **Deferred Minor:** 无新增。
+
 ## Final Acceptance (deferred to Task 8)
 
 - [x] `main` remains at course version v0.1.1 and contains none of the enhanced commits.
