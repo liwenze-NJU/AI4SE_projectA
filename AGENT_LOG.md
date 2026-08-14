@@ -2946,7 +2946,7 @@
 - `dist/` 与 `build/` 均已被 .gitignore 的 `dist/`/`build/` 模式覆盖（`git check-ignore` 验证），产物不进入提交
 - 风险分级: Task 8 最终分支级评审 + 全量 + 凭据扫描 + 构建 + smoke（opus）
 
-**commit hash**: `T8-COMMIT`（`docs: prepare interactive CLI release candidate`）
+**commit hash**: `1765d25`（`docs: prepare interactive CLI release candidate`）
 
 ---
 
@@ -2961,4 +2961,4 @@
 - `pytest -q -rs`（版本 0.2.0-interactive 状态）→ **751 passed, 1 skipped in 31.87s**（skip 为既有 symlink 特权跳过），无失败
 - `git diff --check` → 无空白错误
 
-**commit hash**: `T8-COMMIT`（随 T8 同次提交，无独立提交）
+**commit hash**: `1765d25`（随 T8 同次提交，无独立提交）
