@@ -627,7 +627,7 @@ git commit -m "feat: feed runtime results through the governed agent loop"
 - Consumes: `CompositionRoot`, `ChatHistory`, `AgentLoop.start_task`, clarification/approval resume methods, Harness events.
 - Produces: `ChatSession.run() -> int`, `CLIEventSink`, and injectable `InputReader`/`OutputWriter` callables.
 
-- [ ] **Step 1: Write failing command tests**
+- [x] **Step 1: Write failing command tests**
 
 ```python
 def test_help_does_not_create_task(fake_io, loop_factory):
@@ -649,7 +649,7 @@ def test_clear_only_clears_messages(fake_io, history, loop_factory):
 
 Add tests for `/status`, blank input, EOF, `/cancel` with no task, and `/exit`.
 
-- [ ] **Step 2: Run command tests to verify RED**
+- [x] **Step 2: Run command tests to verify RED**
 
 ```powershell
 .\.venv\Scripts\python.exe -m pytest tests\test_chat_session.py -q
@@ -657,7 +657,7 @@ Add tests for `/status`, blank input, EOF, `/cancel` with no task, and `/exit`.
 
 Expected: collection ERROR because `ChatSession` does not exist.
 
-- [ ] **Step 3: Implement the minimal session coordinator**
+- [x] **Step 3: Implement the minimal session coordinator**
 
 Use constructor:
 
@@ -677,11 +677,11 @@ class ChatSession:
 
 Generate UUID chat/task IDs. A normal REPL input starts one task and waits until it reaches a terminal state or an explicit approval/clarification pause. Append only user text, assistant messages, and final task summaries to `ChatHistory`; do not append raw tool output.
 
-- [ ] **Step 4: Write failing approval and clarification tests**
+- [x] **Step 4: Write failing approval and clarification tests**
 
 Test that an approval prompt defaults to rejection on empty input, accepts only explicit `y`/`yes`, calls `resume_with_approval` with request/session/fingerprint binding, and returns to the same task. Test that `REQUEST_USER_INPUT` accepts normal text, `/cancel`, and `Ctrl+C` distinctly.
 
-- [ ] **Step 5: Implement `CLIEventSink` and pause handling**
+- [x] **Step 5: Implement `CLIEventSink` and pause handling**
 
 Render stable prefixes:
 
@@ -696,11 +696,11 @@ CodeGuard > <assistant message>
 
 Never print raw credentials or complete unbounded tool output. Approval prompt must show action, target, reason, and `[y/N]`. Catch the first `KeyboardInterrupt` inside a task as cancellation and return to the REPL; a `KeyboardInterrupt` at the idle REPL exits with code 130.
 
-- [ ] **Step 6: Replace the one-shot CLI command**
+- [x] **Step 6: Replace the one-shot CLI command**
 
 `chat_command(args)` must parse `--mode`, construct `CompositionRoot(mode=mode, workspace_root=Path.cwd())`, create a `ChatSession`, and exit with the integer returned by `run()`. A missing local key prints the existing safe error and exits 1. Test/demo inputs remain injectable; no real `input()` or keyring is used in unit tests.
 
-- [ ] **Step 7: Run chat and CLI tests**
+- [x] **Step 7: Run chat and CLI tests**
 
 ```powershell
 .\.venv\Scripts\python.exe -m pytest tests\test_chat_session.py tests\test_cli.py tests\test_events.py tests\test_chat_history.py -q
@@ -709,7 +709,7 @@ git diff --check
 
 Expected: all pass.
 
-- [ ] **Step 8: Log and commit**
+- [x] **Step 8: Log and commit**
 
 ```powershell
 git add codeguard\chat codeguard\cli\chat.py tests\test_chat_session.py tests\test_cli.py AGENT_LOG.md docs\superpowers\plans\2026-08-13-interactive-cli-agent.md

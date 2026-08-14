@@ -2703,3 +2703,48 @@
 
 **验证命令**: 目标 `pytest tests/test_chat_session.py tests/test_cli.py tests/test_events.py tests/test_chat_history.py -q`
 
+
+
+---
+
+## Task 5: 实现 ChatSession 与 CLI 事件渲染（Implement ChatSession and CLI Event Rendering）
+
+**log_id**: T5 | **task_id**: Task 5 Implement ChatSession and CLI Event Rendering | **状态**: COMPLETED
+**时间**: 2026-08-14
+**Superpowers 技能**: `superpowers:subagent-driven-development` + `superpowers:test-driven-development`
+**branch/worktree**: feature/interactive-cli-agent / `.worktrees/interactive-cli-agent`
+
+**目标**:
+1. `ChatSession.run() -> int`、`CLIEventSink`、可注入 `InputReader`/`OutputWriter` callables
+2. 命令：/help /status /clear /exit /cancel；REPL 输入启动一个任务并等待终态或批准/澄清暂停
+3. 稳定前缀渲染（CodeGuard > / [tool] / [guardrail] / [approval] / [validation] / [task]）；批准提示 [y/N]；Ctrl+C 取消
+4. `chat_command(args)` 解析 --mode 并构造 `CompositionRoot(mode, workspace_root=Path.cwd())` + ChatSession
+5. 风险分级：Task 5 MEDIUM（目标测试 + CLI 回归，不跑全量）
+
+**关键输出/修改**:
+- `codeguard/chat/session.py`（新建）:
+  - `ChatSession`：构造函数含 loop_factory / read_input / write_output / history / status_provider（后三者可选，缺省用 input()/print()/内存 history）。`session_id = uuid4()`；每个任务生成 uuid4 task_id；session 全生命周期只创建一个 loop（`loop_factory(session_id)` 惰性调用一次，`start_task` 按任务复用，匹配真实 AgentLoop 的 per-task API）
+  - `run()`：读一行 → 空白行忽略；空串返回视为 EOF 退出 0；EOFError → 0；`/exit` → 0；普通输入 → `_run_task`
+  - `_run_task`：history.add_message("user", line)；`loop.start_task(task_id, line, [s.summary for s in history.summaries])`；终态或 AWAITING_APPROVAL/AWAITING_USER_INPUT 暂停循环驱动；终态时把 sink.assistant_messages 逐条 append（仅 user 文本/assistant 消息/最终 TaskSummary，绝不 append 原始工具输出）；FAILED 且 `loop.state.guardrail_decision` 为 BLOCK 时渲染 `[guardrail] BLOCK: <reason_codes>`
+  - 批准暂停：提示 `Approve <tool>? target: <path|pattern|program> reason: <human_readable_message> [y/N]: `；空输入（含 Ctrl+C 打断）默认 REJECT；仅 `y`/`yes`（大小写不敏感）为 APPROVED；`resume_with_approval(request_id, session_id, decision, pending.action_fingerprint)` 绑定请求/会话/指纹后 `loop.run()`，回到同一 loop、同一 task_id；resume/run 异常时回退 `loop.cancel()`
+  - 澄清暂停：先打印 `CodeGuard asks: <pending_question>`；普通文本 → `resume_with_user_input(text)`；`/cancel` → `loop.cancel()`；Ctrl+C（read_input 抛 KeyboardInterrupt）→ `loop.cancel()` 并回到 REPL
+  - `/cancel` 无活动任务时打印 "No active task" 且不创建任务/不调用工厂；有活动任务时 `loop.cancel()` + 追加 CANCELLED 摘要
+  - Ctrl+C 语义：任务 start_task 中抛 KeyboardInterrupt → cancel 后回到 REPL（不退出 session）；空闲 REPL 处 → 返回 130
+  - `/help` 打印 5 条命令（含 /status）；`/status` 打印 `status_provider()` 的 key: value（无 provider 时打印 "No status provider configured."）；`/clear` 调 `history.clear_messages()`（summaries 保留）
+  - 事件接线：任务开始时若 loop 有 `event_sink` 属性则替换为 `CLIEventSink(write)`（fake loop 无该属性时优雅跳过——delattr 模拟已测）
+  - `CLIEventSink`：渲染 `CodeGuard > `、`[tool] name[: status output]`、`[approval] tool reason`、`[validation] sensor: status`、`[task] OUTCOME[: summary]`；所有 payload 值经 `_bounded()` 截断至 500 字符（尾部 "..."）；只渲染每种事件建模字段（未建模 payload 键如 secret 绝不打印）；记录 `assistant_messages` 供 session 回写 history；STATE_CHANGED/USER_INPUT_REQUESTED 不渲染单行（由交互流程处理）
+- `codeguard/chat/__init__.py`: 导出新增 `ChatSession`、`CLIEventSink`
+- `codeguard/cli/chat.py`: `chat_command` 改为交互式——`CompositionRoot(mode=mode, workspace_root=Path.cwd())`；loop **急切创建**（`create_loop(session_id="cli-session")`）使缺失本地 key 的 ValueError 在提示符出现前 fail fast（保持既有安全错误消息 + exit 1）；随后 `ChatSession(loop_factory=lambda session_id: loop, history=..., status_provider=...)`，`sys.exit(session.run())`
+- `tests/test_chat_session.py`（新建，33 个测试）: FakeIO（queue/prompts/output）、FakeLoop（脚本化、记录 calls、模拟 event_sink 可选）、RecordingLoopFactory、history fixture；命令测试（/help 不创建任务、/clear 只清消息、/status 有无 provider、空白输入、EOF 空串/EOFError、/cancel 无任务、/exit）；任务流（一个输入启动一个任务、history 追加 user+summary、summaries 传给 start_task、同一 loop/同一 task 语义）；批准（y/yes/Y 批准、n/no/maybe/空输入拒绝、request/session/fingerprint 绑定、prompt 含 target 与 [y/N]、空输入默认拒绝）；澄清（文本恢复、/cancel、Ctrl+C 模拟 read 抛 KeyboardInterrupt）；Ctrl+C（空闲 130、任务中 cancel 回 REPL）；事件（替换 sink 并渲染/记录 assistant、无 event_sink 跳过、BLOCK 行用终态 guardrail_decision）；CLIEventSink 渲染（稳定前缀精确行、assistant 截断 500+3、工具输出截断 <600、未建模键不打印、STATE_CHANGED/USER_INPUT_REQUESTED 不渲染、assistant_messages 记录）
+- `tests/test_cli.py`: `test_chat_test_mode_creates_loop_and_runs` → `test_chat_test_mode_creates_session_and_runs`（mock ChatSession，断言 CompositionRoot(mode, workspace_root=Path.cwd())、create_loop(session_id="cli-session") 急切调用、factory 返回该 loop、run() 调用一次、exit 0）；新增 demo 模式 root 选择测试；local 缺 key 测试保持原断言不变（Error: + exit 1）
+
+**验证证据**:
+- RED（Step 2）: `pytest tests/test_chat_session.py -q` → **1 error（collection）**（`ImportError: cannot import name 'ChatSession' from 'codeguard.chat'`，ChatSession 不存在，符合计划预期）
+- GREEN: `pytest tests/test_chat_session.py -q` → **33 passed**
+- 回归（Step 7）: `pytest tests/test_chat_session.py tests/test_cli.py tests/test_events.py tests/test_chat_history.py -q` → **66 passed**
+- 附加健全性: `pytest tests/test_loop.py tests/test_composition_root.py tests/test_chat_history.py -q` → **51 passed**（chat/__init__ 新导入无环）
+- 真实 loop 冒烟: CompositionRoot(mode='test', workspace_root=tempdir).create_loop 经 ChatSession 跑一个任务 → exit 0，渲染 `[validation] pytest: FAILED`、`[task] COMPLETED`
+- `git diff --check` → 无空白错误
+- `docs/superpowers/plans/2026-08-13-interactive-cli-agent.md`: Task 5 的 8 个步骤全部勾选
+
+**commit hash**: `c3877d0`（`feat: add interactive chat session and CLI rendering`）
