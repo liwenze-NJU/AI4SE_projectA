@@ -3101,5 +3101,5 @@
 - `git diff --check` → clean; 凭据扫描 0 真实命中
 - 未创建 tag/Release；未合并 main（main 仍 30581f0）
 
-**commit hash**: `T8-FIX4-COMMIT`（提交后回填）
+**commit hash**: `e53958f`（`fix: allow at most one consecutive assistant message and single state word in terminal line`）
 
