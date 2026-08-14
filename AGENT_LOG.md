@@ -2657,3 +2657,30 @@
 
 **commit hash**: `d37005c`（`feat: feed runtime results through the governed agent loop`）
 
+
+---
+
+## T4 修复: approval-resume 路径工具失败被当作中性结果（Important 修复条目）
+
+**log_id**: T4-FIX | **状态**: COMPLETED
+**时间**: 2026-08-14
+**Superpowers 技能**: `superpowers:test-driven-development`（严格 TDD: RED → GREEN → 回归 → 全量 → 提交）
+**branch/worktree**: feature/interactive-cli-agent / `.worktrees/interactive-cli-agent`
+
+**Important 发现（merge review）**: `_continue_from_approval`（approval-resume 执行路径）无条件将工具结果写入反馈字段为 "Tool {name} result: ..."，不区分 FAILURE/ERROR/TIMEOUT，且后续 `_run_sensors` 的验证反馈会覆盖它。已批准的写/进程工具失败（如 PermissionError → FAILURE）被当作中性结果反馈给下一轮 LLM 决策，模型无法区分成功与失败——恰恰在高风险审批路径上削弱了"工具结果反馈"核心需求。
+
+**根因**: 两条执行路径（正常 EXECUTING 与 approval-resume）各自内联处理工具结果，后者漏掉了状态分支；传感器反馈无条件覆盖 `_latest_result`。
+
+**修复**: `codeguard/loop.py` 抽取 `_dispatch_tool(action)` 共享辅助（发射 TOOL_STARTED/TOOL_FINISHED、FAILURE/ERROR/TIMEOUT 用 "Tool {name} failed:" 标记、输出截断 800）；两条路径统一调用。`_run_sensors` 改为：当 `_latest_result` 以 "Tool " 开头时，传感器信息以 " | " 追加（工具结果截断 600 + 验证信息），不再覆盖工具失败信号。
+
+**新增测试**（`tests/test_loop.py::test_loop_approval_resume_tool_failure_is_fed_back`）: FailingDispatcher 返回 FAILURE("permission denied...") → 断言 approval-resume 后 `_latest_result` 含 "failed" 与 "permission denied"。
+
+**验证证据**:
+- RED: `pytest tests/test_loop.py::test_loop_approval_resume_tool_failure_is_fed_back -q` → 1 failed（`_latest_result` 为 "Validation pytest: PASSED"，工具失败被覆盖）
+- GREEN: `pytest tests/test_loop.py tests/test_context_runtime.py -q` → **29 passed**
+- 回归: `pytest tests/test_loop.py tests/test_context_runtime.py tests/test_integration_guardrail_feedback.py tests/test_phase14_spec_compliance.py -q` → **61 passed**
+- 全量: `pytest -q -rs` → **699 passed, 1 skipped**
+- `git diff --check` → 无空白错误
+
+**commit hash**: `f296291`（`fix: feed approval-resume tool failures back as failures`）
+
