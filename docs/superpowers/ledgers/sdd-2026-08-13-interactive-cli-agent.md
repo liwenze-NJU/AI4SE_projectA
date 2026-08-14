@@ -105,11 +105,12 @@
 
 ### Task 6: Update DeepSeek Protocol and CLI Metadata
 
-- **Status:** PENDING
-- **Implementer commit(s):**
-- **Spec review:** PENDING
-- **Quality review:** PENDING
-- **Fix rounds:**
+- **Status:** COMPLETED (2026-08-14, 1 Important fix round)
+- **Implementer commit(s):** `e5faebf`（feat）, `c6a8356`（docs 回填）, `6167ea1`（review fix）, `f3cb991`（T6-FIX docs 回填）
+- **Spec review:** ✅ compliant（5 项全部满足；43 passed 复现；RED 7 failed/15 passed）
+- **Quality review:** ⚠️ 1st round APPROVED_WITH_MINOR + 2 Important: (1) redactor `\b(sk-)\w+` 在连字符处截断，DeepSeek 连字符 key 尾部泄漏（`sk-***-secret-tail` 可见）; (2) `raise ValueError(...) from e` 使 `__cause__` 保留未脱敏原始 provider 文本，且 strict-mode ValueError 会以 traceback 形式杀死交互 REPL。→ Fix round: `6167ea1`（redactor 模式改为 `\b(sk-)[A-Za-z0-9]+(?:-[A-Za-z0-9]+)*` 整段匹配；deepseek 去掉 `from e`；ChatSession `_run_task` 捕获 ValueError 打印 `[error]` 回到 REPL；RED 3 failed → GREEN 62 → 回归 114 passed）
+- **Fix rounds:** 1 (2 Important → fixed → T6-FIX AGENT_LOG 条目)
+- **Deferred Minor items (recorded for final review):** (a) 网络错误消息未脱敏（deepseek.py `Network error ... {e}` 可能含 URL/凭据，pre-existing）; (b) 脱敏测试应断言 `__cause__`/完整 traceback 安全; (c) 新增 redactor 可注入参数为 fine; (d) test_scaffold.py 文件缺尾换行（cosmetic）。
 
 ### Task 7: Deterministic End-to-End Interactive Coding Test
 
