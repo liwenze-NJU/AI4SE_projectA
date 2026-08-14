@@ -2613,3 +2613,22 @@
 
 **commit hash**: `496cc78`（`fix: wire production tools and validation sensors`）
 
+
+---
+
+## Task 4: 将任务、工具结果与验证反馈接入 AgentLoop（Feed Tasks, Tool Results, and Validation Back into AgentLoop）
+
+**log_id**: T4 | **task_id**: Task 4 Feed Tasks, Tool Results, and Validation Back into AgentLoop | **状态**: STARTED
+**时间**: 2026-08-14
+**Superpowers 技能**: `superpowers:subagent-driven-development` + `superpowers:test-driven-development`
+**branch/worktree**: feature/interactive-cli-agent / `.worktrees/interactive-cli-agent`
+
+**目标**:
+1. `AgentLoop.start_task(task_id, request, conversation_summaries) -> SessionResult`、`resume_with_user_input(text) -> SessionResult`、`cancel() -> SessionResult`
+2. Mock LLM 记录 `received_contexts`；loop 用 `ContextBuilder.build_runtime(...)` 构建上下文并携带最新工具结果/反馈
+3. `ASSISTANT_MESSAGE` 自动继续；`REQUEST_USER_INPUT` 暂停并显式恢复；`cancel()` 阻止后续工具执行
+4. 生产装配不完整时 fail closed（缺失组件 → FAILED + 脱敏诊断）
+5. 风险分级：Task 4 为 HIGHEST（全量 spec/security/state-machine review；全量测试）
+
+**验证命令**: 目标 `pytest tests/test_context_runtime.py tests/test_loop.py -q`；回归 `pytest tests/test_loop.py tests/test_context_runtime.py tests/test_integration_guardrail_feedback.py tests/test_phase14_spec_compliance.py -q`；全量 `pytest -q -rs`
+
