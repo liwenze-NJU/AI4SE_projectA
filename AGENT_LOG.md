@@ -2611,5 +2611,5 @@
 - 全量: `pytest -q -rs` → **686 passed, 1 skipped**（skip 为文档化 Windows symlink 平台限制）
 - `git diff --check` → 无空白错误
 
-**commit hash**: （待提交后回填）
+**commit hash**: `496cc78`（`fix: wire production tools and validation sensors`）
 

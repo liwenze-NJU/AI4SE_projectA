@@ -76,7 +76,7 @@
 ### Task 3: Wire Real Tools, Dispatcher, and Sensors in the Composition Root
 
 - **Status:** COMPLETED (2026-08-14, resumed after abnormal shutdown on 2026-08-13)
-- **Implementer commit(s):** `T3-COMMIT`（提交后回填）
+- **Implementer commit(s):** `496cc78`（`fix: wire production tools and validation sensors`）
 - **Spec review:** PENDING（合并 reviewer 双评审，见下方条目）
 - **Quality review:** PENDING
 - **Fix rounds:** 0
