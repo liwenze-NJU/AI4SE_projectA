@@ -415,7 +415,7 @@ git commit -m "feat: add bounded chat history and runtime context"
 - Consumes: real handlers in `codeguard.tool.file_tools`, `run_process`, `ToolRegistry`, `ToolDispatcher`, `SensorRunner`, config dataclasses.
 - Produces: `CompositeSensorRunner.run_all() -> list[FeedbackResult]`, `ToolRiskRule`, and a fully wired `CompositionRoot(mode, workspace_root=None, event_sink=None)` with project-scoped memory retrieval.
 
-- [ ] **Step 1: Write failing composition tests that expose placeholder wiring**
+- [x] **Step 1: Write failing composition tests that expose placeholder wiring**
 
 ```python
 def test_test_composition_has_dispatcher_and_sensors(tmp_path):
@@ -449,7 +449,7 @@ def test_write_file_declared_risk_requests_approval(tmp_path):
     assert result.decision is GuardrailDecision.REQUEST_APPROVAL
 ```
 
-- [ ] **Step 2: Run the composition tests to verify RED**
+- [x] **Step 2: Run the composition tests to verify RED**
 
 ```powershell
 .\.venv\Scripts\python.exe -m pytest tests\test_composition_production.py -q
@@ -457,7 +457,7 @@ def test_write_file_declared_risk_requests_approval(tmp_path):
 
 Expected: FAIL because dispatcher/sensors are `None`, handlers return `None`, and final validation accepts an empty required-sensor list.
 
-- [ ] **Step 3: Implement `CompositeSensorRunner`**
+- [x] **Step 3: Implement `CompositeSensorRunner`**
 
 ```python
 class CompositeSensorRunner:
@@ -472,7 +472,7 @@ class CompositeSensorRunner:
 
 Expose a read-only `definition` property from `SensorRunner` so composition can derive required sensor names without reaching into private fields.
 
-- [ ] **Step 4: Register the exact real handlers**
+- [x] **Step 4: Register the exact real handlers**
 
 Map:
 
@@ -491,11 +491,11 @@ Register `run_tests`, `run_lint`, and `run_typecheck` as structured wrappers aro
 
 Use complete schemas matching the actual handlers: `write_file` requires `path` and `content`; `apply_patch` requires `path`, `old_string`, and `new_string`; `run_process` requires `program` and accepts `args`, `cwd`, and bounded `timeout`. Do not preserve the current incomplete schemas merely to keep old tests green.
 
-- [ ] **Step 5: Make the dispatcher accept `Action | NormalizedAction` safely**
+- [x] **Step 5: Make the dispatcher accept `Action | NormalizedAction` safely**
 
 Normalize parameter extraction in one private helper and call registered handlers as `handler(params, workspace_root=str(self._workspace_root))`. A missing dispatcher or unknown tool must fail closed. Return redacted `ToolResult`; never coerce an exception into success.
 
-- [ ] **Step 6: Wire each mode explicitly**
+- [x] **Step 6: Wire each mode explicitly**
 
 Use constructor:
 
@@ -512,11 +512,11 @@ Resolve the root once. In `test`, require a caller-provided temporary root for a
 
 Compute `project_id` as SHA-256 of the normalized, case-normalized absolute workspace path. In local mode store structured memory below `%LOCALAPPDATA%\CodeGuard\memory` (raise a clear fail-closed error if the location is unavailable); in tests use a caller-provided temporary memory base. Inject `JSONMemoryStore` and `MemoryRetriever(top_k=10, context_budget=2048)` into the loop. Retrieval must still return ACTIVE records only and preserve the existing trust ordering.
 
-- [ ] **Step 7: Enforce registered tool risk through Guardrail code**
+- [x] **Step 7: Enforce registered tool risk through Guardrail code**
 
 Add `ToolRiskRule(registry: ToolRegistry)`. For `TOOL_CALL`, look up `ToolDefinition.default_risk` and return exactly `ALLOW`, `REQUEST_APPROVAL`, or `BLOCK`; unknown risk strings fail closed as BLOCK. Non-tool conversation actions are never sent through the tool governance pipeline. Register rules in the composition root so the engine includes workspace boundary, credential leak, unregistered tool, mode restriction, and tool risk. Set ordinary write/patch tools to `REQUEST_APPROVAL`, destructive deletion to `REQUEST_APPROVAL` or `BLOCK` according to the existing declared definition, and trusted read/test tools to `ALLOW`.
 
-- [ ] **Step 8: Run composition, dispatcher, memory, Guardrail, and demo-safety regressions**
+- [x] **Step 8: Run composition, dispatcher, memory, Guardrail, and demo-safety regressions**
 
 ```powershell
 .\.venv\Scripts\python.exe -m pytest tests\test_composition_production.py tests\test_composition_root.py tests\test_tool_dispatcher.py tests\test_guardrail_rules.py tests\test_memory_retriever.py -q

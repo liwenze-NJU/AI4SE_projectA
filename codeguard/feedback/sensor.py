@@ -16,6 +16,15 @@ class SensorRunner:
         self._definition = definition
         self._cwd = cwd
 
+    @property
+    def definition(self) -> SensorDefinition:
+        """Read-only access to the configured SensorDefinition.
+
+        Composition derives required sensor names and metadata from this
+        property without reaching into private fields.
+        """
+        return self._definition
+
     def run(self) -> FeedbackResult:
         start = time.perf_counter()
         env = os.environ.copy()

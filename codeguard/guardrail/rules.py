@@ -124,3 +124,38 @@ class ModeRestrictionRule:
             return {"decision": "BLOCK", "rule_id": "mode_restriction",
                     "reason_codes": ["blocked_in_demo"], "recoverable": True}
         return {"decision": "ALLOW", "rule_id": "mode_restriction", "reason_codes": []}
+
+
+class ToolRiskRule:
+    """Enforces each registered tool's declared default risk in code.
+
+    For TOOL_CALL actions the rule looks up ``ToolDefinition.default_risk``
+    and returns exactly ALLOW, REQUEST_APPROVAL, or BLOCK.  Unknown risk
+    strings fail closed as BLOCK.  Non-tool conversation actions are never
+    sent through the tool governance pipeline.
+    """
+
+    _VALID_DECISIONS = frozenset({"ALLOW", "REQUEST_APPROVAL", "BLOCK"})
+
+    def __init__(self, registry: ToolRegistry):
+        self._registry = registry
+
+    def evaluate(self, action: NormalizedAction) -> dict:
+        if not isinstance(action, NormalizedAction):
+            raise TypeError(
+                f"ToolRiskRule requires NormalizedAction, "
+                f"got {type(action).__name__}"
+            )
+        if action.kind != ActionKind.TOOL_CALL:
+            # Conversation and completion actions are not governed by tool risk
+            return {"decision": "ALLOW", "rule_id": "tool_risk", "reason_codes": []}
+        try:
+            definition = self._registry.lookup(action.tool_name or "")
+        except KeyError:
+            return {"decision": "BLOCK", "rule_id": "tool_risk",
+                    "reason_codes": ["unknown_tool"], "recoverable": True}
+        risk = definition.default_risk
+        if risk not in self._VALID_DECISIONS:
+            return {"decision": "BLOCK", "rule_id": "tool_risk",
+                    "reason_codes": ["invalid_default_risk"], "recoverable": False}
+        return {"decision": risk, "rule_id": "tool_risk", "reason_codes": []}

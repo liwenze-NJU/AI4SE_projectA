@@ -61,6 +61,8 @@ class AgentLoop:
         self.feedback_classifier = None
         self.objective_verifier = None
         self.stop_policy = None
+        # Event sink for harness events (publishing implemented in Task 4)
+        self.event_sink = None
 
         # Approval resume state
         self._approval_decision: ApprovalStatus | None = None

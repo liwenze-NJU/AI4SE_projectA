@@ -8,6 +8,7 @@ from codeguard.guardrail.rules import (
     CredentialLeakRule,
     UnregisteredToolRule,
     ModeRestrictionRule,
+    ToolRiskRule,
 )
 from codeguard.tool.registry import ToolRegistry
 from codeguard.tool import ToolDefinition
@@ -198,3 +199,52 @@ class TestModeRestrictionRule:
     def test_allows_complete_request(self):
         rule = ModeRestrictionRule(mode="demo")
         assert rule.evaluate(_make_complete())["decision"] == "ALLOW"
+
+
+# ── ToolRiskRule ─────────────────────────────────────────────────────
+
+class TestToolRiskRule:
+    def _registry_with(self, name, risk):
+        registry = ToolRegistry()
+        td = ToolDefinition(
+            name=name, description="", parameters_schema={},
+            handler=lambda: None, category="FILE", side_effect=False,
+            default_risk=risk, supported_modes=["TEST"],
+        )
+        registry.register(td)
+        return registry
+
+    def test_allows_registered_allow_tool(self):
+        rule = ToolRiskRule(self._registry_with("read_file", "ALLOW"))
+        na = _make_na(tool_name="read_file")
+        assert rule.evaluate(na)["decision"] == "ALLOW"
+
+    def test_requests_approval_for_request_approval_tool(self):
+        rule = ToolRiskRule(self._registry_with("write_file", "REQUEST_APPROVAL"))
+        na = _make_na(tool_name="write_file")
+        assert rule.evaluate(na)["decision"] == "REQUEST_APPROVAL"
+
+    def test_blocks_for_block_default_risk(self):
+        rule = ToolRiskRule(self._registry_with("delete_file", "BLOCK"))
+        na = _make_na(tool_name="delete_file")
+        assert rule.evaluate(na)["decision"] == "BLOCK"
+
+    def test_blocks_unknown_risk_string(self):
+        rule = ToolRiskRule(self._registry_with("weird_tool", "MAYBE"))
+        na = _make_na(tool_name="weird_tool")
+        assert rule.evaluate(na)["decision"] == "BLOCK"
+
+    def test_blocks_unregistered_tool(self):
+        rule = ToolRiskRule(ToolRegistry())
+        na = _make_na(tool_name="unknown_tool")
+        assert rule.evaluate(na)["decision"] == "BLOCK"
+
+    def test_allows_non_tool_conversation_kinds(self):
+        rule = ToolRiskRule(ToolRegistry())
+        for kind in (ActionKind.ASSISTANT_MESSAGE, ActionKind.REQUEST_USER_INPUT,
+                     ActionKind.COMPLETE_REQUEST):
+            na = NormalizedAction(
+                kind=kind, tool_name=None, normalized_parameters={},
+                action_fingerprint="fp", original_raw="", normalized_at=datetime.now(),
+            )
+            assert rule.evaluate(na)["decision"] == "ALLOW", kind

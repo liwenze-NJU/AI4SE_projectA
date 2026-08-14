@@ -2583,3 +2583,33 @@
 - `docs/superpowers/plans/2026-08-13-interactive-cli-agent.md` 未改动（Task 2 勾选状态不变，diff 保持最小）
 
 **commit hash**: `fd6c898`（`fix: terminate tool truncation in runtime context builder`）
+
+---
+
+## Task 3: 组合根接入真实工具、Dispatcher 与 Sensors（Wire Real Tools, Dispatcher, and Sensors in the Composition Root）
+
+**log_id**: T3 | **task_id**: Task 3 Wire Real Tools, Dispatcher, and Sensors in the Composition Root | **状态**: STARTED（2026-08-13 中断，2026-08-14 恢复）
+**时间**: 2026-08-13 ~ 2026-08-14
+**Superpowers 技能**: `superpowers:subagent-driven-development`（恢复）+ `superpowers:test-driven-development`
+**branch/worktree**: feature/interactive-cli-agent / `.worktrees/interactive-cli-agent`
+
+**目标**:
+1. 组合根注册真实工具 handler 并注入 ToolDispatcher、CompositeSensorRunner、项目级 MemoryRetriever、事件 sink
+2. 实现 `ToolRiskRule`（依据注册工具声明风险返回 ALLOW/REQUEST_APPROVAL/BLOCK，未知风险 fail closed 为 BLOCK）
+3. Dispatcher 同时接受 `Action | NormalizedAction`，参数经单一私有 helper 提取，异常永不转为成功
+4. 三种模式显式装配：test（真实 handler + 临时根）、local（真实 + DeepSeek + %LOCALAPPDATA%\CodeGuard\memory + 必需 pytest 传感器）、demo（Mock 边界，无真实 dispatcher/sensors）
+5. 严格 TDD（RED → GREEN → 回归 → 提交）；Task 3 属高风险任务，完成后跑全量测试
+
+**执行情况（中断恢复）**:
+- 2026-08-13 执行期间电脑异常关机，未提交修改保留在工作树（composition/sensor/rules/dispatcher/loop 修改 + composite.py/test_composition_production.py 新建）
+- 2026-08-14 恢复：对照 PLAN Task 3 brief 核查未提交实现 → 目标测试 115 passed（含新增 production 测试）→ 全量 685 passed, 1 skipped
+- 恢复时补齐的缺口（TDD）: demo 模式真实 ToolDispatcher 泄漏 —— 新增 `test_demo_avoids_real_dispatcher_and_sensors`（RED: dispatcher 非 None）→ `_wire_common` 改为 demo 分支不创建真实 dispatcher，保持 None 表面 → GREEN
+
+**验证证据**:
+- RED（demo 隔离）: `pytest tests/test_composition_root.py::TestCompositionRootDemoMode::test_demo_avoids_real_dispatcher_and_sensors -q` → 1 failed（dispatcher 非 None）
+- GREEN: 目标组（production/root/dispatcher/rules/memory_retriever/demo x3/web_mock_security）→ **131 passed**
+- 全量: `pytest -q -rs` → **686 passed, 1 skipped**（skip 为文档化 Windows symlink 平台限制）
+- `git diff --check` → 无空白错误
+
+**commit hash**: （待提交后回填）
+

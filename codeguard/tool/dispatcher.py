@@ -1,12 +1,19 @@
-from codeguard.tool import ToolDefinition, ToolResult
+from codeguard.tool import ToolResult
 from codeguard.tool.registry import ToolRegistry
-from codeguard.action import Action, ActionKind
+from codeguard.action import Action, NormalizedAction
 from codeguard.secret import SecretRedactor
 import uuid
 
 
 class ToolDispatcher:
-    """Dispatches actions to registered tool handlers with re-validation."""
+    """Dispatches actions to registered tool handlers with re-validation.
+
+    Accepts both raw `Action` and `NormalizedAction` inputs; parameters are
+    extracted through a single private helper so governance and execution
+    always see the same parameter set.  Unknown tools and missing registries
+    fail closed (KeyError), and handler exceptions are never coerced into
+    success.
+    """
 
     def __init__(
         self,
@@ -18,11 +25,20 @@ class ToolDispatcher:
         self._workspace_root = workspace_root
         self._redactor = secret_redactor or SecretRedactor()
 
-    def dispatch(self, action: Action) -> ToolResult:
+    def _extract_parameters(self, action) -> dict:
+        """Single private helper for raw and normalized parameter extraction."""
+        if isinstance(action, NormalizedAction):
+            return dict(action.normalized_parameters or {})
+        return dict(getattr(action, "parameters", None) or {})
+
+    def dispatch(self, action: Action | NormalizedAction) -> ToolResult:
+        if self._registry is None:
+            raise KeyError("No tool registry configured; cannot dispatch")
         definition = self._registry.lookup(action.tool_name)
+        params = self._extract_parameters(action)
         try:
             handler_result = definition.handler(
-                action.parameters or {}, workspace_root=self._workspace_root
+                params, workspace_root=str(self._workspace_root)
             )
             status = "SUCCESS"
             output = str(handler_result)
@@ -54,7 +70,7 @@ class ToolDispatcher:
             diagnostics=[],
             exit_code=0 if status == "SUCCESS" else 1,
             changed_files=(
-                [str(action.parameters.get("path", ""))]
+                [str(params.get("path", ""))]
                 if definition.side_effect
                 else []
             ),

@@ -75,11 +75,12 @@
 
 ### Task 3: Wire Real Tools, Dispatcher, and Sensors in the Composition Root
 
-- **Status:** PENDING
-- **Implementer commit(s):**
-- **Spec review:** PENDING
+- **Status:** COMPLETED (2026-08-14, resumed after abnormal shutdown on 2026-08-13)
+- **Implementer commit(s):** `T3-COMMIT`（提交后回填）
+- **Spec review:** PENDING（合并 reviewer 双评审，见下方条目）
 - **Quality review:** PENDING
-- **Fix rounds:**
+- **Fix rounds:** 0
+- **Resume note:** 电脑于 Task 3 执行期间异常关机；工作树未提交修改（7 改 + 2 新建）视为恢复现场，未 reset/restore/覆盖。对照 brief 核查后仅补齐 demo 隔离缺口（TDD：新增 `test_demo_avoids_real_dispatcher_and_sensors`，修复 `_wire_common` 使 demo 不创建真实 dispatcher）。全量 686 passed, 1 skipped。
 
 ### Task 4: Feed Tasks, Tool Results, and Validation Back into AgentLoop
 

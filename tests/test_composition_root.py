@@ -14,6 +14,8 @@ from codeguard.secret import SecretRedactor
 from codeguard.tracer import Tracer
 from codeguard.context import ContextBuilder
 from codeguard.action import ActionParser
+from codeguard.events import NullEventSink
+from codeguard.tool.dispatcher import ToolDispatcher
 
 
 def _has_deepseek_in_graph(obj) -> bool:
@@ -118,6 +120,26 @@ class TestCompositionRootTestMode:
         assert loop.context_builder is not None
         assert loop.action_parser is not None
 
+    def test_injects_dispatcher_and_sensor_surface(self):
+        root = CompositionRoot(mode="test")
+        loop = root.create_loop(session_id="test-s1")
+        assert isinstance(loop.tool_dispatcher, ToolDispatcher)
+        assert loop.sensor_runner is not None
+        assert loop.objective_verifier is not None
+        assert loop.tool_registry is not None
+
+    def test_default_event_sink_is_null_sink(self):
+        root = CompositionRoot(mode="test")
+        loop = root.create_loop(session_id="test-s1")
+        assert isinstance(loop.event_sink, NullEventSink)
+
+    def test_injects_custom_event_sink(self):
+        from codeguard.events import CollectingEventSink
+        sink = CollectingEventSink()
+        root = CompositionRoot(mode="test", event_sink=sink)
+        loop = root.create_loop(session_id="test-s1")
+        assert loop.event_sink is sink
+
     def test_default_mode_is_test(self):
         root = CompositionRoot()
         loop = root.create_loop(session_id="test-s1")
@@ -172,6 +194,16 @@ class TestCompositionRootDemoMode:
         root = CompositionRoot(mode="demo")
         loop = root.create_loop(session_id="demo-s1")
         assert isinstance(loop.approval_manager, ApprovalManager)
+
+    def test_demo_avoids_real_dispatcher_and_sensors(self):
+        root = CompositionRoot(mode="demo")
+        loop = root.create_loop(session_id="demo-s1")
+        # Demo mode explicitly avoids the real dispatcher and sensor surface:
+        # no real subprocess can run and no real tool handler can be reached.
+        assert loop.tool_dispatcher is None
+        assert loop.sensor_runner is None
+        assert loop.objective_verifier is not None
+        assert loop.objective_verifier.required_sensors == []
 
 
 class TestCompositionRootLocalMode:
