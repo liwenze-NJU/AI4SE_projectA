@@ -240,6 +240,13 @@ class TestDeepSeekAdapter:
         for expected in ["tool_call", "assistant_message",
                          "request_user_input", "complete"]:
             assert expected in messages[0]["content"]
+        # T8-FIX5: the prompt must declare assistant_message TERMINAL —
+        # final validation follows immediately and no further LLM call is
+        # made, so intermediate progress must use tool events instead.
+        content = messages[0]["content"]
+        assert "TERMINAL" in content
+        assert "final validation" in content.lower()
+        assert "never use it for intermediate" in content.lower()
 
     def test_adapter_api_key_not_in_repr(self):
         adapter = DeepSeekAdapter(api_key="sk-secret-key-12345")

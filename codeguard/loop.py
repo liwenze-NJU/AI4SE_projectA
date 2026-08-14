@@ -41,13 +41,6 @@ class AgentLoop:
       stop_policy        — Stop condition evaluator
     """
 
-    # Defense-in-depth bound (T8-FIX2 P1): consecutive conversation actions
-    # (assistant_message / request_user_input) with no tool call and no
-    # completion in between terminate the task at LIMIT_REACHED within this
-    # small bound.  A single assistant_message followed by complete is
-    # always below the bound, so normal text-reply flows are unaffected.
-    _MAX_CONSECUTIVE_CONVERSATION_ACTIONS = 5
-
     # Terminal states that must always surface a TASK_FINISHED event so the
     # CLI never silently returns to the prompt (T8-FIX3).
     _TERMINAL_STATES = frozenset({
@@ -69,17 +62,6 @@ class AgentLoop:
         self._feedback_results: list = []
         self._started_at = datetime.now()
         self._iteration = 0
-        self._consecutive_conversation_actions = 0
-        # T8-FIX3: assistant replies already delivered this task; duplicate
-        # detection runs BEFORE the emit so a repeated reply is shown at
-        # most once.
-        self._delivered_assistant_messages: set[str] = set()
-        # T8-FIX4: at most ONE assistant message may be displayed per
-        # uninterrupted run — a second consecutive assistant_message is
-        # blocked before the emit (no semantic-similarity heuristic).
-        # The allowance resets when a real tool executes or the user
-        # answers a clarification.
-        self._assistant_displayed_since_progress = False
         self._task_finished_emitted = False
 
         # Components to be injected via attributes
@@ -210,10 +192,7 @@ class AgentLoop:
         self.state.approval_request_id = None
         self.state.guardrail_decision = None
         self._approval_decision = None
-        self._delivered_assistant_messages.clear()
-        self._assistant_displayed_since_progress = False
         self._task_finished_emitted = False
-        self._consecutive_conversation_actions = 0
         self._started_at = datetime.now()
         self.state.current_state = AgentState.INITIALIZING
         return self.run()
@@ -229,9 +208,6 @@ class AgentLoop:
             raise ValueError("User input must be a non-empty string")
         answer = text.strip()
         self._latest_result = f"User answer: {answer}"
-        # T8-FIX4: the user's clarification answer is progress — the
-        # assistant may display one message again afterwards.
-        self._assistant_displayed_since_progress = False
         self.state.pending_question = None
         self._transition(AgentState.DECIDING)
         return self.run()
@@ -335,9 +311,9 @@ class AgentLoop:
 
             action = llm_response.next_action
 
-            # COMPLETE_REQUEST → FINAL_VALIDATION
+            # COMPLETE_REQUEST → FINAL_VALIDATION (compat path: tasks
+            # without an assistant_message terminate through complete)
             if action.kind == ActionKind.COMPLETE_REQUEST:
-                self._consecutive_conversation_actions = 0
                 if not self._run_final_validation():
                     # FINAL_VALIDATION failed → FEEDING_BACK → retry
                     self._transition(AgentState.FEEDING_BACK)
@@ -348,60 +324,39 @@ class AgentLoop:
                 self._transition(AgentState.COMPLETED)
                 break
 
-            # ----- Conversation actions (never governed) -----
+            # ----- ASSISTANT_MESSAGE: the task's FINAL user-visible reply -----
+            # T8-FIX5 protocol: displayed once, recorded once, then the
+            # task immediately enters final validation. There is NO second
+            # LLM call asking for complete, no FEEDING_BACK/DECIDING
+            # round-trip — termination is guaranteed by the state machine,
+            # not by model compliance. Validation failure terminates as
+            # FAILED; this path can never reach LIMIT_REACHED.
             if action.kind == ActionKind.ASSISTANT_MESSAGE:
                 message = action.message or ""
-                # T8-FIX4: at most ONE assistant message per uninterrupted
-                # run. A second consecutive assistant_message (identical or
-                # semantically-equivalent text) is blocked BEFORE the emit —
-                # no unreliable semantic-similarity heuristic. The
-                # allowance resets when a real tool executes or the user
-                # answers a clarification.
-                blocked = (
-                    self._assistant_displayed_since_progress
-                    or message in self._delivered_assistant_messages
-                )
-                if blocked:
-                    self._latest_result = (
-                        "The previous assistant message was already "
-                        "delivered. Do not repeat it; return complete, "
-                        "tool_call, or request_user_input."
-                    )
+                self._transcript.append(message)
+                self._latest_result = f"Assistant: {message}"
+                self._emit(HarnessEventKind.ASSISTANT_MESSAGE,
+                           {"message": message})
+                if self._run_final_validation():
+                    self._transition(AgentState.COMPLETED)
                 else:
-                    self._delivered_assistant_messages.add(message)
-                    self._assistant_displayed_since_progress = True
-                    self._transcript.append(message)
-                    self._emit(HarnessEventKind.ASSISTANT_MESSAGE,
-                               {"message": message})
-                    self._latest_result = f"Assistant: {message}"
-                # Deterministic fingerprint so the StopPolicy no-progress
-                # check sees repeated conversation replies (T8-FIX2 P1).
-                self.state.action_fingerprint_history.append(
-                    self._conversation_fingerprint(
-                        ActionKind.ASSISTANT_MESSAGE, message
-                    )
-                )
-                if not self._count_conversation_action():
-                    break
-                self._transition(AgentState.FEEDING_BACK)
-                if self._check_stop_policy():
-                    break
-                self._transition(AgentState.DECIDING)
-                continue
+                    self._transition(AgentState.FAILED)
+                break
 
             if action.kind == ActionKind.REQUEST_USER_INPUT:
                 question = action.question or ""
                 self.state.pending_question = question
                 self._emit(HarnessEventKind.USER_INPUT_REQUESTED, {"question": question})
                 # A resumed loop re-enters DECIDING; identical questions
-                # repeated 3x consecutively trip the no-progress check too
-                # (acceptable and desired per T8-FIX2 P1).
+                # repeated consecutively trip the StopPolicy no-progress
+                # check (defense against clarification loops).
                 self.state.action_fingerprint_history.append(
                     self._conversation_fingerprint(
                         ActionKind.REQUEST_USER_INPUT, question
                     )
                 )
-                self._consecutive_conversation_actions += 1
+                if self._check_stop_policy():
+                    break
                 self._transition(AgentState.AWAITING_USER_INPUT)
                 return self._build_result()
 
@@ -469,10 +424,6 @@ class AgentLoop:
 
             # ----- EXECUTING -----
             self.state.steps_used += 1
-            self._consecutive_conversation_actions = 0
-            # T8-FIX4: a real tool execution is genuine progress — the
-            # assistant may display one message again afterwards.
-            self._assistant_displayed_since_progress = False
 
             if self.tool_dispatcher is not None:
                 self._dispatch_tool(action)
@@ -770,32 +721,15 @@ class AgentLoop:
 
     @staticmethod
     def _conversation_fingerprint(kind: ActionKind, content: str) -> str:
-        """Deterministic fingerprint for conversation actions (T8-FIX2 P1).
+        """Deterministic fingerprint for clarification pauses (T8-FIX2).
 
         Reuses the hashing style of ActionNormalizer: sha256 of
-        f"{kind}:{content}".  Conversation actions never enter governance,
+        f"{kind}:{content}".  request_user_input never enters governance,
         so the loop itself records the fingerprint for the StopPolicy
-        no-progress check.
+        no-progress check (repeated identical questions terminate).
         """
         raw = f"{kind.value}:{content}"
         return hashlib.sha256(raw.encode("utf-8")).hexdigest()
-
-    def _count_conversation_action(self) -> bool:
-        """Count one consecutive conversation action; return True when the
-        loop may continue, False when the defense-in-depth bound is hit.
-
-        The bound resets on any tool call or completion so normal
-        assistant → tool → complete flows are never affected.
-        """
-        self._consecutive_conversation_actions += 1
-        if self._consecutive_conversation_actions >= self._MAX_CONSECUTIVE_CONVERSATION_ACTIONS:
-            self._latest_result = (
-                "Consecutive conversational replies without tool use or "
-                "completion — emit complete when the task is done"
-            )
-            self._transition(AgentState.LIMIT_REACHED)
-            return False
-        return True
 
     def _check_stop_policy(self) -> bool:
         """Evaluate the stop policy.  Returns True if the loop should terminate."""

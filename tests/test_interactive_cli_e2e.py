@@ -154,11 +154,12 @@ def _write_value_project(tmp_path: Path, value: str = "VALUE = 1\n") -> None:
 
 def test_interactive_agent_edits_validates_and_accepts_second_task(tmp_path):
     """REPL → governed loop → real tools → approval → sensors → validation,
-    then a second task starts in the same session."""
+    then a second task starts in the same session. T8-FIX5: progress is
+    shown by tool/validation events; the final assistant_message ends the
+    first task immediately."""
     _write_value_project(tmp_path)
     responses = [
-        _resp(Action(ActionKind.ASSISTANT_MESSAGE,
-                     message="Inspecting value.py", raw="")),
+        # task 1: inspect → approve write → run tests → FINAL reply
         _resp(Action(ActionKind.TOOL_CALL, tool_name="read_file",
                      parameters={"path": "value.py"}, raw="")),
         _resp(Action(ActionKind.TOOL_CALL, tool_name="write_file",
@@ -166,9 +167,9 @@ def test_interactive_agent_edits_validates_and_accepts_second_task(tmp_path):
                      raw="")),
         _resp(Action(ActionKind.TOOL_CALL, tool_name="run_tests",
                      parameters={}, raw="")),
-        _resp(Action(ActionKind.COMPLETE_REQUEST, summary="value.py updated",
-                     raw="")),
-        # second REPL task: harmless inspection
+        _resp(Action(ActionKind.ASSISTANT_MESSAGE,
+                     message="value.py updated, tests pass", raw="")),
+        # second REPL task: harmless inspection, ends via complete
         _resp(Action(ActionKind.TOOL_CALL, tool_name="read_file",
                      parameters={"path": "value.py"}, raw="")),
         _resp(Action(ActionKind.COMPLETE_REQUEST, summary="inspected", raw="")),
@@ -204,13 +205,14 @@ def test_interactive_agent_edits_validates_and_accepts_second_task(tmp_path):
     assert history.summaries[1].outcome == "completed"
 
     # The output carries assistant/tool/approval/validation/task events.
-    assert "CodeGuard > Inspecting value.py" in io.output
+    assert "CodeGuard > value.py updated, tests pass" in io.output
     assert "[tool] read_file" in io.output
     assert "[tool] run_tests" in io.output
     assert "[approval] write_file" in io.output
 
-    # One loop served both tasks and consumed every scripted decision.
-    assert len(loop.llm.received_contexts) == 7
+    # One loop served both tasks; task 1 consumed 4 decisions (read, write,
+    # run_tests, final reply), task 2 consumed 2 (read, complete).
+    assert len(loop.llm.received_contexts) == 6
 
 
 # ---------------------------------------------------------------------------
@@ -450,11 +452,11 @@ def test_demo_composition_cannot_modify_the_project(tmp_path):
 def test_previous_task_request_and_summary_reach_next_task_context(tmp_path):
     """Task 1's request content (BLUE-731) must flow into task 2's first LLM
     context via conversation_summaries, and task 1's TaskSummary must carry a
-    non-empty summary (no empty-string summaries on success)."""
+    non-empty summary (no empty-string summaries on success). T8-FIX5: the
+    final assistant_message ends task 1 immediately — no extra complete."""
     responses = [
-        # task 1: text-reply flow, no tool calls
+        # task 1: text-reply flow — the FINAL reply ends the task
         _resp(Action(ActionKind.ASSISTANT_MESSAGE, message="已记住", raw="")),
-        _resp(Action(ActionKind.COMPLETE_REQUEST, summary="done", raw="")),
         # task 2: harmless inspection, completes immediately
         _resp(Action(ActionKind.TOOL_CALL, tool_name="read_file",
                      parameters={"path": "value.py"}, raw="")),
@@ -468,14 +470,14 @@ def test_previous_task_request_and_summary_reach_next_task_context(tmp_path):
     loop = loops[0]
     contexts = loop.llm.received_contexts
 
-    # Task 1 consumed decisions 1-2 (assistant_message + complete).
-    # Task 2's first decision is index 2 and must carry task 1's request.
-    assert len(contexts) == 4
-    assert "BLUE-731" in contexts[2]
-    assert "记住" in contexts[2]
+    # Task 1 consumed exactly ONE decision (the final reply).
+    # Task 2's first decision is index 1 and must carry task 1's request.
+    assert len(contexts) == 3
+    assert "BLUE-731" in contexts[1]
+    assert "记住" in contexts[1]
 
     # Task 1's summary is non-empty and carries the loop-emitted content:
-    # the last assistant message plus the outcome (never an empty string).
+    # the final assistant message (never an empty string).
     assert len(history.summaries) == 2
     summary1 = history.summaries[0]
     assert summary1.request == "记住 BLUE-731 的修复方案"

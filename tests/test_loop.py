@@ -533,22 +533,41 @@ def test_start_task_resets_counters_and_runs():
     assert result.llm_calls_total == 2
 
 
-def test_assistant_message_consumes_llm_call_but_no_step():
-    """ASSISTANT_MESSAGE emits an event, adds to transcript, does NOT
-    increment steps_used, and continues to DECIDING."""
+def test_assistant_message_is_final_reply_and_completes():
+    """T8-FIX5: ASSISTANT_MESSAGE is the FINAL user-visible reply. It is
+    emitted once, recorded once, triggers final validation once, and the
+    task terminates — exactly one LLM call, no DECIDING round-trip, no
+    LIMIT_REACHED."""
     sink = CollectingEventSink()
     responses = [
         _r(Action(kind=ActionKind.ASSISTANT_MESSAGE, message="Hello there", raw="")),
-        _r(Action(kind=ActionKind.COMPLETE_REQUEST, summary="done", raw="")),
     ]
     loop = _make_task_loop(responses=responses, event_sink=sink)
     result = loop.start_task("t1", "Do the work", [])
     assert result.terminal_state == AgentState.COMPLETED
     assert result.steps_total == 0
-    assert result.llm_calls_total == 2
+    # Exactly ONE LLM call: no second call to ask for complete.
+    assert result.llm_calls_total == 1
     assert loop._transcript == ["Hello there"]
-    kinds = [e.kind for e in sink.events]
-    assert HarnessEventKind.ASSISTANT_MESSAGE in kinds
+    assistant_events = [
+        e for e in sink.events
+        if e.kind == HarnessEventKind.ASSISTANT_MESSAGE
+    ]
+    assert [e.payload["message"] for e in assistant_events] == ["Hello there"]
+    # Final validation ran once (FINAL-typed results exist, exactly one run).
+    final_runs = [r for r in loop._feedback_results
+                  if r.validation_type == "FINAL"]
+    assert len(final_runs) >= 1
+    # One TASK_FINISHED with COMPLETED; never LIMIT_REACHED.
+    finished = [
+        e for e in sink.events if e.kind == HarnessEventKind.TASK_FINISHED
+    ]
+    assert len(finished) == 1
+    assert finished[0].payload["outcome"] == "completed"
+    # No DECIDING round-trip after the message: the trace's last states are
+    # FINAL_VALIDATION → COMPLETED.
+    states = [t["to"] for t in loop._trace]
+    assert states[-2:] == [AgentState.FINAL_VALIDATION, AgentState.COMPLETED]
 
 
 def test_request_user_input_pauses_and_resume_continues():
@@ -623,161 +642,178 @@ def test_start_task_fails_closed_when_components_missing():
     assert "tool_registry" in result.error
 
 
+
 # ---------------------------------------------------------------------------
-# T8-FIX2 P1 — bounded conversational loops
+# T8-FIX5 — assistant_message is the task's FINAL reply (protocol change)
 # ---------------------------------------------------------------------------
 
-def test_identical_assistant_messages_reach_limit_within_small_bound():
-    """Repeated identical ASSISTANT_MESSAGE replies must terminate at
-    LIMIT_REACHED with a small number of LLM calls — never max_llm_calls=100
-    (real API cost per call)."""
+def test_assistant_message_is_final_reply_and_completes():
+    """T8-FIX5: ASSISTANT_MESSAGE is the FINAL user-visible reply. It is
+    emitted once, recorded once, triggers final validation once, and the
+    task terminates — exactly one LLM call, no second call to ask for
+    complete, no LIMIT_REACHED."""
+    sink = CollectingEventSink()
     responses = [
-        _r(Action(kind=ActionKind.ASSISTANT_MESSAGE, message="Same reply", raw=""))
-    ] * 6
-    loop = _make_task_loop(responses=responses)
-    result = loop.start_task("t1", "Do the work", [])
-    assert result.terminal_state == AgentState.LIMIT_REACHED
-    assert result.llm_calls_total <= 5
-    assert result.llm_calls_total != 100
-
-
-def test_assistant_message_fingerprint_recorded_in_history():
-    """Conversation actions must append a deterministic fingerprint to
-    action_fingerprint_history so the StopPolicy no-progress check sees
-    them (identical messages trip the 3-consecutive threshold)."""
-    import hashlib
-
-    responses = [
-        _r(Action(kind=ActionKind.ASSISTANT_MESSAGE, message="Same reply", raw="")),
-        _r(Action(kind=ActionKind.COMPLETE_REQUEST, summary="done", raw="")),
+        _r(Action(kind=ActionKind.ASSISTANT_MESSAGE, message="Hello there", raw="")),
     ]
-    loop = _make_task_loop(responses=responses)
+    loop = _make_task_loop(responses=responses, event_sink=sink)
     result = loop.start_task("t1", "Do the work", [])
     assert result.terminal_state == AgentState.COMPLETED
-    assert len(loop.state.action_fingerprint_history) == 1
-    expected = hashlib.sha256(
-        f"assistant_message:Same reply".encode("utf-8")
-    ).hexdigest()
-    assert loop.state.action_fingerprint_history[0] == expected
+    assert result.steps_total == 0
+    # Exactly ONE LLM call: no second call to ask for complete.
+    assert result.llm_calls_total == 1
+    assert loop._transcript == ["Hello there"]
+    assistant_events = [
+        e for e in sink.events
+        if e.kind == HarnessEventKind.ASSISTANT_MESSAGE
+    ]
+    assert [e.payload["message"] for e in assistant_events] == ["Hello there"]
+    # Final validation ran (FINAL-typed results exist).
+    final_runs = [r for r in loop._feedback_results
+                  if r.validation_type == "FINAL"]
+    assert len(final_runs) >= 1
+    # Exactly one TASK_FINISHED with COMPLETED; never LIMIT_REACHED.
+    finished = [
+        e for e in sink.events if e.kind == HarnessEventKind.TASK_FINISHED
+    ]
+    assert len(finished) == 1
+    assert finished[0].payload["outcome"] == "completed"
+    # Trace ends FINAL_VALIDATION -> COMPLETED; no DECIDING round-trip.
+    states = [t["to"] for t in loop._trace]
+    assert states[-2:] == [AgentState.FINAL_VALIDATION, AgentState.COMPLETED]
+    # The reply is the terminal summary (single state word, no repeat).
+    assert "completed:" not in finished[0].payload["summary"]
+    assert "Hello there" in finished[0].payload["summary"]
 
 
-def test_assistant_then_tool_then_complete_still_completes():
-    """The conversational bounds must never break the normal
-    assistant_message → tool_call → complete flow (user requirement 4/5)."""
+def test_assistant_message_validation_failure_terminates_failed():
+    """T8-FIX5: when final validation fails after the final reply, the
+    task terminates FAILED — displayed once, ONE terminal event, no
+    COMPLETED, no LIMIT_REACHED, no further LLM call."""
+    from codeguard.feedback import FeedbackResult
+
+    class FailingFinalSensorRunner(FakeSensorRunner):
+        def run_all(self):
+            return [
+                FeedbackResult(
+                    sensor_id="pytest", program="pytest", args=["."],
+                    status="FAILED", failure_category="TEST_FAILURE",
+                    exit_code=1, failure_fingerprint="fp-x",
+                    validation_type="INTERMEDIATE", summary="boom",
+                    diagnostics=[], duration=0.1, retryable=True,
+                    raw_output_truncated="boom",
+                )
+            ]
+
+    sink = CollectingEventSink()
     responses = [
-        _r(Action(kind=ActionKind.ASSISTANT_MESSAGE, message="On it", raw="")),
+        _r(Action(kind=ActionKind.ASSISTANT_MESSAGE, message="Answer", raw="")),
         _r(Action(kind=ActionKind.TOOL_CALL, tool_name="read_file",
                   parameters={"path": "x"}, raw="")),
         _r(Action(kind=ActionKind.COMPLETE_REQUEST, summary="done", raw="")),
     ]
-    loop = _make_task_loop(responses=responses)
+    loop = _make_task_loop(responses=responses, event_sink=sink)
+    loop.sensor_runner = FailingFinalSensorRunner()
+    loop.objective_verifier = FakeObjectiveVerifier(passed=False)
     result = loop.start_task("t1", "Do the work", [])
-    assert result.terminal_state == AgentState.COMPLETED
-    assert result.llm_calls_total == 3
-
-
-def test_text_reply_then_complete_completes():
-    """A pure text-reply task (assistant_message → complete) completes."""
-    responses = [
-        _r(Action(kind=ActionKind.ASSISTANT_MESSAGE, message="Answer", raw="")),
-        _r(Action(kind=ActionKind.COMPLETE_REQUEST, summary="done", raw="")),
+    assert result.terminal_state == AgentState.FAILED
+    # The reply was displayed exactly once and never re-requested.
+    assistant_events = [
+        e for e in sink.events
+        if e.kind == HarnessEventKind.ASSISTANT_MESSAGE
     ]
-    loop = _make_task_loop(responses=responses)
+    assert [e.payload["message"] for e in assistant_events] == ["Answer"]
+    assert result.llm_calls_total == 1
+    finished = [
+        e for e in sink.events if e.kind == HarnessEventKind.TASK_FINISHED
+    ]
+    assert len(finished) == 1
+    assert finished[0].payload["outcome"] == "failed"
+
+
+def test_tool_then_assistant_message_completes_with_tool_progress():
+    """T8-FIX5: tool_call -> tool_result feeds the next context -> the final
+    assistant_message is displayed once -> validation -> COMPLETED. Progress
+    is expressed by tool/validation events, not intermediate messages."""
+    sink = CollectingEventSink()
+    responses = [
+        _r(Action(kind=ActionKind.TOOL_CALL, tool_name="read_file",
+                  parameters={"path": "x"}, raw="")),
+        _r(Action(kind=ActionKind.ASSISTANT_MESSAGE, message="check done", raw="")),
+    ]
+    loop = _make_task_loop(responses=responses, event_sink=sink)
     result = loop.start_task("t1", "Do the work", [])
     assert result.terminal_state == AgentState.COMPLETED
     assert result.llm_calls_total == 2
-
-
-def test_two_different_assistant_messages_then_complete_completes():
-    """Two DIFFERENT assistant messages followed by complete completes."""
-    responses = [
-        _r(Action(kind=ActionKind.ASSISTANT_MESSAGE, message="First", raw="")),
-        _r(Action(kind=ActionKind.ASSISTANT_MESSAGE, message="Second", raw="")),
-        _r(Action(kind=ActionKind.COMPLETE_REQUEST, summary="done", raw="")),
-    ]
-    loop = _make_task_loop(responses=responses)
-    result = loop.start_task("t1", "Do the work", [])
-    assert result.terminal_state == AgentState.COMPLETED
-    assert result.llm_calls_total == 3
-
-
-def test_varied_assistant_messages_reach_limit_within_bound():
-    """5+ varied (non-identical) consecutive assistant messages must also
-    terminate at LIMIT_REACHED within a small bound (defense-in-depth)."""
-    responses = [
-        _r(Action(kind=ActionKind.ASSISTANT_MESSAGE, message=f"msg {i}", raw=""))
-        for i in range(7)
-    ]
-    loop = _make_task_loop(responses=responses)
-    result = loop.start_task("t1", "Do the work", [])
-    assert result.terminal_state == AgentState.LIMIT_REACHED
-    assert result.llm_calls_total <= 5
-
-
-# ---------------------------------------------------------------------------
-# T8-FIX3 — duplicate delivery before emit + terminal events on every end
-# ---------------------------------------------------------------------------
-
-def test_identical_assistant_messages_delivered_only_once():
-    """The verbatim acceptance scenario: assistant_message("BLUE-731") x3.
-    Duplicate detection must happen BEFORE the emit, so the identical reply
-    is delivered to the user AT MOST ONCE per task."""
-    sink = CollectingEventSink()
-    responses = [
-        _r(Action(kind=ActionKind.ASSISTANT_MESSAGE, message="BLUE-731", raw="")),
-        _r(Action(kind=ActionKind.ASSISTANT_MESSAGE, message="BLUE-731", raw="")),
-        _r(Action(kind=ActionKind.ASSISTANT_MESSAGE, message="BLUE-731", raw="")),
-    ]
-    loop = _make_task_loop(responses=responses, event_sink=sink)
-    result = loop.start_task("t1", "Do the work", [])
     assistant_events = [
         e for e in sink.events
         if e.kind == HarnessEventKind.ASSISTANT_MESSAGE
     ]
-    # Only the FIRST occurrence is emitted; the repeats are deduplicated
-    # BEFORE the emit and never reach the user.
-    assert [e.payload["message"] for e in assistant_events] == ["BLUE-731"]
-    assert result.terminal_state == AgentState.LIMIT_REACHED
-    # Bounded LLM calls: never max_llm_calls=100.
-    assert result.llm_calls_total <= 5
-    # The first repeat feeds the protocol-correction feedback into the next
-    # decision context.
-    assert "already delivered" in loop._latest_result
-    assert "Do not repeat it" in loop._latest_result
+    assert [e.payload["message"] for e in assistant_events] == ["check done"]
+    finished = [
+        e for e in sink.events if e.kind == HarnessEventKind.TASK_FINISHED
+    ]
+    assert len(finished) == 1
+    assert finished[0].payload["outcome"] == "completed"
 
 
-def test_first_repeat_feeds_correction_then_complete_still_completes():
-    """A single repeat followed by complete: the repeat is deduplicated, the
-    correction feedback is fed back, and a compliant completion finishes
-    the task (requirement 4 — correction enables recovery, no fabricated
-    COMPLETED)."""
+def test_request_user_input_then_assistant_message_terminates():
+    """T8-FIX5: request_user_input pauses; after the user's answer the
+    final assistant_message ends the task correctly."""
     sink = CollectingEventSink()
     responses = [
-        _r(Action(kind=ActionKind.ASSISTANT_MESSAGE, message="BLUE-731", raw="")),
-        _r(Action(kind=ActionKind.ASSISTANT_MESSAGE, message="BLUE-731", raw="")),
-        _r(Action(kind=ActionKind.COMPLETE_REQUEST, summary="done", raw="")),
+        _r(Action(kind=ActionKind.REQUEST_USER_INPUT, question="Which file?", raw="")),
+        _r(Action(kind=ActionKind.ASSISTANT_MESSAGE, message="Got it", raw="")),
     ]
     loop = _make_task_loop(responses=responses, event_sink=sink)
     result = loop.start_task("t1", "Do the work", [])
+    assert result.terminal_state == AgentState.AWAITING_USER_INPUT
+    result = loop.resume_with_user_input("config.py")
+    assert result.terminal_state == AgentState.COMPLETED
     assistant_events = [
         e for e in sink.events
         if e.kind == HarnessEventKind.ASSISTANT_MESSAGE
     ]
-    assert [e.payload["message"] for e in assistant_events] == ["BLUE-731"]
+    assert [e.payload["message"] for e in assistant_events] == ["Got it"]
+    finished = [
+        e for e in sink.events if e.kind == HarnessEventKind.TASK_FINISHED
+    ]
+    assert len(finished) == 1
+    assert finished[0].payload["outcome"] == "completed"
+
+
+def test_complete_without_assistant_message_still_terminates():
+    """T8-FIX5 compat path: a task that never emits assistant_message can
+    still terminate via complete — exactly one terminal event."""
+    sink = CollectingEventSink()
+    responses = [
+        _r(Action(kind=ActionKind.COMPLETE_REQUEST, summary="done", raw="")),
+    ]
+    loop = _make_task_loop(responses=responses, event_sink=sink)
+    result = loop.start_task("t1", "Do the work", [])
     assert result.terminal_state == AgentState.COMPLETED
-    # The correction must have been visible to the decision that completed.
-    assert "already delivered" in loop.llm.received_contexts[-1]
+    finished = [
+        e for e in sink.events if e.kind == HarnessEventKind.TASK_FINISHED
+    ]
+    assert len(finished) == 1
+    assert finished[0].payload["outcome"] == "completed"
 
 
-def test_limit_reached_emits_task_finished_event():
+def test_repeated_questions_reach_limit_and_emit_task_finished():
     """LIMIT_REACHED must emit a TASK_FINISHED event with the terminal
-    outcome — no silent return to the REPL (requirement 6/7)."""
+    outcome — no silent return to the REPL. Repeated identical
+    clarification questions trip the StopPolicy no-progress check."""
     sink = CollectingEventSink()
     responses = [
-        _r(Action(kind=ActionKind.ASSISTANT_MESSAGE, message="Same reply", raw="")),
+        _r(Action(kind=ActionKind.REQUEST_USER_INPUT, question="Q?", raw="")),
     ] * 6
     loop = _make_task_loop(responses=responses, event_sink=sink)
     result = loop.start_task("t1", "Do the work", [])
+    assert result.terminal_state == AgentState.AWAITING_USER_INPUT
+    for _ in range(6):
+        result = loop.resume_with_user_input("answer")
+        if result.terminal_state != AgentState.AWAITING_USER_INPUT:
+            break
     assert result.terminal_state == AgentState.LIMIT_REACHED
     finished = [
         e for e in sink.events if e.kind == HarnessEventKind.TASK_FINISHED
@@ -806,76 +842,13 @@ def test_failed_emits_task_finished_event():
     assert finished[0].payload["outcome"] == "failed"
 
 
-# ---------------------------------------------------------------------------
-# T8-FIX4 — consecutive assistant messages (semantic repeats)
-# ---------------------------------------------------------------------------
-
-def test_consecutive_distinct_assistant_messages_second_blocked_before_emit():
-    """The verbatim acceptance scenario: assistant_message("BLUE-731") then
-    assistant_message("会话代号是 BLUE-731。") then complete. Without a
-    tool_call or request_user_input in between, the SECOND consecutive
-    assistant message is blocked BEFORE the emit — the user sees at most
-    one reply per uninterrupted run, without any semantic-similarity
-    heuristic."""
-    sink = CollectingEventSink()
-    responses = [
-        _r(Action(kind=ActionKind.ASSISTANT_MESSAGE, message="BLUE-731", raw="")),
-        _r(Action(kind=ActionKind.ASSISTANT_MESSAGE,
-                  message="会话代号是 BLUE-731。", raw="")),
-        _r(Action(kind=ActionKind.COMPLETE_REQUEST,
-                  summary="会话代号是 BLUE-731。", raw="")),
-    ]
-    loop = _make_task_loop(responses=responses, event_sink=sink)
-    result = loop.start_task("t1", "Do the work", [])
-    assistant_events = [
-        e for e in sink.events
-        if e.kind == HarnessEventKind.ASSISTANT_MESSAGE
-    ]
-    assert [e.payload["message"] for e in assistant_events] == ["BLUE-731"]
-    # The blocked second message never reaches the transcript either.
-    assert "会话代号是 BLUE-731。" not in loop._transcript
-    # The protocol correction was fed into the NEXT decision's context
-    # (final validation later overwrites _latest_result with sensor output).
-    correction_context = loop.llm.received_contexts[2]
-    assert "already delivered" in correction_context
-    assert "tool_call" in correction_context
-    assert "request_user_input" in correction_context
-    # A compliant complete still finishes the task (no fabricated COMPLETED
-    # needed — the model was scripted to complete).
-    assert result.terminal_state == AgentState.COMPLETED
-
-
-def test_tool_progress_resets_assistant_display():
-    """assistant → tool_call → assistant → complete: BOTH messages are
-    displayed because a real tool action happened in between (requirement 3).
-    The display allowance resets on tool execution."""
-    sink = CollectingEventSink()
-    responses = [
-        _r(Action(kind=ActionKind.ASSISTANT_MESSAGE, message="正在检查", raw="")),
-        _r(Action(kind=ActionKind.TOOL_CALL, tool_name="read_file",
-                  parameters={"path": "x"}, raw="")),
-        _r(Action(kind=ActionKind.ASSISTANT_MESSAGE, message="检查完成", raw="")),
-        _r(Action(kind=ActionKind.COMPLETE_REQUEST, summary="done", raw="")),
-    ]
-    loop = _make_task_loop(responses=responses, event_sink=sink)
-    result = loop.start_task("t1", "Do the work", [])
-    assistant_events = [
-        e for e in sink.events
-        if e.kind == HarnessEventKind.ASSISTANT_MESSAGE
-    ]
-    assert [e.payload["message"] for e in assistant_events] == ["正在检查", "检查完成"]
-    assert result.terminal_state == AgentState.COMPLETED
-
-
 def test_task_finished_summary_has_no_duplicate_state_word():
     """The TASK_FINISHED payload summary must not repeat the outcome word:
-    '[task] COMPLETED: completed: ...' is forbidden (requirement 5)."""
+    '[task] COMPLETED: completed: ...' is forbidden."""
     sink = CollectingEventSink()
     responses = [
         _r(Action(kind=ActionKind.ASSISTANT_MESSAGE,
-                  message="会话代号是 BLUE-731。", raw="")),
-        _r(Action(kind=ActionKind.COMPLETE_REQUEST,
-                  summary="会话代号是 BLUE-731。", raw="")),
+                  message="session code is BLUE-731.", raw="")),
     ]
     loop = _make_task_loop(responses=responses, event_sink=sink)
     result = loop.start_task("t1", "Do the work", [])
@@ -888,4 +861,4 @@ def test_task_finished_summary_has_no_duplicate_state_word():
     assert payload["outcome"] == "completed"
     summary = payload["summary"]
     assert "completed:" not in summary
-    assert "会话代号是 BLUE-731。" in summary
+    assert "session code is BLUE-731." in summary

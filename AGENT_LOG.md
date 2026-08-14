@@ -3103,3 +3103,48 @@
 
 **commit hash**: `e53958f`（`fix: allow at most one consecutive assistant message and single state word in terminal line`）
 
+
+---
+
+## T8-FIX5: assistant_message 终态化协议重构（人工验收第四轮，发布阻断）
+
+**log_id**: T8-FIX5 | **状态**: COMPLETED
+**时间**: 2026-08-14
+**Superpowers 技能**: `superpowers:systematic-debugging`（根因调查）+ `superpowers:test-driven-development`（RED → GREEN → 回归 → 全量 → 重建 EXE）
+**branch/worktree**: feature/interactive-cli-agent / `.worktrees/interactive-cli-agent`
+
+**人工验收复现（第四轮）**: 第二任务输出 "CodeGuard > BLUE-731" 后 `[task] LIMIT_REACHED: BLUE-731`——答案只显示一次但终态错误且未执行最终验证。
+
+**根因（用户已确认）**: AgentLoop 把 assistant_message 当作非终态动作（显示 → FEEDING_BACK/DECIDING → 再次调用 LLM 等 complete）。真实 DeepSeek 不稳定遵守"下一次必须 complete"的两次调用握手；即使界面去重，后台仍继续调用直至 LIMIT_REACHED。T8-FIX2/3/4 的去重与上限只能隐藏重复输出，无法保证任务正常完成。
+
+**新动作协议（用户确认）**:
+1. assistant_message = 当前任务的最终用户可见回复；
+2. AgentLoop 收到后：只显示一次、只写 transcript/ChatHistory 一次、立即进入最终验证、不再进入 FEEDING_BACK/DECIDING、不再为索取 complete 额外调用 LLM、按验证结果发出一次终态事件、返回 REPL；
+3. 验证通过 → `[task] COMPLETED`；失败 → `[task] FAILED`；该路径绝不 LIMIT_REACHED；
+4. complete 保留为无最终回复任务的兼容路径，不产生第二次终态事件；
+5. 工具执行进度由 tool_call/tool_result/validation 事件表达，不用 assistant_message 表示中间进度；
+6. 终止语义由状态机确定性保证，不依赖 system prompt。
+
+**状态机修改（codeguard/loop.py）**:
+- ASSISTANT_MESSAGE 分支重写：append transcript → emit 一次 → `_run_final_validation()` → COMPLETED / FAILED → break（不再 FEEDING_BACK/DECIDING，无第二次 LLM 调用）；
+- 删除冗余补丁状态：`_delivered_assistant_messages`、`_assistant_displayed_since_progress`、`_count_conversation_action`、`_MAX_CONSECUTIVE_CONVERSATION_ACTIONS`、`_consecutive_conversation_actions`、assistant_message fingerprint 与 "Do not repeat it" 纠正提示全部移除（简化约束 1/2）；保留：REQUEST_USER_INPUT 的 fingerprint + StopPolicy 检查点（防澄清死循环）、`_emit_task_finished_once` 全终态事件（T8-FIX3）、outcome/summary 分离（T8-FIX4）；
+- `_conversation_fingerprint` 仅剩澄清场景用途，注释更新。
+
+**协议提示（codeguard/llm/deepseek.py）**: assistant_message 描述改为 TERMINAL 动作——"after you return it the task immediately enters final validation and you will NOT get another chance..."；删除旧的"下一次必须 complete / 禁止重复"对话规则；明示中间进度用工具/验证事件表达。
+
+**新增/重写测试**:
+- tests/test_loop.py：删除 15 个旧协议测试（T8-FIX2/3/4 的重复/上限类），重写为 9 个 T8-FIX5 测试：单 assistant_message 只 1 次 LLM 调用/emit 一次/transcript 一次/最终验证一次/COMPLETED 一次/无 LIMIT_REACHED/trace 以 FINAL_VALIDATION→COMPLETED 结尾；验证失败 → FAILED（显示一次、1 次终态事件、1 次 LLM 调用）；tool→assistant_message 正常完成；request_user_input→回答→assistant_message 正常完成；纯 complete 兼容路径 1 次终态事件；重复提问 → LIMIT_REACHED 发射 TASK_FINISHED；非恢复 BLOCK → FAILED 发射事件；summary 无双状态词。
+- tests/test_interactive_cli_e2e.py：happy path 改为 read→write(批准)→run_tests→最终 assistant_message（4 决策）；BLUE-731 跨任务测试改为 1 决策结束（任务 2 首上下文含 BLUE-731）。
+- tests/test_llm_deepseek.py：system message 断言新增 TERMINAL/final validation/never use it for intermediate。
+
+**验证证据**:
+- RED: 新测试在旧实现下失败（assistant_message 分支仍会继续调用 LLM：IndexError/多事件/无 FINAL 状态断言失败）
+- GREEN: tests/test_loop.py → 28 passed; 5 文件组（loop/e2e/chat_session/context_runtime/llm_deepseek）→ 99 passed
+- 全量: `pytest -q -rs` → **765 passed, 1 skipped**（34.92s）
+- 凭据扫描: 仅 SECURITY.md/SPEC_PROCESS.md 文档讨论命中，无真实凭据
+- `git diff --check` → clean
+- 重建 EXE: PyInstaller exit 0; `--version` → 0.2.0-interactive; `--help` exit 0; `demo a` → completed; frozen 传感器 smoke（CODEGUARD_PYTHON=<venv python> + 通过测试项目）→ `[validation] pytest: PASSED` → `[task] COMPLETED: Validation pytest: PASSED — Exit code: 0`
+- 未创建 tag/Release；未合并 main（main 仍 30581f0）
+
+**commit hash**: `T8-FIX5-COMMIT`（提交后回填）
+

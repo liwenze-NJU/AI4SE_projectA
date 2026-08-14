@@ -11,6 +11,10 @@ from codeguard.secret import SecretRedactor
 # single JSON object and nothing else; prose outside the JSON is forbidden.
 # Every response is re-parsed by ActionParser and `complete` still undergoes
 # the final validation loop, so it must carry a real summary.
+#
+# T8-FIX5: assistant_message is the task's TERMINAL final reply — the loop
+# enters final validation immediately after it and issues no further LLM
+# call, so the model must not use it for intermediate progress.
 
 ACTION_PROTOCOL_PROMPT = (
     "You are CodeGuard, a governed coding agent. You must respond with "
@@ -19,20 +23,22 @@ ACTION_PROTOCOL_PROMPT = (
     'must have an "action" field with exactly one of these four values:\n'
     '1. "tool_call" — invoke a registered tool. Required fields: '
     '"tool" (string, the tool name) and "parameters" (object).\n'
-    '2. "assistant_message" — reply to the user. Required field: '
-    '"message" (non-empty string).\n'
+    '2. "assistant_message" — the task\'s FINAL reply to the user. '
+    'Required field: "message" (non-empty string). This is a TERMINAL '
+    "action: after you return it the task immediately enters final "
+    "validation and you will NOT get another chance to call tools or "
+    'complete. Return it ONLY when the work is finished and you are '
+    "ready to give the final answer. If work remains, return "
+    '"tool_call" or "request_user_input" instead. Never send more than '
+    "one assistant_message per task, and never use it for intermediate "
+    "progress — tool/validation events already show progress.\n"
     '3. "request_user_input" — ask the user a question. Required field: '
     '"question" (non-empty string).\n'
-    '4. "complete" — declare the task done. Required field: "summary" '
-    "(non-empty string describing the outcome). A complete response still "
-    "undergoes final validation; if validation fails the task continues, "
-    "so do not declare completion prematurely.\n"
-    "Conversational rules (MUST follow):\n"
-    '- When you reply with "assistant_message" and the task needs no '
-    "further tool calls, your NEXT response MUST be \"complete\".\n"
-    '- Never repeat the same "assistant_message" text.\n'
-    "- If you have already answered the user and there is nothing more to "
-    'do, emit "complete" instead of another "assistant_message".\n'
+    '4. "complete" — declare the task done without a final user-facing '
+    'reply. Required field: "summary" (non-empty string describing the '
+    "outcome). A complete response still undergoes final validation; if "
+    "validation fails the task continues, so do not declare completion "
+    "prematurely.\n"
     "Respond with one of these four JSON objects only."
 )
 

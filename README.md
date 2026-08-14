@@ -105,7 +105,9 @@ git checkout feature/interactive-cli-agent
 codeguard.exe chat --mode local
 ```
 
-在真实模式下，Harness 使用当前目录作为工作区根，并读取系统 Keyring 中已保存的 DeepSeek 凭据调用真实模型。输入一句编程任务后，Agent 会解释行动、读取和搜索代码、修改工作区文件、运行测试，并根据客观反馈继续修复；任务只有通过最终验证才报告 COMPLETED。
+在真实模式下，Harness 使用当前目录作为工作区根，并读取系统 Keyring 中已保存的 DeepSeek 凭据调用真实模型。输入一句编程任务后，Agent 会读取和搜索代码、修改工作区文件、运行测试，并根据客观反馈继续修复；任务只有通过最终验证才报告 COMPLETED。
+
+**`assistant_message` 是任务的最终回复**：模型只有在工作完成、准备给出最终答复时才返回它。Harness 收到后立即进入最终验证（pytest 等传感器），**不再发起第二次模型调用去索取 complete**——验证通过输出 `[task] COMPLETED`，失败输出 `[task] FAILED`，然后回到 REPL。执行过程中的进度由 `[tool]` 与 `[validation]` 事件展示，模型不得用 assistant_message 表达"正在检查"等中间状态。
 
 会话内命令：
 
