@@ -3146,5 +3146,5 @@
 - 重建 EXE: PyInstaller exit 0; `--version` → 0.2.0-interactive; `--help` exit 0; `demo a` → completed; frozen 传感器 smoke（CODEGUARD_PYTHON=<venv python> + 通过测试项目）→ `[validation] pytest: PASSED` → `[task] COMPLETED: Validation pytest: PASSED — Exit code: 0`
 - 未创建 tag/Release；未合并 main（main 仍 30581f0）
 
-**commit hash**: `T8-FIX5-COMMIT`（提交后回填）
+**commit hash**: `00cd767`（`fix: make assistant_message the terminal final reply`）
 
