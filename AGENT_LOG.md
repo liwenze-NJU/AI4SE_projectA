@@ -3025,3 +3025,45 @@
 - 未调用 local 模式（无真实 API 调用）；未创建 tag/Release；未合并 main
 
 **commit hash**: `132e0ed`（`fix: bound conversational loops, carry cross-task context, resolve frozen interpreter`）
+
+---
+
+## T8-FIX3: 重复消息去重 + 全终态稳定事件（人工验收第二轮修复）
+
+**log_id**: T8-FIX3 | **状态**: COMPLETED
+**时间**: 2026-08-14
+**Superpowers 技能**: `superpowers:systematic-debugging`（根因调查）+ `superpowers:test-driven-development`（RED → GREEN → 回归 → 全量 → 重建 EXE）
+**branch/worktree**: feature/interactive-cli-agent / `.worktrees/interactive-cli-agent`
+
+**人工验收复现（第二轮）**: 第一任务（记住 BLUE-731）正确完成；第二任务（询问代号）连续输出三次相同的 "CodeGuard > 会话代号是 BLUE-731。" 后直接返回 codeguard>，无 [validation]、无 [task] COMPLETED、无 LIMIT_REACHED 显示。
+
+**根因（systematic-debugging Phase 1 确认）**:
+1. `codeguard/loop.py` ASSISTANT_MESSAGE 分支 **emit 先于重复检测**——3 条相同消息全部渲染后才在 StopPolicy 处停止；
+2. DeepSeek 不遵守 assistant_message 后必须 complete 的提示规则——运行时必须防御，不能只靠 system prompt；
+3. `no_progress_threshold=3` 只保证第三次后停止，不阻止重复输出与额外 API 调用；
+4. LIMIT_REACHED/FAILED 等非 COMPLETED 终态无稳定 TASK_FINISHED 事件——只有 COMPLETED 分支和 cancel() 内联发射，其余 break 路径静默返回 REPL。
+
+**修复**:
+- `codeguard/loop.py`: 新增 `_delivered_assistant_messages` 集合（per-task 重置）；ASSISTANT_MESSAGE 分支改为**先查重再 emit**——相同回复同一任务最多向用户显示一次；首次重复将协议纠正反馈写入 `_latest_result`（"The previous assistant message was already delivered. Do not repeat it; return complete or choose a different valid action."）进入下一轮上下文；重复仍计入 fingerprint/连续对话计数（第三次后 StopPolicy 终止）。
+- `codeguard/loop.py`: 新增 `_emit_task_finished_once()` + `_TERMINAL_STATES`；`run()` 结尾统一发射；`cancel()`、`run()` cancelled 入口、`start_task` fail-closed 诊断、`_continue_from_approval` 全部终态返回路径（pending None / recheck BLOCK / stop policy / REJECTED / TIMEOUT）均发射 TASK_FINISHED——所有终态（COMPLETED/FAILED/CANCELLED/LIMIT_REACHED）在 CLI 都有稳定 `[task]` 输出，不再静默返回 prompt。
+- 未伪造 COMPLETED：重复循环终止于 LIMIT_REACHED（事件 outcome=limit_reached）。
+
+**新增测试**（tests/test_loop.py）:
+- `test_identical_assistant_messages_delivered_only_once`: 逐字复现验收场景（BLUE-731 ×3）→ 断言仅 1 个 ASSISTANT_MESSAGE 事件、终态 LIMIT_REACHED、llm_calls ≤5、反馈含 "already delivered"/"Do not repeat it"
+- `test_first_repeat_feeds_correction_then_complete_still_completes`: 首次重复去重 + 纠正反馈进入下一轮上下文 + 合规 complete 正常完成（不伪造 COMPLETED）
+- `test_limit_reached_emits_task_finished_event`: LIMIT_REACHED 终态发射 TASK_FINISHED（outcome=limit_reached）
+- `test_failed_emits_task_finished_event`: 非恢复 BLOCK → FAILED 发射 TASK_FINISHED（outcome=failed）
+
+**验证证据**:
+- RED: `pytest tests/test_loop.py -k "delivered_only_once or first_repeat or emits_task_finished" -q` → 4 failed（重复消息全部渲染、无 TASK_FINISHED）
+- GREEN: 同上 → 4 passed
+- 回归: 7 文件组（loop/chat_session/e2e/context_runtime/composition_production/integration_guardrail_feedback/phase14_spec_compliance）→ **151 passed**
+- 全量: `pytest -q -rs` → **768 passed, 1 skipped**（基线 764 + 新 4；skip 为文档化 Windows symlink 平台限制）
+- 重建 EXE: PyInstaller exit 0（Building EXE completed successfully）
+- EXE 传感器 smoke: 临时项目含通过测试 + `CODEGUARD_PYTHON=<venv python>` + `echo "fix task" | dist\codeguard.exe chat --mode test` → `[validation] pytest: PASSED` → `[task] COMPLETED: completed`（冻结环境仍正常）
+- `git diff --check` → clean
+- 凭据扫描: 无真实凭据（上轮结果不变）
+- 未创建 tag/Release；未合并 main（main 仍 30581f0）
+
+**commit hash**: `T8-FIX3-COMMIT`（提交后回填）
+

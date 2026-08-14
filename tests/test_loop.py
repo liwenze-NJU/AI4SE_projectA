@@ -712,3 +712,95 @@ def test_varied_assistant_messages_reach_limit_within_bound():
     result = loop.start_task("t1", "Do the work", [])
     assert result.terminal_state == AgentState.LIMIT_REACHED
     assert result.llm_calls_total <= 5
+
+
+# ---------------------------------------------------------------------------
+# T8-FIX3 — duplicate delivery before emit + terminal events on every end
+# ---------------------------------------------------------------------------
+
+def test_identical_assistant_messages_delivered_only_once():
+    """The verbatim acceptance scenario: assistant_message("BLUE-731") x3.
+    Duplicate detection must happen BEFORE the emit, so the identical reply
+    is delivered to the user AT MOST ONCE per task."""
+    sink = CollectingEventSink()
+    responses = [
+        _r(Action(kind=ActionKind.ASSISTANT_MESSAGE, message="BLUE-731", raw="")),
+        _r(Action(kind=ActionKind.ASSISTANT_MESSAGE, message="BLUE-731", raw="")),
+        _r(Action(kind=ActionKind.ASSISTANT_MESSAGE, message="BLUE-731", raw="")),
+    ]
+    loop = _make_task_loop(responses=responses, event_sink=sink)
+    result = loop.start_task("t1", "Do the work", [])
+    assistant_events = [
+        e for e in sink.events
+        if e.kind == HarnessEventKind.ASSISTANT_MESSAGE
+    ]
+    # Only the FIRST occurrence is emitted; the repeats are deduplicated
+    # BEFORE the emit and never reach the user.
+    assert [e.payload["message"] for e in assistant_events] == ["BLUE-731"]
+    assert result.terminal_state == AgentState.LIMIT_REACHED
+    # Bounded LLM calls: never max_llm_calls=100.
+    assert result.llm_calls_total <= 5
+    # The first repeat feeds the protocol-correction feedback into the next
+    # decision context.
+    assert "already delivered" in loop._latest_result
+    assert "Do not repeat it" in loop._latest_result
+
+
+def test_first_repeat_feeds_correction_then_complete_still_completes():
+    """A single repeat followed by complete: the repeat is deduplicated, the
+    correction feedback is fed back, and a compliant completion finishes
+    the task (requirement 4 — correction enables recovery, no fabricated
+    COMPLETED)."""
+    sink = CollectingEventSink()
+    responses = [
+        _r(Action(kind=ActionKind.ASSISTANT_MESSAGE, message="BLUE-731", raw="")),
+        _r(Action(kind=ActionKind.ASSISTANT_MESSAGE, message="BLUE-731", raw="")),
+        _r(Action(kind=ActionKind.COMPLETE_REQUEST, summary="done", raw="")),
+    ]
+    loop = _make_task_loop(responses=responses, event_sink=sink)
+    result = loop.start_task("t1", "Do the work", [])
+    assistant_events = [
+        e for e in sink.events
+        if e.kind == HarnessEventKind.ASSISTANT_MESSAGE
+    ]
+    assert [e.payload["message"] for e in assistant_events] == ["BLUE-731"]
+    assert result.terminal_state == AgentState.COMPLETED
+    # The correction must have been visible to the decision that completed.
+    assert "already delivered" in loop.llm.received_contexts[-1]
+
+
+def test_limit_reached_emits_task_finished_event():
+    """LIMIT_REACHED must emit a TASK_FINISHED event with the terminal
+    outcome — no silent return to the REPL (requirement 6/7)."""
+    sink = CollectingEventSink()
+    responses = [
+        _r(Action(kind=ActionKind.ASSISTANT_MESSAGE, message="Same reply", raw="")),
+    ] * 6
+    loop = _make_task_loop(responses=responses, event_sink=sink)
+    result = loop.start_task("t1", "Do the work", [])
+    assert result.terminal_state == AgentState.LIMIT_REACHED
+    finished = [
+        e for e in sink.events if e.kind == HarnessEventKind.TASK_FINISHED
+    ]
+    assert len(finished) == 1
+    assert finished[0].payload["outcome"] == "limit_reached"
+
+
+def test_failed_emits_task_finished_event():
+    """FAILED (non-recoverable BLOCK) must emit TASK_FINISHED too."""
+    sink = CollectingEventSink()
+    mock = ScriptedMockLLM(responses=[
+        _r(Action(kind=ActionKind.TOOL_CALL, tool_name="delete_file",
+                  parameters={"path": "/etc/passwd"}, raw="")),
+    ])
+    loop = AgentLoop(session_id="s1", llm=mock)
+    loop.rule_engine = FakeGuardrail(decisions=["BLOCK"], recoverable=False)
+    loop.stop_policy = FakeStopPolicy()
+    loop.event_sink = sink
+    result = loop.run()
+    assert result.terminal_state == AgentState.FAILED
+    finished = [
+        e for e in sink.events if e.kind == HarnessEventKind.TASK_FINISHED
+    ]
+    assert len(finished) == 1
+    assert finished[0].payload["outcome"] == "failed"

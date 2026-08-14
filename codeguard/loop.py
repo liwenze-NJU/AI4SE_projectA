@@ -48,6 +48,15 @@ class AgentLoop:
     # always below the bound, so normal text-reply flows are unaffected.
     _MAX_CONSECUTIVE_CONVERSATION_ACTIONS = 5
 
+    # Terminal states that must always surface a TASK_FINISHED event so the
+    # CLI never silently returns to the prompt (T8-FIX3).
+    _TERMINAL_STATES = frozenset({
+        AgentState.COMPLETED,
+        AgentState.FAILED,
+        AgentState.CANCELLED,
+        AgentState.LIMIT_REACHED,
+    })
+
     def __init__(self, session_id: str, llm, max_steps: int = 50):
         self.state = SessionState(
             session_id=session_id,
@@ -61,6 +70,11 @@ class AgentLoop:
         self._started_at = datetime.now()
         self._iteration = 0
         self._consecutive_conversation_actions = 0
+        # T8-FIX3: assistant replies already delivered this task; duplicate
+        # detection runs BEFORE the emit so a repeated reply is shown at
+        # most once.
+        self._delivered_assistant_messages: set[str] = set()
+        self._task_finished_emitted = False
 
         # Components to be injected via attributes
         self.tool_registry = None
@@ -152,6 +166,8 @@ class AgentLoop:
         diagnostic = self._validate_production_wiring()
         if diagnostic is not None:
             self._transition(AgentState.FAILED)
+            self._latest_result = diagnostic
+            self._emit_task_finished_once()
             return SessionResult(
                 session_id=self.state.session_id,
                 terminal_state=AgentState.FAILED,
@@ -188,6 +204,8 @@ class AgentLoop:
         self.state.approval_request_id = None
         self.state.guardrail_decision = None
         self._approval_decision = None
+        self._delivered_assistant_messages.clear()
+        self._task_finished_emitted = False
         self._consecutive_conversation_actions = 0
         self._started_at = datetime.now()
         self.state.current_state = AgentState.INITIALIZING
@@ -219,12 +237,24 @@ class AgentLoop:
             return self._build_result()
         self._cancelled = True
         self._transition(AgentState.CANCELLED)
-        self._emit(HarnessEventKind.TASK_FINISHED, self._task_finished_payload())
+        self._emit_task_finished_once()
         return self._build_result()
 
     # ------------------------------------------------------------------
     # Event emission
     # ------------------------------------------------------------------
+
+    def _emit_task_finished_once(self) -> None:
+        """Emit TASK_FINISHED exactly once when the task reaches a terminal
+        state (T8-FIX3). Every terminal path — COMPLETED, FAILED,
+        CANCELLED, LIMIT_REACHED — must surface a stable [task] event so
+        the CLI never silently returns to the prompt."""
+        if self._task_finished_emitted:
+            return
+        if self.state.current_state not in self._TERMINAL_STATES:
+            return
+        self._task_finished_emitted = True
+        self._emit(HarnessEventKind.TASK_FINISHED, self._task_finished_payload())
 
     def _task_finished_payload(self) -> dict:
         """Compose the TASK_FINISHED payload with a real bounded summary.
@@ -271,6 +301,7 @@ class AgentLoop:
         if self._cancelled:
             if self.state.current_state != AgentState.CANCELLED:
                 self._transition(AgentState.CANCELLED)
+            self._emit_task_finished_once()
             return self._build_result()
 
         if self.state.current_state == AgentState.INITIALIZING:
@@ -308,15 +339,27 @@ class AgentLoop:
                     self._transition(AgentState.DECIDING)
                     continue
                 self._transition(AgentState.COMPLETED)
-                self._emit(HarnessEventKind.TASK_FINISHED, self._task_finished_payload())
                 break
 
             # ----- Conversation actions (never governed) -----
             if action.kind == ActionKind.ASSISTANT_MESSAGE:
                 message = action.message or ""
                 self._transcript.append(message)
-                self._emit(HarnessEventKind.ASSISTANT_MESSAGE, {"message": message})
-                self._latest_result = f"Assistant: {message}"
+                # T8-FIX3: duplicate detection BEFORE the emit — an
+                # identical reply is delivered to the user at most once per
+                # task. The first repeat feeds an explicit protocol
+                # correction into the next decision context.
+                if message in self._delivered_assistant_messages:
+                    self._latest_result = (
+                        "The previous assistant message was already "
+                        "delivered. Do not repeat it; return complete or "
+                        "choose a different valid action."
+                    )
+                else:
+                    self._delivered_assistant_messages.add(message)
+                    self._emit(HarnessEventKind.ASSISTANT_MESSAGE,
+                               {"message": message})
+                    self._latest_result = f"Assistant: {message}"
                 # Deterministic fingerprint so the StopPolicy no-progress
                 # check sees repeated conversation replies (T8-FIX2 P1).
                 self.state.action_fingerprint_history.append(
@@ -436,6 +479,9 @@ class AgentLoop:
             AgentState.LIMIT_REACHED,
         ):
             self._transition(AgentState.LIMIT_REACHED)
+
+        # T8-FIX3: every terminal path surfaces one TASK_FINISHED event.
+        self._emit_task_finished_once()
 
         return self._build_result()
 
@@ -578,6 +624,7 @@ class AgentLoop:
             pending = self.state.pending_action
             if pending is None:
                 self._transition(AgentState.FAILED)
+                self._emit_task_finished_once()
                 return self._build_result()
 
             # Re-run guardrail check on the NormalizedAction
@@ -586,6 +633,7 @@ class AgentLoop:
                 if recheck.decision == GuardrailDecision.BLOCK:
                     # Action became BLOCKed after approval — fail
                     self._transition(AgentState.FAILED)
+                    self._emit_task_finished_once()
                     return self._build_result()
                 # ALLOW or REQUEST_APPROVAL (already approved) → proceed
 
@@ -598,6 +646,7 @@ class AgentLoop:
                 self._run_sensors(validation_type="INTERMEDIATE")
             self._transition(AgentState.FEEDING_BACK)
             if self._check_stop_policy():
+                self._emit_task_finished_once()
                 return self._build_result()
             self._transition(AgentState.DECIDING)
             self._approval_decision = None
@@ -607,6 +656,7 @@ class AgentLoop:
                 f"Approval {self._approval_decision.value} — action not executed"
             )
             self._transition(AgentState.CANCELLED)
+            self._emit_task_finished_once()
             return self._build_result()
 
         return self._build_result()
