@@ -2799,3 +2799,37 @@
 - `docs/superpowers/plans/2026-08-13-interactive-cli-agent.md`: Task 6 的 6 个步骤全部勾选
 
 **commit hash**: `e5faebf`（`feat: enforce interactive DeepSeek action protocol`）
+
+## Task 6 修复：sk- 连字符密钥尾段泄漏 + 解析器异常链泄漏原始文本（T6-FIX）
+
+**log_id**: T6-FIX | **task_id**: Task 6 Update DeepSeek Protocol and CLI Metadata（修复评审发现）| **状态**: COMPLETED
+**时间**: 2026-08-14
+**Superpowers 技能**: `superpowers:test-driven-development`（严格 TDD: RED → GREEN → 回归 → 提交）
+**branch/worktree**: feature/interactive-cli-agent / `.worktrees/interactive-cli-agent`
+
+**背景**: Task 6 合并评审 spec_compliant YES，但发现 2 个 Important 安全发现进入修复循环：
+1. sk- 模式泄漏连字符密钥尾段：`\b(sk-)\w+` 在第一个 `-` 处停止，DeepSeek 风格密钥（如 `sk-abcdef1234567890-secret-tail`）只脱敏第一段，`-secret-tail` 泄漏
+2. `raise ValueError(...) from e` 在 `__cause__` 中保留脱敏前的解析器异常（内嵌原始 provider 文本），任何 traceback 渲染器都会呈现；且严格模式 ValueError 会从 `loop.run()` 裸抛，`ChatSession._run_task` 只捕获 KeyboardInterrupt，交互 REPL 会带着 traceback 崩溃
+
+**根因**:
+1. `codeguard/secret.py:40` 模式 `\b(sk-)\w+` 只匹配到第一个 `-` 前的段
+2. `codeguard/llm/deepseek.py` `_parse_action` 用 `from e` 链式抛出，`__cause__` 携带未脱敏的解析器错误；`codeguard/chat/session.py` `_run_task` 对 `loop.start_task()`/`loop.run()`/resume 调用无 ValueError 兜底
+
+**修复**:
+- `codeguard/secret.py`: sk- 模式改为 `\b(sk-)[A-Za-z0-9]+(?:-[A-Za-z0-9]+)*`，将完整凭证令牌（含连字符分段）作为整体脱敏为 `sk-***`；`_redact_sk_key` 不变；类 docstring 同步更新（word-boundary 保证 flask/disk/risk/task 等词内误报不受影响；sk-learn 类文本整段脱敏属安全方向）
+- `codeguard/llm/deepseek.py`: `_parse_action` 改为**不链式**抛出——`raise ValueError(<已脱敏消息>)` 无 `from e`，并注释说明 `__cause__` 泄漏面
+- `codeguard/chat/session.py`: 新增 `_task_failed(message)`（打印一行 `[error] <message>` + `_end_task()`，不写 summary）；`_run_task` 对 `start_task`、`_handle_approval`、`_handle_user_input` 三处调用包 `except ValueError` → `_task_failed` 后返回 REPL（任务结束、会话继续）；`_handle_user_input` 的既有 ValueError 兜底注释更新（严格模式失败同路径转取消）；KeyboardInterrupt 行为完全不变
+
+**新增测试**:
+- `tests/test_secret_redactor.py::test_redact_hyphenated_api_key_fully`: 断言 `sk-abcdef1234567890-secret-tail` 与 `secret-tail` 均不在输出、输出含 `sk-***`
+- `tests/test_llm_deepseek.py`: `test_adapter_missing_content_field_raises` 与 `test_adapter_malformed_json_content_raises` 增加 `exc_info.value.__cause__ is None` 断言（后者覆盖链式抛出路径）
+- `tests/test_chat_session.py::test_loop_value_error_prints_error_and_session_continues`: RaisingOnceLoop 首次 `start_task` 抛 `ValueError("Invalid action response from DeepSeek: sk-***")` → 断言输出含 `[error] ...`、REPL 存活且**同一会话继续启动第二个任务**（start_task 共 2 次）、失败任务不留 summary、第二次任务正常 completed、`run()` 返回 0
+
+**验证证据**:
+- RED: `pytest tests/test_secret_redactor.py::test_redact_hyphenated_api_key_fully tests/test_llm_deepseek.py::TestDeepSeekAdapter::test_adapter_malformed_json_content_raises tests/test_chat_session.py::test_loop_value_error_prints_error_and_session_continues -q` → **3 failed**（密钥尾段泄漏 / `__cause__` 非 None / ValueError 裸抛杀死 REPL）
+- GREEN: `pytest tests/test_secret_redactor.py tests/test_llm_deepseek.py tests/test_chat_session.py -q` → **62 passed**
+- 回归组 1: `pytest tests/test_secret_redactor.py tests/test_llm_deepseek.py tests/test_chat_session.py tests/test_cli.py tests/test_scaffold.py -q` → **86 passed**
+- 回归组 2: `pytest tests/test_loop.py tests/test_context_runtime.py -q` → **28 passed**
+- `git diff --check` → 无空白错误
+
+**commit hash**: `6167ea1`（`fix: redact hyphenated sk-keys and stop leaking parser cause`）
