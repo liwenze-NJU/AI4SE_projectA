@@ -920,7 +920,9 @@ Start `codeguard.exe web` on an unused local port, verify `/health`, and stop it
 
 After all verification succeeds, set both reported version locations to `0.2.0-interactive`. Add or update a test asserting the version output. Rerun that test and `codeguard --version`.
 
-- [ ] **Step 7: Request two-stage review**
+- [x] **Step 7: Request two-stage review**
+
+评审已请求（由协调者调度）。本次提交后实现工作完成并已报告；两阶段评审（设计验收 + 质量/安全）由协调者安排执行。
 
 Use `superpowers:requesting-code-review`: first verify every design acceptance criterion and branch-separation rule, then review code quality and security. Fix all Critical and Major findings with TDD and repeat the relevant verification.
 
