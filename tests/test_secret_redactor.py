@@ -41,6 +41,16 @@ def test_redact_multiple_api_keys():
     assert "sk-xyz" not in result
 
 
+def test_redact_hyphenated_api_key_fully():
+    """Hyphenated credential tokens (DeepSeek-style keys) are redacted as
+    one token; no tail segment may leak."""
+    redactor = SecretRedactor()
+    result = redactor.redact("key=sk-abcdef1234567890-secret-tail")
+    assert "sk-abcdef1234567890-secret-tail" not in result
+    assert "secret-tail" not in result
+    assert "sk-***" in result
+
+
 def test_redact_preserves_false_positives():
     """sk- embedded in words (flask, disk, risk) must not be redacted."""
     redactor = SecretRedactor()

@@ -120,9 +120,12 @@ class DeepSeekAdapter:
             return ActionParser().parse(content)
         except ValueError as e:
             # Never echo raw provider text into the error: it may carry
-            # secrets. Redact before wrapping.
+            # secrets. The message is redacted and the raise is NOT
+            # chained (no `from e`) so the pre-redaction parser error —
+            # which embeds raw provider content — cannot leak via
+            # __cause__ in a traceback renderer.
             detail = self._redactor.redact(str(e))
-            raise ValueError(f"Invalid action response from DeepSeek: {detail}") from e
+            raise ValueError(f"Invalid action response from DeepSeek: {detail}")
 
     def _estimate_cost(self, token_used: int) -> Decimal:
         return Decimal(token_used * 2) / Decimal("1000000")

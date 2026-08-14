@@ -146,8 +146,10 @@ class TestDeepSeekAdapter:
 
         client = httpx.Client(transport=httpx.MockTransport(mock_handler))
         adapter = DeepSeekAdapter(api_key="sk-test-key", http_client=client)
-        with pytest.raises(ValueError, match="action"):
+        with pytest.raises(ValueError, match="action") as exc_info:
             adapter.generate(session_id="s1", context="test")
+        # The chained exception must not retain the raw provider text.
+        assert exc_info.value.__cause__ is None
 
     def test_adapter_malformed_json_content_raises(self):
         def mock_handler(request: httpx.Request) -> httpx.Response:
@@ -162,8 +164,11 @@ class TestDeepSeekAdapter:
 
         client = httpx.Client(transport=httpx.MockTransport(mock_handler))
         adapter = DeepSeekAdapter(api_key="sk-test-key", http_client=client)
-        with pytest.raises(ValueError, match="action"):
+        with pytest.raises(ValueError, match="action") as exc_info:
             adapter.generate(session_id="s1", context="test")
+        # The chained exception must not retain the raw provider text
+        # in __cause__ (a traceback renderer would surface it).
+        assert exc_info.value.__cause__ is None
 
     def test_adapter_malformed_error_message_is_redacted(self):
         def mock_handler(request: httpx.Request) -> httpx.Response:

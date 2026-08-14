@@ -248,6 +248,16 @@ class ChatSession:
         self._current_task_id = None
         self._current_request = None
 
+    def _task_failed(self, message: str) -> None:
+        """Surface a task-level error to the terminal and end the task.
+
+        Strict-mode failures (e.g. a malformed LLM action raising a
+        redacted ValueError) must not kill the REPL: print one [error]
+        line, end the task without a summary, and return to the prompt.
+        """
+        self._write(f"[error] {message}")
+        self._end_task()
+
     def _run_task(self, line: str) -> None:
         """Start one task and drive it (and its pauses) to completion."""
         history = self._new_history()
@@ -275,19 +285,32 @@ class ChatSession:
             except Exception:
                 self._end_task()
                 return
+        except ValueError as e:
+            # Strict-mode failures (e.g. malformed LLM action) end the
+            # task and return to the REPL instead of crashing the session.
+            self._task_failed(str(e))
+            return
 
         while True:
             state = result.terminal_state
 
             if state == AgentState.AWAITING_APPROVAL:
-                result = self._handle_approval(loop, history)
+                try:
+                    result = self._handle_approval(loop, history)
+                except ValueError as e:
+                    self._task_failed(str(e))
+                    return
                 if result is None:
                     self._end_task()
                     return
                 continue
 
             if state == AgentState.AWAITING_USER_INPUT:
-                result = self._handle_user_input(loop, history, line)
+                try:
+                    result = self._handle_user_input(loop, history, line)
+                except ValueError as e:
+                    self._task_failed(str(e))
+                    return
                 if result is None:
                     self._end_task()
                     return
@@ -386,8 +409,9 @@ class ChatSession:
         try:
             return loop.resume_with_user_input(text)
         except ValueError:
-            # The loop refused the answer (e.g. empty after strip):
-            # treat it as a cancellation rather than crashing the REPL.
+            # The loop refused the answer (e.g. empty after strip) or a
+            # strict-mode failure surfaced from the resumed loop: treat
+            # it as a cancellation rather than crashing the REPL.
             return self._cancel_current(loop)
 
     def _cancel_current(self, loop) -> SessionResult | None:

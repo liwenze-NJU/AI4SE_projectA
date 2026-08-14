@@ -454,6 +454,49 @@ def test_ctrl_c_during_task_start_cancels_and_returns_to_repl(fake_io, history):
 
 
 # ---------------------------------------------------------------------------
+# ValueError from the loop (e.g. strict DeepSeek protocol errors)
+# ---------------------------------------------------------------------------
+
+def test_loop_value_error_prints_error_and_session_continues(fake_io, history):
+    """A strict-mode ValueError (e.g. malformed LLM action) must not kill
+    the REPL: print [error] ..., end the task, continue to the next input."""
+    class RaisingOnceLoop(FakeLoop):
+        def __init__(self):
+            super().__init__()
+            self._raised = False
+
+        def start_task(self, task_id, request, summaries):
+            self.calls.append(("start_task", task_id, request, list(summaries)))
+            if not self._raised:
+                self._raised = True
+                raise ValueError("Invalid action response from DeepSeek: sk-***")
+            # Mirror FakeLoop.start_task without appending to calls again.
+            result = (
+                self.start_task_results.pop(0)
+                if self.start_task_results
+                else make_result(AgentState.COMPLETED)
+            )
+            self._apply(result)
+            return result
+
+    loop = RaisingOnceLoop()
+    factory = RecordingLoopFactory(lambda: loop)
+    session = ChatSession(factory, fake_io.read, fake_io.write, history=history)
+    fake_io.queue("fix the bug", "do another task", "/exit")
+    assert session.run() == 0
+    assert "[error] Invalid action response from DeepSeek: sk-***" in fake_io.output
+    # The next queued inputs were still processed: the REPL survived and
+    # started a fresh task afterwards.
+    assert ("start_task",) == tuple(c[0] for c in loop.calls[:1])
+    assert len([c for c in loop.calls if c[0] == "start_task"]) == 2
+    # The failed task left no summary; the second task completed normally.
+    assert len(history.summaries) == 1
+    assert history.summaries[-1].request == "do another task"
+    assert history.summaries[-1].outcome == "completed"
+    assert session._task_active is False
+
+
+# ---------------------------------------------------------------------------
 # Event sink wiring
 # ---------------------------------------------------------------------------
 

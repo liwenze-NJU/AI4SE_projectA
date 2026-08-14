@@ -9,8 +9,12 @@ class SecretRedactor:
 
     Redaction rules (applied in order):
     1. sk- API keys: preserve "sk-" prefix, redact the key body.
-       Matches one or more word characters after "sk-" (no minimum length,
-       so short test keys like sk-abc are covered).
+       Matches the full credential-like token after "sk-": one or more
+       alphanumeric segments joined by hyphens (DeepSeek-style keys such
+       as sk-abcdef1234567890-secret-tail are redacted as one token, so
+       a short first segment no longer leaks the tail). False positives
+       inside words (flask, disk, risk, task) are unaffected by the
+       word boundary.
     2. Generic credential patterns (api_key=, password=, secret=, token=):
        if the value starts with "sk-", output "sk-***" (preserving the
        already-redacted prefix from step 1); otherwise output "***".
@@ -36,8 +40,14 @@ class SecretRedactor:
     def redact(self, text: str) -> str:
         if not text:
             return text
-        # Step 1: sk- API keys (prefix preserved, key body redacted)
-        text = re.sub(r'\b(sk-)\w+', self._redact_sk_key, text)
+        # Step 1: sk- API keys (prefix preserved, key body redacted).
+        # The whole credential-like token — including hyphenated tails —
+        # is matched as one unit so no tail segment leaks.
+        text = re.sub(
+            r'\b(sk-)[A-Za-z0-9]+(?:-[A-Za-z0-9]+)*',
+            self._redact_sk_key,
+            text,
+        )
         # Step 2: Generic credential patterns
         for field in ['api_key', 'password', 'secret', 'token']:
             text = re.sub(
