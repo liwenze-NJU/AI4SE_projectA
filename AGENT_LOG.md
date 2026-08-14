@@ -2962,3 +2962,33 @@
 - `git diff --check` → 无空白错误
 
 **commit hash**: `1765d25`（随 T8 同次提交，无独立提交）
+
+---
+
+## Task 8 修复：run_process 安全声明与文档小项（T8-FIX）
+
+**log_id**: T8-FIX | **task_id**: Task 8 Documentation, Full Verification, and Enhanced Release Candidate（修复评审发现）| **状态**: COMPLETED
+**时间**: 2026-08-14
+**Superpowers 技能**: `superpowers:receiving-code-review`
+**branch/worktree**: feature/interactive-cli-agent / `.worktrees/interactive-cli-agent`
+
+**背景**: 最终分支评审 acceptance_met YES（12 项验收全部通过），质量 APPROVED_WITH_MINOR；1 个 Important 发现 B1 + 2 个 Minor 文档项（B2/B3）。约束：只改 SECURITY.md 与 README.md；B1 只改措辞，**不实现命令白名单**（新范围，未授权）。
+
+**根因**:
+1. B1（Important）: SECURITY.md 两处声称 `run_process` 受"命令白名单"约束（新增小节 `CommandWhitelistRule` 引用），代码中不存在白名单机制；真实控制集合为：`ToolRiskRule` REQUEST_APPROVAL、结构化 program+args（`shell=False`）、args 元字符拒绝（`` ;&|`$ ``，`codeguard/tool/process_tool.py:6,9-13`）、cwd 工作区内限制（`_validate_cwd`）
+2. B2（Minor）: "未验证失败不会自动写入"表述成系统级不变量；实际是当前循环设计保证（grep 证实 `AgentLoop`/`ChatSession` 无任何 `memory_store` 写入调用；`JSONMemoryStore` 仅提供审批门控 `propose_write` + `approve_memory`/`reject_memory`）
+3. B3（Minor）: README 历史验证结果 "626 passed, 1 skipped" 未标注为课程版 main 基线
+
+**修复（仅 SECURITY.md + README.md，5 行改动）**:
+- `SECURITY.md` 禁止 push/发布工具小节: 白名单表述改为 "`run_process` 属危险动作必须审批（`ToolRiskRule` 按工具声明风险返回 REQUEST_APPROVAL），并以结构化 program+args（**从不** `shell=True`）、参数元字符拒绝（`` ;&|`$ `` 出现在 args 中即拒绝）和 cwd 限制在工作区内三重约束收紧"
+- `SECURITY.md` 威胁模型表"危险 Shell 命令"行: `CommandWhitelistRule`（代码中不存在的类名）改为 "`run_process` 须审批（`ToolRiskRule` REQUEST_APPROVAL）+ 结构化 program+args（`shell=False`）+ 参数元字符拒绝（`` ;&|`$ ``）+ cwd 限制在工作区内"
+- `SECURITY.md` 取消语义小节 + `README.md` 进程本地历史小节: "不会自动写入"补注为当前循环设计保证（`AgentLoop` 与 `ChatSession` 当前没有任何记忆写入调用；记忆存储 API 只提供审批门控的 `propose_write` + `approve_memory`/`reject_memory` 路径）
+- `README.md` 测试小节: "626 passed, 1 skipped" 标注为「课程版 `main` 基线（README 重写前的历史验证结果）」
+- 注: SPEC.md 历史章节同样引用 `CommandWhitelistRule`，但本次约束只允许改 SECURITY.md 与 README.md，未动（已记录，未擅自扩范围）
+
+**验证证据**:
+- `git diff --check` → 无空白错误
+- 修复前 grep 证实：代码中无 `CommandWhitelistRule`/`command_whitelist` 任何定义；`memory_store` 写入调用在 `AgentLoop`/`ChatSession` 中为 0 处——措辞与实际控制集合一致
+- 未运行测试（纯文档改动，无代码变更）；未实现白名单
+
+**commit hash**: `7ab91f3`（`fix: correct run_process security claims in docs`）
