@@ -2897,3 +2897,23 @@
 
 **commit hash**: `f7a40cf`（`test: cover interactive coding-agent workflow end to end`）
 
+
+---
+
+## Task 8: 文档、全量验证与增强版候选发布（Documentation, Full Verification, and Enhanced Release Candidate）
+
+**log_id**: T8 | **task_id**: Task 8 Documentation, Full Verification, and Enhanced Release Candidate | **状态**: STARTED
+**时间**: 2026-08-14
+**Superpowers 技能**: `superpowers:subagent-driven-development` + `superpowers:test-driven-development`
+**branch/worktree**: feature/interactive-cli-agent / `.worktrees/interactive-cli-agent`
+
+**目标**:
+1. 准确更新 README/SECURITY 文档（课程版 vs 增强版获取方式、chat --mode local 行为与命令、自动安全读取/测试、Guardrail 控制写入、进程本地历史与无 /resume、DeepSeek key 设置与费用警告、已知限制、增强分支未合并入 main 的声明）
+2. 全量测试新鲜证据（不复制旧计数）；离线 CLI/demo smoke；安全与仓库检查（凭据扫描、main 仍为 30581f0）
+3. PyInstaller 构建 + 可执行 smoke（--help、demo a、web /health 起停）；验证期间不配置真实 key
+4. 版本置为 0.2.0-interactive（两处）并加版本输出测试
+5. 两阶段评审（设计验收 + 质量/安全）；最终提交不合并；tag/Release 需用户授权（本次不创建）
+6. 风险分级：Task 8 最终分支级评审 + 全量 + 凭据扫描 + 构建 + smoke（opus）
+
+**验证命令**: 全量 `pytest -q -rs`；smoke `python -m codeguard --help`、`demo a/b/c`；安全 `git grep -n -E "sk-[A-Za-z0-9_-]{12,}|api_key[[:space:]]*=" -- ':!tests/*'`、`git diff --check`、`git rev-parse --short main`；构建 `.venv\Scripts\python.exe -m PyInstaller --clean --noconfirm codeguard.spec`
+
