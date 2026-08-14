@@ -861,7 +861,7 @@ git commit -m "test: cover interactive coding-agent workflow end to end"
 - Consumes: all completed implementation tasks.
 - Produces: documented `0.2.0-interactive` release candidate on the enhanced branch only.
 
-- [ ] **Step 1: Update user documentation accurately**
+- [x] **Step 1: Update user documentation accurately**
 
 Document:
 
@@ -875,7 +875,7 @@ Document:
 
 Update `SECURITY.md` with clarification input, approval binding, bounded context, trusted sensor definitions, cancellation, and the prohibition on push/release tools.
 
-- [ ] **Step 2: Run the complete test suite freshly**
+- [x] **Step 2: Run the complete test suite freshly**
 
 ```powershell
 .\.venv\Scripts\python.exe -m pytest -q -rs
@@ -883,7 +883,7 @@ Update `SECURITY.md` with clarification input, approval binding, bounded context
 
 Expected: 0 failures. Record the exact pass/skip count and runtime in `AGENT_LOG.md`; do not copy the old 626 count.
 
-- [ ] **Step 3: Run offline CLI and Demo smoke tests**
+- [x] **Step 3: Run offline CLI and Demo smoke tests**
 
 ```powershell
 .\.venv\Scripts\python.exe -m codeguard --help
@@ -894,7 +894,7 @@ Expected: 0 failures. Record the exact pass/skip count and runtime in `AGENT_LOG
 
 For interactive test mode, pipe only deterministic scripted input supported by the test composition; never call local mode in CI or without explicit cost approval.
 
-- [ ] **Step 4: Run security and repository checks**
+- [x] **Step 4: Run security and repository checks**
 
 ```powershell
 git grep -n -E "sk-[A-Za-z0-9_-]{12,}|api_key[[:space:]]*=" -- ':!tests/*'
@@ -906,7 +906,7 @@ git branch --show-current
 
 Expected: no real credential matches; no whitespace errors; branch is `feature/interactive-cli-agent`; `main` is still `30581f0`.
 
-- [ ] **Step 5: Build and smoke-test the Windows executable**
+- [x] **Step 5: Build and smoke-test the Windows executable**
 
 ```powershell
 .\.venv\Scripts\python.exe -m PyInstaller --clean --noconfirm codeguard.spec
@@ -916,7 +916,7 @@ Expected: no real credential matches; no whitespace errors; branch is `feature/i
 
 Start `codeguard.exe web` on an unused local port, verify `/health`, and stop it. Verify interactive test mode manually with Mock inputs. Do not configure or expose a real key during the build verification.
 
-- [ ] **Step 6: Set enhanced version metadata**
+- [x] **Step 6: Set enhanced version metadata**
 
 After all verification succeeds, set both reported version locations to `0.2.0-interactive`. Add or update a test asserting the version output. Rerun that test and `codeguard --version`.
 

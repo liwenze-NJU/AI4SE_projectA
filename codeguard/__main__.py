@@ -17,7 +17,7 @@ def main(args: list[str] | None = None) -> None:
             "for coding agents"
         ),
     )
-    parser.add_argument("--version", action="version", version="0.1.1")
+    parser.add_argument("--version", action="version", version="0.2.0-interactive")
     sub = parser.add_subparsers(dest="command")
 
     # chat

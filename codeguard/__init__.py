@@ -1,2 +1,2 @@
 """CodeGuard Harness — a Python CLI Coding Agent Harness."""
-__version__ = "0.1.1"
+__version__ = "0.2.0-interactive"

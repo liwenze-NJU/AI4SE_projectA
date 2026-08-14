@@ -44,7 +44,7 @@ codeguard.exe --version
 codeguard.exe config
 ```
 
-预期结果：命令正常退出，版本为 `0.1.1`，帮助中包含 `chat`、`demo`、`web`、`key` 和 `config`。
+预期结果：命令正常退出（课程版 `main` 报版本 `0.1.1`；增强分支 `feature/interactive-cli-agent` 报 `0.2.0-interactive`），帮助中包含 `chat`、`demo`、`web`、`key` 和 `config`。
 
 ### 4. 验收三个离线场景
 
@@ -73,6 +73,86 @@ codeguard.exe web
 浏览器打开 <http://127.0.0.1:8080>，依次进入场景 A、B、C，并使用「步进」「重放」和审批按钮观察状态变化。WebUI 顶部始终显示「安全 Mock 演示模式」，表示它不会连接真实 Shell、文件系统、LLM、API Key 或凭据。
 
 可额外检查健康端点：<http://127.0.0.1:8080/health>。完成后在启动 WebUI 的终端中按 `Ctrl+C` 停止服务。
+
+## 增强版：交互式 Coding Agent CLI（feature/interactive-cli-agent）
+
+> 本节描述仓库中的**增强分支** `feature/interactive-cli-agent`。课程验收版 `main` / v0.1.1 不含本节的交互式会话功能。
+
+### 如何获取两个版本
+
+| 版本 | 分支 | 版本号 | 用途 |
+| --- | --- | --- | --- |
+| 课程版 | `main` | `0.1.1` | 课程验收基线：一次性 Harness 会话、离线演示、Mock WebUI |
+| 增强版 | `feature/interactive-cli-agent` | `0.2.0-interactive` | 本分支：新增交互式 Coding Agent 会话（`codeguard chat`） |
+
+```cmd
+rem 课程版（默认克隆得到）
+git clone https://github.com/liwenze-NJU/AI4SE_projectA.git
+
+rem 增强版（检出增强分支）
+git clone https://github.com/liwenze-NJU/AI4SE_projectA.git
+cd AI4SE_projectA
+git checkout feature/interactive-cli-agent
+```
+
+**增强分支没有合并回 `main`**：`main` 保持课程版 v0.1.1（`30581f0`）不变，其中不包含任何增强提交。两个版本各自独立可构建、可测试；按需选择分支即可，互不影响。
+
+### 交互式会话：`codeguard chat --mode local`
+
+在**项目目录**运行：
+
+```cmd
+codeguard.exe chat --mode local
+```
+
+在真实模式下，Harness 使用当前目录作为工作区根，并读取系统 Keyring 中已保存的 DeepSeek 凭据调用真实模型。输入一句编程任务后，Agent 会解释行动、读取和搜索代码、修改工作区文件、运行测试，并根据客观反馈继续修复；任务只有通过最终验证才报告 COMPLETED。
+
+会话内命令：
+
+| 命令 | 行为 |
+| --- | --- |
+| `/help` | 显示命令列表 |
+| `/status` | 显示当前会话状态（模式等） |
+| `/clear` | 清空当前进程内的聊天消息（任务摘要保留） |
+| `/cancel` | 取消当前运行中的任务 |
+| `/exit` | 退出会话（EOF 等效；空闲提示符下 Ctrl+C 退出码 130） |
+
+审批提示形如 `Approve write_file? target: <路径> reason: <原因> [y/N]`：输入 `y`/`yes` 批准，其余任何输入（含直接回车）视为拒绝；批准提示下 Ctrl+C 等同拒绝。
+
+澄清提问：模型需要补充信息时输出 `CodeGuard asks: <问题>` 并暂停任务；下一条普通输入作为回答继续执行，输入 `/cancel` 或 Ctrl+C 则取消当前任务。运行中任务允许的交互入口只有 REPL 输入、审批提示和澄清提示三处。
+
+`--mode test` 使用 `ScriptedMockLLM` 完全离线，适合自动化验证；`--mode demo` 使用隔离的 Mock 演示环境。首次配置真实 Key 前请勿直接运行 local 模式。
+
+### 自动安全读取/测试 与 Guardrail 控制的写入
+
+- **自动执行（ALLOW，无需审批）**：只读工具 `read_file`、`list_directory`、`find_files`、`search_text`，以及受信任的验证工具 `run_tests`（pytest）、`run_lint`（ruff）、`run_typecheck`（mypy）。验证工具由配置定义、带超时，模型不能指定其参数。
+- **需要审批（REQUEST_APPROVAL）**：`write_file`、`delete_file`、`apply_patch`、`run_process`。审批请求绑定会话与动作指纹，不能跨会话复用。
+- **默认拒绝（BLOCK）**：未注册工具、工作区外路径（`..` 逃逸、符号链接）、模式越权、凭据泄漏。
+- 所有工具输出在进入模型上下文前经大小限制与 `SecretRedactor` 脱敏；命令执行始终使用结构化 program+args，从不 `shell=True`。
+
+### 进程本地历史与无 /resume
+
+完整聊天历史只存在于**当前 CLI 进程内**（最多 50 条消息、10 条任务摘要），进程退出后即消失；`/clear` 只清内存消息，不清结构化项目记忆，也不删除任何磁盘文件。现有结构化项目记忆继续支持跨会话存储，但只记录已批准决策与已验证解决方案，普通聊天与未验证失败不会自动写入。**第一版不提供 `/resume`**：重新启动会话后不会恢复上一个进程的聊天上下文。
+
+### DeepSeek Key 设置与费用警告
+
+```cmd
+codeguard.exe key set --provider deepseek    rem 交互式隐藏输入，不写入仓库/日志/trace
+codeguard.exe key status --provider deepseek
+codeguard.exe key clear --provider deepseek  rem 测试完毕后建议立即清除
+```
+
+凭据经 Windows Credential Manager（keyring）保存，永不落盘到配置文件、日志、Git 历史或 trace。**费用警告**：`--mode local` 会调用真实 DeepSeek API，按 token 计费；请先确认账户余额与计费规则，预算敏感时先运行 demo/test 模式验证流程。不要把真实 Key 写入 `codeguard.toml`、`.env`、截图或提交记录。
+
+### 增强版已知限制
+
+- 不提供流式 Token 输出；模型回复按动作事件整段渲染。
+- 不提供 CLI 内模型切换；当前使用配置中的 DeepSeek 提供方。
+- WebUI 仍为离线 Mock 机制演示，不支持真实项目编程会话。
+- 不支持多 Agent 并行；一次会话中同时只有一个任务。
+- 不提供 Git push、发布或工作区外副作用工具，相关动作默认 BLOCK。
+- 交互式 REPL 需要真实终端（TTY）；通过管道注入输入不被支持。
+- Windows EXE 未签名，SmartScreen 可能提示未知发布者，请核对 SHA-256。
 
 ## 项目实现了什么
 
@@ -231,7 +311,7 @@ python -m pytest -q -rs
 626 passed, 1 skipped
 ```
 
-唯一跳过项是 Windows 环境在无提升权限时无法创建符号链接的边界测试；它不是功能失败。所有测试均使用 ScriptedMockLLM / MockToolDispatcher / MockMemoryStore / MockCredentialStore / FakeClock，无真实 LLM、无网络、无 API Key。
+增强分支（`feature/interactive-cli-agent`）当前全量结果见 AGENT_LOG.md Task 8 记录（751 passed, 1 skipped）。唯一跳过项是 Windows 环境在无提升权限时无法创建符号链接的边界测试；它不是功能失败。所有测试均使用 ScriptedMockLLM / MockToolDispatcher / MockMemoryStore / MockCredentialStore / FakeClock，无真实 LLM、无网络、无 API Key。
 
 ### 从源码运行 CLI
 
@@ -254,6 +334,8 @@ pyinstaller --clean --noconfirm codeguard.spec
 ```text
 dist/codeguard.exe
 ```
+
+> 提示：从源码构建请使用 `.venv\Scripts\python.exe -m PyInstaller --clean --noconfirm codeguard.spec`（当前分支已有 dist/ 与 build/ 的本地构建产物，均已被 .gitignore 忽略，不会进入提交）。
 
 生成校验值：
 

@@ -2917,3 +2917,48 @@
 
 **验证命令**: 全量 `pytest -q -rs`；smoke `python -m codeguard --help`、`demo a/b/c`；安全 `git grep -n -E "sk-[A-Za-z0-9_-]{12,}|api_key[[:space:]]*=" -- ':!tests/*'`、`git diff --check`、`git rev-parse --short main`；构建 `.venv\Scripts\python.exe -m PyInstaller --clean --noconfirm codeguard.spec`
 
+
+---
+
+## Task 8: 文档、全量验证与增强版候选发布（Documentation, Full Verification, and Enhanced Release Candidate）
+
+**log_id**: T8 | **task_id**: Task 8 Documentation, Full Verification, and Enhanced Release Candidate | **状态**: COMPLETED
+**时间**: 2026-08-14
+**Superpowers 技能**: `superpowers:subagent-driven-development` + `superpowers:verification-before-completion`
+**branch/worktree**: feature/interactive-cli-agent / `.worktrees/interactive-cli-agent`
+
+**目标**: 更新用户文档（README/SECURITY，课程版 vs 增强版、chat --mode local 行为与命令、自动安全读取/测试、Guardrail 控制写入、进程本地历史与无 /resume、DeepSeek key 设置与费用警告、已知限制、增强分支未合并入 main）；全量测试新鲜证据；离线 CLI/demo smoke；安全与仓库检查；PyInstaller 构建 + exe smoke（--help / demo a / web /health 起停）；版本置为 0.2.0-interactive（两处）并更新版本测试；两阶段评审；最终提交不合并；不创建 tag/Release（需用户授权）。
+
+**关键输出/修改**:
+- `README.md`: 新增「增强版：交互式 Coding Agent CLI」章节（两版本获取方式表格 + `git checkout feature/interactive-cli-agent`；`chat --mode local` 行为与 `/help /status /clear /cancel /exit` 命令表；审批提示 `[y/N]` 与 Ctrl+C 语义；澄清提问 `CodeGuard asks:` 与暂停/恢复；自动 ALLOW 的只读/受信任验证工具与 REQUEST_APPROVAL 的写/补丁/进程工具、BLOCK 默认拒绝；进程本地历史（50 消息 + 10 摘要）与无 `/resume`；`key set --provider deepseek` 与费用警告；增强版已知限制（无流式、无模型切换、无真实 WebUI 会话、无多 Agent、无 push/发布工具、需 TTY）；明确声明增强分支未合并回 main）；验收指南版本行改为按分支区分 0.1.1 / 0.2.0-interactive；测试小节标注增强分支当前全量结果（751 passed, 1 skipped）见 AGENT_LOG.md Task 8；构建小节补充 `.venv\Scripts\python.exe -m PyInstaller ...` 与 dist/build 已 gitignore 说明
+- `SECURITY.md`: 新增「增强版安全说明」小节（澄清输入 REQUEST_USER_INPUT 暂停/恢复语义与并发修改防护、审批绑定 session+action fingerprint、有界上下文 50/10 预算与截断优先级、受信任验证工具由配置定义不可由模型指定参数、/cancel 与 Ctrl+C 取消语义、禁止 push/发布工具 default-deny）
+- `codeguard/__init__.py` + `codeguard/__main__.py`: `__version__` 与 argparse `--version` 均置为 `0.2.0-interactive`（全量验证通过后执行）
+- `tests/test_scaffold.py`: `test_codeguard_version_is_011_during_development` 改为 `test_codeguard_version_is_020_interactive_release_candidate`（断言 `--version` 输出含 `0.2.0-interactive`，returncode 0）
+- `codeguard.spec` / `.github/workflows/ci.yml` / `.gitlab-ci.yml`: 仅核查，无版本字符串、无修改
+- `docs/superpowers/plans/2026-08-13-interactive-cli-agent.md`: Task 8 的 8 个步骤全部勾选
+
+**验证证据**:
+- 全量（Step 2）: `pytest -q -rs` → **751 passed, 1 skipped in 31.56s**（skip 为既有 test_file_tools symlink 特权跳过）；版本置位后复跑 → **751 passed, 1 skipped**（见下方最终全量记录）
+- Smoke（Step 3）: `python -m codeguard --help` → exit 0，五个子命令齐全；`demo a/b/c` → `Demo a completed: completed` / `Demo b completed: completed` / `Demo c completed: completed`，均 exit 0（未调用 local 模式，无真实 key）
+- 安全检查（Step 4）: `git grep -n -E "sk-[A-Za-z0-9_-]{12,}|api_key[[:space:]]*=" -- ':!tests/*'` → 命中均为脱敏实现/文档正则与 PLAN 示例假 key，**无真实凭据**；`git diff --check` → 无空白错误；`git status --short --branch` → `## feature/interactive-cli-agent`，仅预期文件修改；`git rev-parse --short main` → **30581f0**；`git branch --show-current` → `feature/interactive-cli-agent`
+- 构建（Step 5）: `.venv\Scripts\python.exe -m PyInstaller --clean --noconfirm codeguard.spec` → exit 0，`dist/codeguard.exe`（17,466,702 字节）生成无警告；`dist\codeguard.exe --help` → exit 0；`dist\codeguard.exe demo a` → `Demo a completed: completed` exit 0；`dist\codeguard.exe --version` → `0.2.0-interactive` exit 0；`dist\codeguard.exe web --port 8765` → `GET /health` **HTTP 200**，body `{"status":"ok","mode":"demo","mock":true}`，验证后 `taskkill /F /T` 终止全部进程，端口确认关闭（连接拒绝）；PyInstaller onefile 双进程（bootloader 父子）需 /T 杀树；交互 test 模式需 TTY 手动验证，离线自动验证不可行（已按计划说明跳过）；未配置任何真实 key
+- 版本（Step 6）: `pytest tests/test_scaffold.py -q` → **3 passed**；`python -m codeguard --version` → `0.2.0-interactive` exit 0；两处版本位置（`codeguard/__init__.py` `__version__`、`codeguard/__main__.py` argparse `--version`）均已更新，grep 确认无其他 0.1.1 残留（PLAN.md 历史文档除外）
+- `dist/` 与 `build/` 均已被 .gitignore 的 `dist/`/`build/` 模式覆盖（`git check-ignore` 验证），产物不进入提交
+- 风险分级: Task 8 最终分支级评审 + 全量 + 凭据扫描 + 构建 + smoke（opus）
+
+**commit hash**: `T8-COMMIT`（`docs: prepare interactive CLI release candidate`）
+
+---
+
+## Task 8 补充：版本置位后最终全量复跑（T8-FINAL）
+
+**log_id**: T8-FINAL | **task_id**: Task 8 补充证据 | **状态**: COMPLETED
+**时间**: 2026-08-14
+
+**背景**: 版本 0.2.0-interactive 置位发生在 Step 2 全量测试之后，按计划在全部验证通过后才修改版本；为消除"全量结果对应旧版本"的疑点，置位后复跑全量套件。
+
+**验证证据**:
+- `pytest -q -rs`（版本 0.2.0-interactive 状态）→ **751 passed, 1 skipped in 31.87s**（skip 为既有 symlink 特权跳过），无失败
+- `git diff --check` → 无空白错误
+
+**commit hash**: `T8-COMMIT`（随 T8 同次提交，无独立提交）
