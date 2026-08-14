@@ -1,5 +1,7 @@
 """CLI dispatch tests — Task 15.1."""
 
+from pathlib import Path
+
 import pytest
 from unittest.mock import patch, MagicMock
 
@@ -13,21 +15,47 @@ class TestChatCommand:
         from codeguard.cli.chat import chat_command
         assert callable(chat_command)
 
-    def test_chat_test_mode_creates_loop_and_runs(self):
+    def test_chat_test_mode_creates_session_and_runs(self):
         from codeguard.cli.chat import chat_command
-        with patch("codeguard.cli.chat.CompositionRoot") as mock_root_cls:
+        with patch("codeguard.cli.chat.CompositionRoot") as mock_root_cls, \
+             patch("codeguard.cli.chat.ChatSession") as mock_session_cls:
             mock_root = MagicMock()
-            mock_loop = MagicMock()
-            mock_loop.run.return_value = MagicMock(terminal_state=MagicMock(value="completed"))
-            mock_root.create_loop.return_value = mock_loop
+            mock_session = MagicMock()
+            mock_session.run.return_value = 0
             mock_root_cls.return_value = mock_root
+            mock_session_cls.return_value = mock_session
 
             with pytest.raises(SystemExit) as exc:
                 chat_command(args=["--mode", "test"])
 
             assert exc.value.code == 0
-            mock_root.create_loop.assert_called_once()
-            mock_loop.run.assert_called_once()
+            mock_root_cls.assert_called_once_with(
+                mode="test", workspace_root=Path.cwd()
+            )
+            mock_root.create_loop.assert_called_once_with(session_id="cli-session")
+            mock_session_cls.assert_called_once()
+            call_kwargs = mock_session_cls.call_args.kwargs
+            # The eager loop is handed to the session via the factory.
+            assert call_kwargs["loop_factory"]("any") is mock_root.create_loop.return_value
+            mock_session.run.assert_called_once()
+
+    def test_chat_demo_mode_selects_demo_root(self):
+        from codeguard.cli.chat import chat_command
+        with patch("codeguard.cli.chat.CompositionRoot") as mock_root_cls, \
+             patch("codeguard.cli.chat.ChatSession") as mock_session_cls:
+            mock_root = MagicMock()
+            mock_session = MagicMock()
+            mock_session.run.return_value = 0
+            mock_root_cls.return_value = mock_root
+            mock_session_cls.return_value = mock_session
+
+            with pytest.raises(SystemExit) as exc:
+                chat_command(args=["--mode", "demo"])
+
+            assert exc.value.code == 0
+            mock_root_cls.assert_called_once_with(
+                mode="demo", workspace_root=Path.cwd()
+            )
 
     def test_chat_local_mode_without_key_exits_gracefully(self, capsys):
         from codeguard.cli.chat import chat_command
