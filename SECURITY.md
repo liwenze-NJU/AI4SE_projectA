@@ -8,8 +8,8 @@
 - **审批绑定**：写入/危险动作的审批请求绑定 `session_id` + 动作指纹（`request + action fingerprint`），批准结果不能跨会话或跨动作复用；空输入、`n`、Ctrl+C 均视为拒绝，任务进入 CANCELLED。
 - **有界上下文**：进入模型上下文的聊天历史有明确上限（50 条消息 + 10 条任务摘要）；上下文预算超限时先删除较旧聊天消息，再截短工具输出；系统约束、当前任务、最新错误、Guardrail/审批结果不得截掉；所有工具输出先脱敏、分类、截断再进入上下文。
 - **受信任的验证工具**：`run_tests` / `run_lint` / `run_typecheck` 由运行配置定义（固定命令、超时、schema 不可由模型指定参数），只能运行配置声明的验证命令；模型不可用它执行任意命令。`run_process` 属于危险动作，必须审批。
-- **取消语义**：`/cancel` 取消当前任务（无运行任务时仅提示）；任务内 Ctrl+C 等同取消并返回 REPL；空闲 REPL 的 Ctrl+C 以退出码 130 退出；EOF 视为 `/exit`。取消不写结构化记忆，不留完整聊天文件。
-- **禁止 push/发布工具**：第一版不提供 Git push、发布或工作区外副作用工具；相关工具未注册（default-deny BLOCK），`run_process` 受结构化 program+args 与命令白名单约束，不能绕过。
+- **取消语义**：`/cancel` 取消当前任务（无运行任务时仅提示）；任务内 Ctrl+C 等同取消并返回 REPL；空闲 REPL 的 Ctrl+C 以退出码 130 退出；EOF 视为 `/exit`。取消不写结构化记忆（当前循环设计中 `AgentLoop` 与 `ChatSession` 没有任何记忆写入调用；记忆存储 API 仅提供审批门控的 `propose_write` + `approve_memory`/`reject_memory`），不留完整聊天文件。
+- **禁止 push/发布工具**：第一版不提供 Git push、发布或工作区外副作用工具；相关工具未注册（default-deny BLOCK）。`run_process` 属危险动作必须审批（`ToolRiskRule` 按工具声明风险返回 REQUEST_APPROVAL），并以结构化 program+args（**从不** `shell=True`）、参数元字符拒绝（`` ;&|`$ `` 出现在 args 中即拒绝）和 cwd 限制在工作区内三重约束收紧，不能绕过。
 
 ## 凭据存储
 
@@ -23,7 +23,7 @@
 | 威胁 | 缓解措施 |
 |------|----------|
 | LLM 提议越界文件访问 | `WorkspaceBoundaryRule`（路径规范化 + 多重验证，不可关闭） |
-| 危险 Shell 命令 | `CommandWhitelistRule` + `run_process` 结构化 program+args，**从不** `shell=True` |
+| 危险 Shell 命令 | `run_process` 须审批（`ToolRiskRule` REQUEST_APPROVAL）+ 结构化 program+args（`shell=False`）+ 参数元字符拒绝（`` ;&|`$ ``）+ cwd 限制在工作区内 |
 | 凭据泄露进 LLM 上下文/trace | `CredentialLeakRule` + 统一 `SecretRedactor` 覆盖所有数据路径 |
 | 未注册工具/未知动作 | `UnregisteredToolRule` + 默认拒绝（default-deny）——无规则匹配即 BLOCK |
 | 审批复用 | 审批绑定具体 Action（session + request + action fingerprint），不可复用 |
