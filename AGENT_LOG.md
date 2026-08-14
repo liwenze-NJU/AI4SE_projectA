@@ -3067,3 +3067,39 @@
 
 **commit hash**: `382f474`（`fix: dedupe assistant replies before emit and emit terminal events on every end`）
 
+
+---
+
+## T8-FIX4: 连续 assistant_message 拦截（语义重复）+ 终态格式修正（人工验收第三轮）
+
+**log_id**: T8-FIX4 | **状态**: COMPLETED
+**时间**: 2026-08-14
+**Superpowers 技能**: `superpowers:systematic-debugging`（根因调查）+ `superpowers:test-driven-development`（RED → GREEN → 回归 → 全量 → 重建 EXE）
+**branch/worktree**: feature/interactive-cli-agent / `.worktrees/interactive-cli-agent`
+
+**人工验收复现（第三轮）**: 输出 "CodeGuard > BLUE-731" 与 "CodeGuard > 会话代号是 BLUE-731。" 两行不同字符串的 ASSISTANT_MESSAGE（语义重复）；"[task] COMPLETED: completed: ..." 双状态词。
+
+**根因（systematic-debugging Phase 1）**:
+1. `_delivered_assistant_messages` 只做精确字符串去重——文本不同但语义相同的连续回复双双通过检查后 emit；
+2. `_task_finished_payload` 把 summary 拼为 `f"{outcome}: {transcript}"`，而 CLI sink 渲染时再加一次 outcome → `COMPLETED: completed: ...`。
+
+**修复（范围严格受限，无语义相似度启发式）**:
+- `codeguard/loop.py`: 新增 `_assistant_displayed_since_progress` 布尔标志（per-task 重置）。**无 tool_call / request_user_input 间隔时，一个任务最多向用户显示一条连续 assistant_message**；第二条连续消息（无论文本是否相同）在 emit 之前拦截、不写入 `_transcript`、不写入 ChatHistory，并向下一轮上下文提供协议纠正反馈（"Do not repeat it; return complete, tool_call, or request_user_input."）。真实工具执行（EXECUTING）或用户澄清回答（`resume_with_user_input`）后标志重置——有真实进展的两条消息都会显示。
+- 保留 T8-FIX3 的精确去重（`_delivered_assistant_messages`）作为叠加防御。
+- `_task_finished_payload`: outcome 与 summary 分离——summary 只含 transcript/最新结果，不再重复 outcome 词；CLI 渲染 `[task] COMPLETED: <summary>` 恰好一个状态词。
+
+**新增测试**（tests/test_loop.py）:
+- `test_consecutive_distinct_assistant_messages_second_blocked_before_emit`: 逐字复现验收场景（BLUE-731 → 会话代号是 BLUE-731。 → complete）→ 仅 1 个 ASSISTANT_MESSAGE 事件、被拦截消息不入 transcript、纠正反馈（already delivered + tool_call + request_user_input）进入下一轮上下文、合规 complete 正常完成
+- `test_tool_progress_resets_assistant_display`: 正在检查 → tool_call → 检查完成 → complete 两条消息都显示（真实工具进展）
+- `test_task_finished_summary_has_no_duplicate_state_word`: payload summary 不含 "completed:"，含 "会话代号是 BLUE-731。"
+
+**验证证据**:
+- RED: `pytest tests/test_loop.py -k "consecutive_distinct or tool_progress_resets or no_duplicate_state_word" -q` → 2 failed（第二条消息被显示、双状态词）
+- GREEN: 同上 → 3 passed（含 T8-FIX3 组 7 passed 复核）
+- 回归: loop/chat_session/e2e/context_runtime 组 → **86 passed**; 全量 `pytest -q -rs` → **771 passed, 1 skipped**（基线 768 + 新 3）
+- 重建 EXE: PyInstaller exit 0; EXE smoke（CODEGUARD_PYTHON=<venv python>）→ `[validation] pytest: PASSED` → `[task] COMPLETED: Validation pytest: PASSED — Exit code: 0`（单状态词格式确认）
+- `git diff --check` → clean; 凭据扫描 0 真实命中
+- 未创建 tag/Release；未合并 main（main 仍 30581f0）
+
+**commit hash**: `T8-FIX4-COMMIT`（提交后回填）
+

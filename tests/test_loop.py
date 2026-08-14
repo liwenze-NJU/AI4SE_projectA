@@ -804,3 +804,88 @@ def test_failed_emits_task_finished_event():
     ]
     assert len(finished) == 1
     assert finished[0].payload["outcome"] == "failed"
+
+
+# ---------------------------------------------------------------------------
+# T8-FIX4 — consecutive assistant messages (semantic repeats)
+# ---------------------------------------------------------------------------
+
+def test_consecutive_distinct_assistant_messages_second_blocked_before_emit():
+    """The verbatim acceptance scenario: assistant_message("BLUE-731") then
+    assistant_message("会话代号是 BLUE-731。") then complete. Without a
+    tool_call or request_user_input in between, the SECOND consecutive
+    assistant message is blocked BEFORE the emit — the user sees at most
+    one reply per uninterrupted run, without any semantic-similarity
+    heuristic."""
+    sink = CollectingEventSink()
+    responses = [
+        _r(Action(kind=ActionKind.ASSISTANT_MESSAGE, message="BLUE-731", raw="")),
+        _r(Action(kind=ActionKind.ASSISTANT_MESSAGE,
+                  message="会话代号是 BLUE-731。", raw="")),
+        _r(Action(kind=ActionKind.COMPLETE_REQUEST,
+                  summary="会话代号是 BLUE-731。", raw="")),
+    ]
+    loop = _make_task_loop(responses=responses, event_sink=sink)
+    result = loop.start_task("t1", "Do the work", [])
+    assistant_events = [
+        e for e in sink.events
+        if e.kind == HarnessEventKind.ASSISTANT_MESSAGE
+    ]
+    assert [e.payload["message"] for e in assistant_events] == ["BLUE-731"]
+    # The blocked second message never reaches the transcript either.
+    assert "会话代号是 BLUE-731。" not in loop._transcript
+    # The protocol correction was fed into the NEXT decision's context
+    # (final validation later overwrites _latest_result with sensor output).
+    correction_context = loop.llm.received_contexts[2]
+    assert "already delivered" in correction_context
+    assert "tool_call" in correction_context
+    assert "request_user_input" in correction_context
+    # A compliant complete still finishes the task (no fabricated COMPLETED
+    # needed — the model was scripted to complete).
+    assert result.terminal_state == AgentState.COMPLETED
+
+
+def test_tool_progress_resets_assistant_display():
+    """assistant → tool_call → assistant → complete: BOTH messages are
+    displayed because a real tool action happened in between (requirement 3).
+    The display allowance resets on tool execution."""
+    sink = CollectingEventSink()
+    responses = [
+        _r(Action(kind=ActionKind.ASSISTANT_MESSAGE, message="正在检查", raw="")),
+        _r(Action(kind=ActionKind.TOOL_CALL, tool_name="read_file",
+                  parameters={"path": "x"}, raw="")),
+        _r(Action(kind=ActionKind.ASSISTANT_MESSAGE, message="检查完成", raw="")),
+        _r(Action(kind=ActionKind.COMPLETE_REQUEST, summary="done", raw="")),
+    ]
+    loop = _make_task_loop(responses=responses, event_sink=sink)
+    result = loop.start_task("t1", "Do the work", [])
+    assistant_events = [
+        e for e in sink.events
+        if e.kind == HarnessEventKind.ASSISTANT_MESSAGE
+    ]
+    assert [e.payload["message"] for e in assistant_events] == ["正在检查", "检查完成"]
+    assert result.terminal_state == AgentState.COMPLETED
+
+
+def test_task_finished_summary_has_no_duplicate_state_word():
+    """The TASK_FINISHED payload summary must not repeat the outcome word:
+    '[task] COMPLETED: completed: ...' is forbidden (requirement 5)."""
+    sink = CollectingEventSink()
+    responses = [
+        _r(Action(kind=ActionKind.ASSISTANT_MESSAGE,
+                  message="会话代号是 BLUE-731。", raw="")),
+        _r(Action(kind=ActionKind.COMPLETE_REQUEST,
+                  summary="会话代号是 BLUE-731。", raw="")),
+    ]
+    loop = _make_task_loop(responses=responses, event_sink=sink)
+    result = loop.start_task("t1", "Do the work", [])
+    assert result.terminal_state == AgentState.COMPLETED
+    finished = [
+        e for e in sink.events if e.kind == HarnessEventKind.TASK_FINISHED
+    ]
+    assert len(finished) == 1
+    payload = finished[0].payload
+    assert payload["outcome"] == "completed"
+    summary = payload["summary"]
+    assert "completed:" not in summary
+    assert "会话代号是 BLUE-731。" in summary

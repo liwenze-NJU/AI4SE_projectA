@@ -74,6 +74,12 @@ class AgentLoop:
         # detection runs BEFORE the emit so a repeated reply is shown at
         # most once.
         self._delivered_assistant_messages: set[str] = set()
+        # T8-FIX4: at most ONE assistant message may be displayed per
+        # uninterrupted run — a second consecutive assistant_message is
+        # blocked before the emit (no semantic-similarity heuristic).
+        # The allowance resets when a real tool executes or the user
+        # answers a clarification.
+        self._assistant_displayed_since_progress = False
         self._task_finished_emitted = False
 
         # Components to be injected via attributes
@@ -205,6 +211,7 @@ class AgentLoop:
         self.state.guardrail_decision = None
         self._approval_decision = None
         self._delivered_assistant_messages.clear()
+        self._assistant_displayed_since_progress = False
         self._task_finished_emitted = False
         self._consecutive_conversation_actions = 0
         self._started_at = datetime.now()
@@ -222,6 +229,9 @@ class AgentLoop:
             raise ValueError("User input must be a non-empty string")
         answer = text.strip()
         self._latest_result = f"User answer: {answer}"
+        # T8-FIX4: the user's clarification answer is progress — the
+        # assistant may display one message again afterwards.
+        self._assistant_displayed_since_progress = False
         self.state.pending_question = None
         self._transition(AgentState.DECIDING)
         return self.run()
@@ -259,22 +269,19 @@ class AgentLoop:
     def _task_finished_payload(self) -> dict:
         """Compose the TASK_FINISHED payload with a real bounded summary.
 
-        The summary is composed from the task transcript (the last
-        assistant message, truncated to 500 chars) plus the outcome; on
-        failure the redacted error is included.  A task that performed no
-        assistant reply falls back to the completion summary or outcome
-        text, so the summary is never empty (T8-FIX2 P2).
+        The summary carries the task transcript (the last assistant
+        message, truncated to 500 chars); on failure the redacted error is
+        included. The outcome is a SEPARATE field — the summary must never
+        repeat the outcome word, so the CLI renders exactly one state word:
+        ``[task] COMPLETED: <summary>`` (T8-FIX4).
         """
-        outcome = self.state.current_state.value
         assistant_messages = [
             m for m in self._transcript if isinstance(m, str) and m.strip()
         ]
         transcript = assistant_messages[-1] if assistant_messages else ""
-        if transcript:
-            summary = f"{outcome}: {transcript}"[:500]
-        else:
-            summary = outcome
-        payload: dict = {"outcome": outcome, "summary": summary}
+        summary = transcript[:500] if transcript else self._latest_result[:500]
+        payload: dict = {"outcome": self.state.current_state.value,
+                         "summary": summary or self.state.current_state.value}
         if self._cancelled:
             payload["summary"] = "cancelled by user"
         elif self.state.current_state == AgentState.FAILED and self._latest_result:
@@ -344,19 +351,26 @@ class AgentLoop:
             # ----- Conversation actions (never governed) -----
             if action.kind == ActionKind.ASSISTANT_MESSAGE:
                 message = action.message or ""
-                self._transcript.append(message)
-                # T8-FIX3: duplicate detection BEFORE the emit — an
-                # identical reply is delivered to the user at most once per
-                # task. The first repeat feeds an explicit protocol
-                # correction into the next decision context.
-                if message in self._delivered_assistant_messages:
+                # T8-FIX4: at most ONE assistant message per uninterrupted
+                # run. A second consecutive assistant_message (identical or
+                # semantically-equivalent text) is blocked BEFORE the emit —
+                # no unreliable semantic-similarity heuristic. The
+                # allowance resets when a real tool executes or the user
+                # answers a clarification.
+                blocked = (
+                    self._assistant_displayed_since_progress
+                    or message in self._delivered_assistant_messages
+                )
+                if blocked:
                     self._latest_result = (
                         "The previous assistant message was already "
-                        "delivered. Do not repeat it; return complete or "
-                        "choose a different valid action."
+                        "delivered. Do not repeat it; return complete, "
+                        "tool_call, or request_user_input."
                     )
                 else:
                     self._delivered_assistant_messages.add(message)
+                    self._assistant_displayed_since_progress = True
+                    self._transcript.append(message)
                     self._emit(HarnessEventKind.ASSISTANT_MESSAGE,
                                {"message": message})
                     self._latest_result = f"Assistant: {message}"
@@ -456,6 +470,9 @@ class AgentLoop:
             # ----- EXECUTING -----
             self.state.steps_used += 1
             self._consecutive_conversation_actions = 0
+            # T8-FIX4: a real tool execution is genuine progress — the
+            # assistant may display one message again afterwards.
+            self._assistant_displayed_since_progress = False
 
             if self.tool_dispatcher is not None:
                 self._dispatch_tool(action)
