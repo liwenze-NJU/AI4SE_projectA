@@ -432,3 +432,143 @@ def test_loop_non_recoverable_block():
     loop.stop_policy = FakeStopPolicy()
     result = loop.run()
     assert result.terminal_state == AgentState.FAILED
+
+
+# ---------------------------------------------------------------------------
+# Task 4 — per-task inputs, assistant messages, user input, and cancel
+# ---------------------------------------------------------------------------
+
+from codeguard.events import CollectingEventSink, HarnessEventKind
+
+
+class FakeTaskToolDispatcher:
+    """FakeToolDispatcher that also records the dispatched actions."""
+
+    def __init__(self):
+        self.dispatched: list = []
+        self._inner = FakeToolDispatcher()
+
+    def dispatch(self, action):
+        self.dispatched.append(action)
+        return self._inner.dispatch(action)
+
+
+def _make_task_loop(task_id="t1", request="Do the work",
+                    summaries=None, responses=None, event_sink=None):
+    """Fully-wired loop for start_task scenarios (real components)."""
+    from codeguard.composition import CompositionRoot
+    import tempfile
+
+    root = CompositionRoot(
+        mode="test",
+        workspace_root=tempfile.mkdtemp(prefix="codeguard-loop-test-"),
+        event_sink=event_sink,
+    )
+    loop = root.create_loop(session_id="s-task")
+    if responses is not None:
+        loop.llm = ScriptedMockLLM(responses=responses)
+    return loop
+
+
+def test_start_task_resets_counters_and_runs():
+    """start_task drives a governed run and returns the result."""
+    responses = [
+        _r(Action(kind=ActionKind.TOOL_CALL, tool_name="read_file",
+                  parameters={"path": "x"}, raw="")),
+        _r(Action(kind=ActionKind.COMPLETE_REQUEST, summary="done", raw="")),
+    ]
+    loop = _make_task_loop(responses=responses)
+    result = loop.start_task("t1", "Do the work", [])
+    assert result.terminal_state == AgentState.COMPLETED
+    assert result.steps_total == 1
+    assert result.llm_calls_total == 2
+
+
+def test_assistant_message_consumes_llm_call_but_no_step():
+    """ASSISTANT_MESSAGE emits an event, adds to transcript, does NOT
+    increment steps_used, and continues to DECIDING."""
+    sink = CollectingEventSink()
+    responses = [
+        _r(Action(kind=ActionKind.ASSISTANT_MESSAGE, message="Hello there", raw="")),
+        _r(Action(kind=ActionKind.COMPLETE_REQUEST, summary="done", raw="")),
+    ]
+    loop = _make_task_loop(responses=responses, event_sink=sink)
+    result = loop.start_task("t1", "Do the work", [])
+    assert result.terminal_state == AgentState.COMPLETED
+    assert result.steps_total == 0
+    assert result.llm_calls_total == 2
+    assert loop._transcript == ["Hello there"]
+    kinds = [e.kind for e in sink.events]
+    assert HarnessEventKind.ASSISTANT_MESSAGE in kinds
+
+
+def test_request_user_input_pauses_and_resume_continues():
+    """REQUEST_USER_INPUT → AWAITING_USER_INPUT; resume_with_user_input
+    feeds the answer into the next context and completes."""
+    responses = [
+        _r(Action(kind=ActionKind.REQUEST_USER_INPUT, question="Which file?", raw="")),
+        _r(Action(kind=ActionKind.COMPLETE_REQUEST, summary="done", raw="")),
+    ]
+    loop = _make_task_loop(responses=responses)
+    result = loop.start_task("t1", "Do the work", [])
+    assert result.terminal_state == AgentState.AWAITING_USER_INPUT
+    assert loop.state.pending_question == "Which file?"
+    # The awaiting state must not have consumed any steps
+    assert result.steps_total == 0
+
+    result = loop.resume_with_user_input("src/main.py")
+    assert result.terminal_state == AgentState.COMPLETED
+    assert "src/main.py" in loop.llm.received_contexts[1]
+    assert loop.state.pending_question is None
+
+
+def test_resume_with_user_input_requires_awaiting_state():
+    """resume_with_user_input outside AWAITING_USER_INPUT raises ValueError."""
+    loop = _make_task_loop(
+        responses=[_r(Action(kind=ActionKind.COMPLETE_REQUEST, summary="done", raw=""))]
+    )
+    with pytest.raises(ValueError, match="AWAITING_USER_INPUT"):
+        loop.resume_with_user_input("text")
+
+
+def test_resume_with_user_input_requires_nonempty_text():
+    """resume_with_user_input with empty text raises ValueError."""
+    responses = [
+        _r(Action(kind=ActionKind.REQUEST_USER_INPUT, question="Which file?", raw="")),
+    ]
+    loop = _make_task_loop(responses=responses)
+    loop.start_task("t1", "Do the work", [])
+    assert loop.state.current_state == AgentState.AWAITING_USER_INPUT
+    with pytest.raises(ValueError, match="empty"):
+        loop.resume_with_user_input("   ")
+
+
+def test_cancel_prevents_further_tool_execution():
+    """cancel() transitions an active task to CANCELLED and no tool may
+    execute afterward."""
+    responses = [
+        _r(Action(kind=ActionKind.TOOL_CALL, tool_name="read_file",
+                  parameters={"path": "x"}, raw="")),
+        _r(Action(kind=ActionKind.COMPLETE_REQUEST, summary="done", raw="")),
+    ]
+    loop = _make_task_loop(responses=responses)
+    loop.tool_dispatcher = FakeTaskToolDispatcher()
+    result = loop.cancel()
+    assert result.terminal_state == AgentState.CANCELLED
+    assert loop.state.current_state == AgentState.CANCELLED
+    # A resumed run must not dispatch any tool
+    result = loop.run()
+    assert result.terminal_state == AgentState.CANCELLED
+    assert loop.tool_dispatcher.dispatched == []
+
+
+def test_start_task_fails_closed_when_components_missing():
+    """start_task must FAILED with a redacted diagnostic when required
+    components are missing; run() keeps legacy partial-wiring behavior."""
+    loop = _make_task_loop(
+        responses=[_r(Action(kind=ActionKind.COMPLETE_REQUEST, summary="done", raw=""))]
+    )
+    loop.tool_registry = None
+    result = loop.start_task("t1", "Do the work", [])
+    assert result.terminal_state == AgentState.FAILED
+    assert "tool_registry" in result.error

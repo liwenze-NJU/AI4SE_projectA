@@ -403,6 +403,7 @@ class CompositionRoot:
     # ------------------------------------------------------------------
 
     def _wire_common(self, loop: AgentLoop, workspace_root: str) -> None:
+        loop.project_id = self.project_id
         loop.secret_redactor = SecretRedactor()
         loop.tracer = Tracer(secret_redactor=loop.secret_redactor)
         loop.context_builder = ContextBuilder()

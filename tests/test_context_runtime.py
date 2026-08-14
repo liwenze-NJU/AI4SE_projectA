@@ -84,3 +84,74 @@ def test_runtime_context_drops_tool_section_when_description_halved_to_empty():
     )
     assert "## Available Tools" not in context
     assert len(context) <= 70
+
+
+# ---------------------------------------------------------------------------
+# Task 4 — loop integration: tool results carried into the next LLM context
+# ---------------------------------------------------------------------------
+
+from decimal import Decimal
+
+from codeguard.loop import AgentLoop
+from codeguard.state import AgentState
+from codeguard.action import Action, ActionKind, LLMResponse
+from codeguard.llm.mock import ScriptedMockLLM
+
+
+def _response_for(action: Action) -> LLMResponse:
+    return LLMResponse(
+        content=action.raw or "",
+        next_action=action,
+        finish_reason="stop",
+        model="mock",
+        token_used=0,
+        cost_used=Decimal("0"),
+        raw_response="",
+    )
+
+
+def make_wired_test_loop(tmp_path, llm):
+    """Fully-wired test loop: real context builder, registry, normalizer,
+    rule engine, dispatcher, sensors, verifier, stop policy, redactor,
+    and event sink.  Workspace root is the pytest tmp_path."""
+    from codeguard.composition import CompositionRoot
+
+    root = CompositionRoot(mode="test", workspace_root=str(tmp_path))
+    loop = root.create_loop(session_id="ctx-t1")
+    loop.llm = llm
+    # write_file requires approval by default; keep every action ALLOW so
+    # the scripted TOOL_CALLs reach the dispatcher boundary directly.
+    loop.tool_registry.lookup("write_file").default_risk = "ALLOW"
+    return loop
+
+
+def test_tool_result_is_in_next_llm_context(tmp_path):
+    llm = ScriptedMockLLM([
+        _response_for(Action(
+            kind=ActionKind.TOOL_CALL, tool_name="read_file",
+            parameters={"path": "a.txt"}, raw="",
+        )),
+        _response_for(Action(
+            kind=ActionKind.COMPLETE_REQUEST, summary="done", raw="",
+        )),
+    ])
+    loop = make_wired_test_loop(tmp_path, llm)
+    (tmp_path / "a.txt").write_text("needle", encoding="utf-8")
+    result = loop.start_task("t1", "Inspect a.txt", [])
+    assert result.terminal_state is AgentState.COMPLETED
+    assert "needle" in llm.received_contexts[1]
+
+
+def test_first_context_contains_request_and_tool_descriptions(tmp_path):
+    llm = ScriptedMockLLM([
+        _response_for(Action(
+            kind=ActionKind.COMPLETE_REQUEST, summary="done", raw="",
+        )),
+    ])
+    loop = make_wired_test_loop(tmp_path, llm)
+    result = loop.start_task("t1", "Inspect a.txt", ["Earlier: use pytest"])
+    assert result.terminal_state is AgentState.COMPLETED
+    first = llm.received_contexts[0]
+    assert "Inspect a.txt" in first
+    assert "read_file(path)" in first
+    assert "Earlier: use pytest" in first

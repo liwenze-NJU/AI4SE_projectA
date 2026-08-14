@@ -14,8 +14,10 @@ inline test doubles without needing real implementations.
 """
 
 from datetime import datetime
+from decimal import Decimal
 from codeguard.state import AgentState, SessionState, SessionResult
 from codeguard.action import ActionKind
+from codeguard.events import HarnessEvent, HarnessEventKind
 from codeguard.guardrail import GuardrailDecision
 from codeguard.guardrail.approval import ApprovalStatus
 from codeguard.guardrail.normalizer import ActionNormalizer
@@ -64,6 +66,16 @@ class AgentLoop:
         # Event sink for harness events (publishing implemented in Task 4)
         self.event_sink = None
 
+        # Task 4: per-task inputs and carry-forward state
+        self.project_id: str | None = None
+        self.system_constraints: str | None = None
+        self._task_id: str | None = None
+        self._task_request: str = ""
+        self._conversation_summaries: list[str] = []
+        self._transcript: list[str] = []
+        self._latest_result: str = ""
+        self._cancelled: bool = False
+
         # Approval resume state
         self._approval_decision: ApprovalStatus | None = None
 
@@ -97,12 +109,134 @@ class AgentLoop:
             self.approval_manager.reject(request_id, session_id)
         self._approval_decision = decision
 
+    # ------------------------------------------------------------------
+    # Task 4: per-task API
+    # ------------------------------------------------------------------
+
+    _REQUIRED_COMPONENTS = (
+        "context_builder", "tool_registry", "action_normalizer", "rule_engine",
+        "tool_dispatcher", "sensor_runner", "objective_verifier", "stop_policy",
+        "secret_redactor", "event_sink",
+    )
+
+    def _validate_production_wiring(self) -> str | None:
+        """Return a redacted diagnostic naming missing components, or None."""
+        missing = [
+            name for name in self._REQUIRED_COMPONENTS
+            if getattr(self, name, None) is None
+        ]
+        if not missing:
+            return None
+        redactor = self.secret_redactor
+        if redactor is not None:
+            missing = [redactor.redact(m) for m in missing]
+        return f"Missing required components: {', '.join(missing)}"
+
+    def start_task(
+        self,
+        task_id: str,
+        request: str,
+        conversation_summaries: list[str],
+    ) -> SessionResult:
+        """Start a new governed task from a fresh per-task state."""
+        diagnostic = self._validate_production_wiring()
+        if diagnostic is not None:
+            self._transition(AgentState.FAILED)
+            return SessionResult(
+                session_id=self.state.session_id,
+                terminal_state=AgentState.FAILED,
+                steps_total=self.state.steps_used,
+                llm_calls_total=self.state.llm_calls_used,
+                token_total=self.state.token_used,
+                cost_total=self.state.cost_used,
+                duration=0.0,
+                guardrail_decisions=list(self._guardrail_decisions),
+                feedback_results=list(self._feedback_results),
+                trace=list(self._trace),
+                error=diagnostic,
+            )
+
+        # Reset per-task counters and carry-forward state
+        self._task_id = task_id
+        self._task_request = request
+        self._conversation_summaries = list(conversation_summaries)
+        self._transcript = []
+        self._latest_result = ""
+        self._cancelled = False
+        self._iteration = 0
+        self._trace.clear()
+        self._guardrail_decisions.clear()
+        self._feedback_results.clear()
+        self.state.steps_used = 0
+        self.state.llm_calls_used = 0
+        self.state.token_used = 0
+        self.state.cost_used = Decimal("0")
+        self.state.action_fingerprint_history.clear()
+        self.state.failure_fingerprint_history.clear()
+        self.state.pending_question = None
+        self.state.pending_action = None
+        self.state.approval_request_id = None
+        self.state.guardrail_decision = None
+        self._approval_decision = None
+        self._started_at = datetime.now()
+        self.state.current_state = AgentState.INITIALIZING
+        return self.run()
+
+    def resume_with_user_input(self, text: str) -> SessionResult:
+        """Resume a task paused at AWAITING_USER_INPUT with the user's answer."""
+        if self.state.current_state != AgentState.AWAITING_USER_INPUT:
+            raise ValueError(
+                "Cannot resume with user input: not in AWAITING_USER_INPUT "
+                f"(current: {self.state.current_state.value})"
+            )
+        if not isinstance(text, str) or not text.strip():
+            raise ValueError("User input must be a non-empty string")
+        answer = text.strip()
+        self._latest_result = f"User answer: {answer}"
+        self.state.pending_question = None
+        self._transition(AgentState.DECIDING)
+        return self.run()
+
+    def cancel(self) -> SessionResult:
+        """Cancel an active or waiting task; no tool may execute afterward."""
+        if self.state.current_state in (
+            AgentState.COMPLETED,
+            AgentState.FAILED,
+            AgentState.CANCELLED,
+            AgentState.LIMIT_REACHED,
+        ):
+            return self._build_result()
+        self._cancelled = True
+        self._transition(AgentState.CANCELLED)
+        self._emit(HarnessEventKind.TASK_FINISHED, {"outcome": "cancelled"})
+        return self._build_result()
+
+    # ------------------------------------------------------------------
+    # Event emission
+    # ------------------------------------------------------------------
+
+    def _emit(self, kind: HarnessEventKind, payload: dict) -> None:
+        """Emit a bounded harness event through the injected sink (if any)."""
+        if self.event_sink is None:
+            return
+        self.event_sink.emit(HarnessEvent(
+            kind=kind,
+            session_id=self.state.session_id,
+            task_id=self._task_id or "",
+            payload=payload,
+        ))
+
     def run(self) -> SessionResult:
         """Drive the full state machine to a terminal state.
 
         If the loop enters AWAITING_APPROVAL, it pauses and returns.
         Call resume_with_approval() then run() again to continue.
         """
+        if self._cancelled:
+            if self.state.current_state != AgentState.CANCELLED:
+                self._transition(AgentState.CANCELLED)
+            return self._build_result()
+
         if self.state.current_state == AgentState.INITIALIZING:
             self.initialize()
 
@@ -114,6 +248,9 @@ class AgentLoop:
         self._transition(AgentState.DECIDING)
 
         while self._iteration < self._max_steps:
+            if self._cancelled:
+                self._transition(AgentState.CANCELLED)
+                break
             self._iteration += 1
             # ----- DECIDING: call LLM -----
             context = self._build_context()
@@ -134,7 +271,27 @@ class AgentLoop:
                     self._transition(AgentState.DECIDING)
                     continue
                 self._transition(AgentState.COMPLETED)
+                self._emit(HarnessEventKind.TASK_FINISHED, {"outcome": "completed"})
                 break
+
+            # ----- Conversation actions (never governed) -----
+            if action.kind == ActionKind.ASSISTANT_MESSAGE:
+                message = action.message or ""
+                self._transcript.append(message)
+                self._emit(HarnessEventKind.ASSISTANT_MESSAGE, {"message": message})
+                self._latest_result = f"Assistant: {message}"
+                self._transition(AgentState.FEEDING_BACK)
+                if self._check_stop_policy():
+                    break
+                self._transition(AgentState.DECIDING)
+                continue
+
+            if action.kind == ActionKind.REQUEST_USER_INPUT:
+                question = action.question or ""
+                self.state.pending_question = question
+                self._emit(HarnessEventKind.USER_INPUT_REQUESTED, {"question": question})
+                self._transition(AgentState.AWAITING_USER_INPUT)
+                return self._build_result()
 
             # ----- TOOL_CALL → GOVERNING -----
             self._transition(AgentState.GOVERNING)
@@ -161,6 +318,8 @@ class AgentLoop:
                 decision = guardrail_result.decision
 
                 if decision == GuardrailDecision.BLOCK:
+                    reason = "; ".join(guardrail_result.reason_codes) or "blocked"
+                    self._latest_result = f"Guardrail BLOCK: {reason}"
                     if guardrail_result.recoverable:
                         self._transition(AgentState.FEEDING_BACK)
                         if self._check_stop_policy():
@@ -182,6 +341,10 @@ class AgentLoop:
                         )
                         self.state.pending_action = normalized_action
                         self.state.approval_request_id = req.request_id
+                        self._emit(HarnessEventKind.APPROVAL_REQUESTED, {
+                            "tool": action.tool_name or "",
+                            "reason": guardrail_result.human_readable_message,
+                        })
                         return self._build_result()
                     else:
                         self._transition(AgentState.FAILED)
@@ -195,8 +358,26 @@ class AgentLoop:
             # ----- EXECUTING -----
             self.state.steps_used += 1
 
+            tool_result = None
             if self.tool_dispatcher is not None:
-                self.tool_dispatcher.dispatch(action)
+                self._emit(HarnessEventKind.TOOL_STARTED, {"tool": action.tool_name or ""})
+                tool_result = self.tool_dispatcher.dispatch(action)
+                if tool_result is not None:
+                    self._emit(HarnessEventKind.TOOL_FINISHED, {
+                        "tool": action.tool_name or "",
+                        "status": tool_result.status,
+                        "output": (tool_result.output_summary or "")[:500],
+                    })
+                    if tool_result.status in ("FAILURE", "ERROR", "TIMEOUT"):
+                        self._latest_result = (
+                            f"Tool {action.tool_name} failed: "
+                            f"{tool_result.output_summary[:800]}"
+                        )
+                    else:
+                        self._latest_result = (
+                            f"Tool {action.tool_name} result: "
+                            f"{tool_result.output_summary[:800]}"
+                        )
 
             if self._is_write_action(action):
                 self._transition(AgentState.INTERMEDIATE_VALIDATION)
@@ -246,6 +427,7 @@ class AgentLoop:
                 self.tool_registry.lookup(action.tool_name or "")
             except KeyError:
                 # Unknown tool → VALIDATION_ERROR, feed back
+                self._latest_result = f"Unknown tool rejected: {action.tool_name}"
                 self._transition(AgentState.FEEDING_BACK)
                 return None
 
@@ -260,8 +442,9 @@ class AgentLoop:
                 self.schema_validator.validate(
                     action.parameters or {}, tool_def.parameters_schema
                 )
-            except ValueError:
+            except ValueError as e:
                 # Schema validation failed → VALIDATION_ERROR
+                self._latest_result = f"Parameter validation failed: {e}"
                 self._transition(AgentState.FEEDING_BACK)
                 return None
 
@@ -269,7 +452,7 @@ class AgentLoop:
         return self.action_normalizer.normalize(action)
 
     def _run_sensors(self, validation_type: str = "INTERMEDIATE") -> None:
-        """Run sensors and classify results."""
+        """Run sensors and classify results; carry the latest result forward."""
         if self.sensor_runner is None:
             return
         sensor_results = self.sensor_runner.run_all()
@@ -281,6 +464,17 @@ class AgentLoop:
                 for r in sensor_results
             ]
         self._feedback_results.extend(sensor_results)
+        if sensor_results:
+            latest = sensor_results[-1]
+            self._latest_result = (
+                f"Validation {latest.sensor_id}: {latest.status}"
+                f" — {latest.summary or ''}"[:800]
+            )
+            self._emit(HarnessEventKind.VALIDATION_FINISHED, {
+                "sensor": latest.sensor_id,
+                "status": latest.status,
+                "type": validation_type,
+            })
 
     def _run_final_validation(self) -> bool:
         """Run FINAL_VALIDATION: execute final sensors, classify, verify.
@@ -325,8 +519,21 @@ class AgentLoop:
 
             self._transition(AgentState.EXECUTING)
             self.state.steps_used += 1
+            tool_result = None
             if self.tool_dispatcher is not None:
-                self.tool_dispatcher.dispatch(pending)
+                self._emit(HarnessEventKind.TOOL_STARTED,
+                           {"tool": pending.tool_name or ""})
+                tool_result = self.tool_dispatcher.dispatch(pending)
+                if tool_result is not None:
+                    self._emit(HarnessEventKind.TOOL_FINISHED, {
+                        "tool": pending.tool_name or "",
+                        "status": tool_result.status,
+                        "output": (tool_result.output_summary or "")[:500],
+                    })
+                    self._latest_result = (
+                        f"Tool {pending.tool_name} result: "
+                        f"{tool_result.output_summary[:800]}"
+                    )
             if self._is_write_action(pending):
                 self._transition(AgentState.INTERMEDIATE_VALIDATION)
                 self._run_sensors(validation_type="INTERMEDIATE")
@@ -337,6 +544,9 @@ class AgentLoop:
             self._approval_decision = None
             return self.run()
         elif self._approval_decision in (ApprovalStatus.REJECTED, ApprovalStatus.TIMEOUT):
+            self._latest_result = (
+                f"Approval {self._approval_decision.value} — action not executed"
+            )
             self._transition(AgentState.CANCELLED)
             return self._build_result()
 
@@ -352,7 +562,57 @@ class AgentLoop:
         self.state.current_state = new_state
 
     def _build_context(self) -> str:
-        """Build a context string for the LLM call."""
+        """Build the LLM context for one decision.
+
+        When the runtime pieces are present (Task 4 wiring), use
+        ContextBuilder.build_runtime with the current task, summaries,
+        memory, tool descriptions, latest result, and budget.  Legacy
+        partial wiring (existing unit tests calling run() directly) falls
+        back to a minimal context string.
+        """
+        context_builder = getattr(self, "context_builder", None)
+        if context_builder is not None and self._task_request:
+            constraints = (
+                self.system_constraints
+                or "Never escape the workspace; unknown tools are refused; "
+                   "writes require approval."
+            )
+            memory_records = []
+            memory_retriever = getattr(self, "memory_retriever", None)
+            if memory_retriever is not None and self.project_id:
+                try:
+                    memory_records = memory_retriever.retrieve(
+                        project_id=self.project_id
+                    )
+                except Exception:
+                    memory_records = []
+            tool_descriptions = []
+            if self.tool_registry is not None:
+                for td in self.tool_registry.list_tools():
+                    required = td.parameters_schema.get("required", []) \
+                        if isinstance(td.parameters_schema, dict) else []
+                    tool_descriptions.append(
+                        f"{td.name}({', '.join(required)})"
+                    )
+            budget = (
+                f"steps {self.state.steps_used}/{self._max_steps}; "
+                f"llm calls {self.state.llm_calls_used}; "
+                f"tokens {self.state.token_used}"
+            )
+            try:
+                return context_builder.build_runtime(
+                    system_constraints=constraints,
+                    task_request=self._task_request,
+                    conversation_summaries=self._conversation_summaries,
+                    memory_records=memory_records,
+                    tool_descriptions=tool_descriptions,
+                    latest_result=self._latest_result or "No previous result",
+                    budget_summary=budget,
+                )
+            except ValueError:
+                # Bounded context impossible (extreme max_chars): fall back
+                # to a minimal safe context rather than failing the decision.
+                return f"## Task\n{self._task_request}"
         return f"Session {self.state.session_id}, step {self.state.steps_used}"
 
     def _build_result(self) -> SessionResult:
