@@ -358,26 +358,8 @@ class AgentLoop:
             # ----- EXECUTING -----
             self.state.steps_used += 1
 
-            tool_result = None
             if self.tool_dispatcher is not None:
-                self._emit(HarnessEventKind.TOOL_STARTED, {"tool": action.tool_name or ""})
-                tool_result = self.tool_dispatcher.dispatch(action)
-                if tool_result is not None:
-                    self._emit(HarnessEventKind.TOOL_FINISHED, {
-                        "tool": action.tool_name or "",
-                        "status": tool_result.status,
-                        "output": (tool_result.output_summary or "")[:500],
-                    })
-                    if tool_result.status in ("FAILURE", "ERROR", "TIMEOUT"):
-                        self._latest_result = (
-                            f"Tool {action.tool_name} failed: "
-                            f"{tool_result.output_summary[:800]}"
-                        )
-                    else:
-                        self._latest_result = (
-                            f"Tool {action.tool_name} result: "
-                            f"{tool_result.output_summary[:800]}"
-                        )
+                self._dispatch_tool(action)
 
             if self._is_write_action(action):
                 self._transition(AgentState.INTERMEDIATE_VALIDATION)
@@ -404,6 +386,32 @@ class AgentLoop:
     # ------------------------------------------------------------------
     # Internal helpers
     # ------------------------------------------------------------------
+
+    def _dispatch_tool(self, action) -> None:
+        """Dispatch one governed tool call and record its bounded result.
+
+        Shared by the normal EXECUTING path and the approval-resume path so
+        both feed identical success/failure signals into the next decision.
+        """
+        self._emit(HarnessEventKind.TOOL_STARTED, {"tool": action.tool_name or ""})
+        tool_result = self.tool_dispatcher.dispatch(action)
+        if tool_result is None:
+            return
+        self._emit(HarnessEventKind.TOOL_FINISHED, {
+            "tool": action.tool_name or "",
+            "status": tool_result.status,
+            "output": (tool_result.output_summary or "")[:500],
+        })
+        if tool_result.status in ("FAILURE", "ERROR", "TIMEOUT"):
+            self._latest_result = (
+                f"Tool {action.tool_name} failed: "
+                f"{tool_result.output_summary[:800]}"
+            )
+        else:
+            self._latest_result = (
+                f"Tool {action.tool_name} result: "
+                f"{tool_result.output_summary[:800]}"
+            )
 
     def _normalize(self, action) -> 'NormalizedAction | None':
         """Run the full governance pipeline (SPEC §3.2, §3.6).
@@ -466,10 +474,18 @@ class AgentLoop:
         self._feedback_results.extend(sensor_results)
         if sensor_results:
             latest = sensor_results[-1]
-            self._latest_result = (
+            sensor_feedback = (
                 f"Validation {latest.sensor_id}: {latest.status}"
                 f" — {latest.summary or ''}"[:800]
             )
+            if self._latest_result.startswith("Tool "):
+                # Keep the tool outcome visible (a failed tool must not be
+                # shadowed by a later sensor run); append validation info.
+                self._latest_result = (
+                    f"{self._latest_result[:600]} | {sensor_feedback}"
+                )
+            else:
+                self._latest_result = sensor_feedback
             self._emit(HarnessEventKind.VALIDATION_FINISHED, {
                 "sensor": latest.sensor_id,
                 "status": latest.status,
@@ -519,21 +535,8 @@ class AgentLoop:
 
             self._transition(AgentState.EXECUTING)
             self.state.steps_used += 1
-            tool_result = None
             if self.tool_dispatcher is not None:
-                self._emit(HarnessEventKind.TOOL_STARTED,
-                           {"tool": pending.tool_name or ""})
-                tool_result = self.tool_dispatcher.dispatch(pending)
-                if tool_result is not None:
-                    self._emit(HarnessEventKind.TOOL_FINISHED, {
-                        "tool": pending.tool_name or "",
-                        "status": tool_result.status,
-                        "output": (tool_result.output_summary or "")[:500],
-                    })
-                    self._latest_result = (
-                        f"Tool {pending.tool_name} result: "
-                        f"{tool_result.output_summary[:800]}"
-                    )
+                self._dispatch_tool(pending)
             if self._is_write_action(pending):
                 self._transition(AgentState.INTERMEDIATE_VALIDATION)
                 self._run_sensors(validation_type="INTERMEDIATE")

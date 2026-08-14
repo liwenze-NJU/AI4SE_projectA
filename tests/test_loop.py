@@ -292,6 +292,55 @@ def test_loop_approval_approve():
     assert result.terminal_state == AgentState.COMPLETED
 
 
+def test_loop_approval_resume_tool_failure_is_fed_back():
+    """An approved tool that FAILS on the resume path must be fed back as a
+    failure (not as a neutral result) so the next decision can react."""
+    from codeguard.tool import ToolResult
+
+    class FailingDispatcher(FakeToolDispatcher):
+        def dispatch(self, action):
+            return ToolResult(
+                tool_name=action.tool_name or "",
+                status="FAILURE",
+                output_summary="permission denied writing output.txt",
+                diagnostics=[],
+                exit_code=1,
+                changed_files=[],
+                duration=0.1,
+                truncated=False,
+                error_category="WORKSPACE_VIOLATION",
+                audit_id="audit-fail",
+            )
+
+    mock = ScriptedMockLLM(responses=[
+        _r(Action(kind=ActionKind.TOOL_CALL, tool_name="write_file",
+                  parameters={"path": "output.txt", "content": "x"}, raw="")),
+        _r(Action(kind=ActionKind.COMPLETE_REQUEST, summary="done", raw="")),
+    ])
+    loop = AgentLoop(session_id="s1", llm=mock)
+    loop.action_normalizer = ActionNormalizer(workspace_root=".")
+    loop.rule_engine = FakeGuardrail(decisions=["REQUEST_APPROVAL", "ALLOW"])
+    loop.approval_manager = FakeApproval(decision=ApprovalStatus.APPROVED)
+    loop.tool_dispatcher = FailingDispatcher()
+    loop.sensor_runner = FakeSensorRunner()
+    loop.feedback_classifier = FakeFeedbackClassifier()
+    loop.objective_verifier = FakeObjectiveVerifier(passed=True)
+    loop.stop_policy = FakeStopPolicy()
+    # First run: pauses at AWAITING_APPROVAL
+    result = loop.run()
+    assert loop.state.current_state == AgentState.AWAITING_APPROVAL
+    fp = loop.state.pending_action.action_fingerprint
+    loop.resume_with_approval(
+        request_id="r1", session_id="s1",
+        decision=ApprovalStatus.APPROVED, action_fingerprint=fp,
+    )
+    result = loop.run()
+    assert result.terminal_state == AgentState.COMPLETED
+    # The failure must be visible in the feedback field with a failure marker
+    assert "failed" in loop._latest_result.lower()
+    assert "permission denied" in loop._latest_result
+
+
 def test_loop_approval_reject():
     """Approval rejected → CANCELLED."""
     mock = ScriptedMockLLM(responses=[
