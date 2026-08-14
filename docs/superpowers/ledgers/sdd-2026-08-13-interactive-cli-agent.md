@@ -124,26 +124,28 @@
 
 ### Task 8: Documentation, Full Verification, and Enhanced Release Candidate
 
-- **Status:** PENDING
-- **Implementer commit(s):**
-- **Spec review:** PENDING
-- **Quality review:** PENDING
-- **Fix rounds:**
+- **Status:** COMPLETED (2026-08-14, 1 Important fix round — 文档修正)
+- **Implementer commit(s):** `1765d25`（docs: prepare interactive CLI release candidate）, `adc39f5`（docs 回填）, `4c4a3ec`（plan 勾选）, `7ab91f3`（review fix — SECURITY/README 文档修正）, `ae8d8e7`（T8-FIX docs 回填）; 全部已推双远端
+- **Spec review（最终分支级两阶段评审）:** ✅ acceptance_met YES — 12 项设计验收全部逐条验证（main 保持 30581f0、38 commits 领先且无合并、双任务单进程、真实工具/dispatcher/sensors/context/feedback、安全读取自动执行、写入审批绑定、结果进入下一轮上下文、消息自动继续/澄清暂停恢复、/clear 仅进程本地、最终传感器失败阻止 COMPLETED、demo 隔离、751+1 全量新鲜证据、0.2.0-interactive 可获取）
+- **Quality review:** ⚠️ 1st round APPROVED_WITH_MINOR + 1 Important: B1 SECURITY.md 声称 run_process 有"命令白名单"（代码中不存在）→ Fix round: `7ab91f3`（改为真实控制集：审批 + 结构化 program+args/shell=False + 元字符拒绝 + cwd 约束；未实现白名单——属新范围未授权）。同时修正 B2（记忆写入声明改为"当前循环设计保证"）与 B3（README 626 基线行标注课程版）。
+- **Fix rounds:** 1 (Important 文档声明 → fixed)
+- **Deferred Minor items (recorded for final review):** (a) SPEC.md:1074 威胁模型表中同样的 `CommandWhitelistRule` 旧表述未改（超出授权文件范围）; (b) B2 原文引用行号漂移（实际在 README:135/SECURITY 取消语义 bullet）; (c) README 中课程版基线 626 行已标注; (d) `__init__.py`/`__main__.py` 无尾换行（pre-existing style）; (e) tag/Release 需用户授权，本次未创建。
+- **Evidence（AGENT_LOG T8 条目）:** 全量 751 passed + 1 skipped ×3（31.56s/31.87s/31.21s 独立复现）; smoke `--help`/demo a/b/c exit 0; 凭据扫描 0 真实命中; PyInstaller exit 0（dist 17,466,702 bytes，gitignored）; exe smoke `--help`/`demo a`/`--version 0.2.0-interactive`/`web --port 8765` /health HTTP 200 `{"status":"ok","mode":"demo","mock":true}`（树杀进程）; `--version` → `0.2.0-interactive`; main 仍 30581f0; 双远端 == HEAD `ae8d8e7`。
 
 ## Final Acceptance (deferred to Task 8)
 
-- [ ] `main` remains at course version v0.1.1 and contains none of the enhanced commits.
-- [ ] The enhanced branch creates and completes more than one task in one CLI process.
-- [ ] Production composition uses real tool handlers, dispatcher, sensors, runtime context, and feedback.
-- [ ] Safe reads and trusted tests execute automatically.
-- [ ] Writes and dangerous actions use existing Guardrail and action-bound approval.
-- [ ] Tool and validation results appear in the next LLM context.
-- [ ] `ASSISTANT_MESSAGE` continues automatically; `REQUEST_USER_INPUT` pauses and resumes explicitly.
-- [ ] `/clear` removes process-local messages only; `/exit` leaves no full chat-history file.
-- [ ] Final sensor failure prevents `COMPLETED`.
-- [ ] Demo and Mock WebUI remain isolated from real side effects.
-- [ ] Full pytest, offline smoke, credential scan, PyInstaller build, and executable smoke tests have fresh passing evidence.
-- [ ] Enhanced version is available from `feature/interactive-cli-agent` or `v0.2.0-interactive` without merging into `main`.
+- [x] `main` remains at course version v0.1.1 and contains none of the enhanced commits.
+- [x] The enhanced branch creates and completes more than one task in one CLI process.
+- [x] Production composition uses real tool handlers, dispatcher, sensors, runtime context, and feedback.
+- [x] Safe reads and trusted tests execute automatically.
+- [x] Writes and dangerous actions use existing Guardrail and action-bound approval.
+- [x] Tool and validation results appear in the next LLM context.
+- [x] `ASSISTANT_MESSAGE` continues automatically; `REQUEST_USER_INPUT` pauses and resumes explicitly.
+- [x] `/clear` removes process-local messages only; `/exit` leaves no full chat-history file.
+- [x] Final sensor failure prevents `COMPLETED`.
+- [x] Demo and Mock WebUI remain isolated from real side effects.
+- [x] Full pytest, offline smoke, credential scan, PyInstaller build, and executable smoke tests have fresh passing evidence.
+- [x] Enhanced version is available from `feature/interactive-cli-agent` or `v0.2.0-interactive` without merging into `main`.
 
 ## Task 0 Detail Log
 
