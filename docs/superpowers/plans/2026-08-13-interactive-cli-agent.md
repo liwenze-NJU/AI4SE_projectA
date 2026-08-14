@@ -550,7 +550,7 @@ git commit -m "fix: wire production tools and validation sensors"
 - Consumes: `ContextBuilder.build_runtime`, `EventSink`, dispatcher, sensor runner, memory retriever, `Action` conversation kinds.
 - Produces: `AgentLoop.start_task(task_id: str, request: str, conversation_summaries: list[str]) -> SessionResult`, `resume_with_user_input(text: str) -> SessionResult`, and `cancel() -> SessionResult`.
 
-- [ ] **Step 1: Write failing context carry-forward test**
+- [x] **Step 1: Write failing context carry-forward test**
 
 ```python
 def test_tool_result_is_in_next_llm_context(tmp_path):
@@ -567,7 +567,7 @@ def test_tool_result_is_in_next_llm_context(tmp_path):
 
 Also write a test proving the first context contains the current request and available tool descriptions.
 
-- [ ] **Step 2: Run targeted tests to verify RED**
+- [x] **Step 2: Run targeted tests to verify RED**
 
 ```powershell
 .\.venv\Scripts\python.exe -m pytest tests\test_context_runtime.py tests\test_loop.py -q
@@ -575,28 +575,28 @@ Also write a test proving the first context contains the current request and ava
 
 Expected: FAIL because `start_task`, recorded contexts, and runtime context integration do not exist.
 
-- [ ] **Step 3: Record contexts in the Mock LLM**
+- [x] **Step 3: Record contexts in the Mock LLM**
 
 Add `received_contexts: list[str]`, append the exact context at the start of every `generate`, and preserve all existing scripted-response behavior.
 
-- [ ] **Step 4: Add explicit per-task inputs and result carry-forward**
+- [x] **Step 4: Add explicit per-task inputs and result carry-forward**
 
 `start_task` must initialize task ID, request, summaries, reset per-task counters/results, and call the governed loop. Replace `_build_context()` with `ContextBuilder.build_runtime(...)`. Save the latest redacted `ToolResult`, `FeedbackResult`, Guardrail BLOCK, approval rejection, or parser error in a bounded feedback field used by the next decision.
 
 The dispatcher result must be appended to Trace/events and checked. `FAILURE`, `ERROR`, or `TIMEOUT` transitions to `FEEDING_BACK`; it must never be treated as a successful execution.
 
-- [ ] **Step 5: Implement message and clarification behavior**
+- [x] **Step 5: Implement message and clarification behavior**
 
 - `ASSISTANT_MESSAGE`: emit an event, save the message in the task transcript, transition through `FEEDING_BACK` to `DECIDING`, and consume an LLM call but not a tool step.
 - `REQUEST_USER_INPUT`: set `pending_question`, emit an event, transition to `AWAITING_USER_INPUT`, and return a non-terminal `SessionResult`.
 - `resume_with_user_input(text)`: require the awaiting state and non-empty text, add the answer to the latest context, clear the pending question, transition to `DECIDING`, and continue.
 - `cancel()`: transition an active or waiting task to `CANCELLED`; no tool may execute afterward.
 
-- [ ] **Step 6: Fail closed on incomplete production wiring**
+- [x] **Step 6: Fail closed on incomplete production wiring**
 
 At task start, validate that context builder, registry, normalizer, rule engine, dispatcher, sensor runner, objective verifier, stop policy, redactor, and event sink exist. Return `FAILED` with a redacted diagnostic when any required component is missing. Demo scenario helpers may keep their dedicated Mock assembly, but normal test/local task execution cannot silently skip a component.
 
-- [ ] **Step 7: Run loop and integration regressions**
+- [x] **Step 7: Run loop and integration regressions**
 
 ```powershell
 .\.venv\Scripts\python.exe -m pytest tests\test_loop.py tests\test_context_runtime.py tests\test_integration_guardrail_feedback.py tests\test_phase14_spec_compliance.py -q
@@ -605,7 +605,7 @@ git diff --check
 
 Expected: all pass, including the old BLOCK/approval/feedback scenarios.
 
-- [ ] **Step 8: Log and commit**
+- [x] **Step 8: Log and commit**
 
 ```powershell
 git add codeguard\loop.py codeguard\context.py codeguard\llm\mock.py tests\test_loop.py tests\test_context_runtime.py tests\test_integration_guardrail_feedback.py tests\test_phase14_spec_compliance.py AGENT_LOG.md docs\superpowers\plans\2026-08-13-interactive-cli-agent.md

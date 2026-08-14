@@ -75,20 +75,22 @@
 
 ### Task 3: Wire Real Tools, Dispatcher, and Sensors in the Composition Root
 
-- **Status:** COMPLETED (2026-08-14, resumed after abnormal shutdown on 2026-08-13)
-- **Implementer commit(s):** `496cc78`（`fix: wire production tools and validation sensors`）
-- **Spec review:** PENDING（合并 reviewer 双评审，见下方条目）
-- **Quality review:** PENDING
-- **Fix rounds:** 0
-- **Resume note:** 电脑于 Task 3 执行期间异常关机；工作树未提交修改（7 改 + 2 新建）视为恢复现场，未 reset/restore/覆盖。对照 brief 核查后仅补齐 demo 隔离缺口（TDD：新增 `test_demo_avoids_real_dispatcher_and_sensors`，修复 `_wire_common` 使 demo 不创建真实 dispatcher）。全量 686 passed, 1 skipped。
+- **Status:** COMPLETED (2026-08-14, resumed after abnormal shutdown on 2026-08-13; 1 fix round, re-reviewed ✅ APPROVED_WITH_MINOR)
+- **Implementer commit(s):** `496cc78`（`fix: wire production tools and validation sensors`）, `1d2dc81`（docs 回填）, `55bcaba`（review fix round 1）
+- **Spec review:** ❌ 1st round (merge reviewer, single report): **Critical** — local-mode sensor command duplicated interpreter (`[python, python, -m, pytest, -q]`) so REQUIRED pytest sensor could never PASS → local mode could never reach COMPLETED; **Important** — legacy dual wiring preserved incomplete schemas (write_file path-only/ALLOW, apply_patch `patch` param) contrary to brief R3; **Important** — run_process schema `timeout maximum 300` not enforced anywhere. → Fix round: `55bcaba` (drop duplicated interpreter from `_VALIDATION_TOOL_DEFS` args; remove `full_governance` dual wiring — one complete-schema wiring for every mode, ToolRiskRule always registered, legacy tests updated with content params + two feedback-scope tests override write risk to ALLOW; SchemaValidator enforces integer/array types + minimum/maximum bounds). Full suite after fixes: 689 passed, 1 skipped.
+- **Fix re-review:** ✅ Spec compliant (all 7 requirements verified; re-verification group 154 passed; full suite 689 passed, 1 skipped reproduced; demo loop verified live: tool_dispatcher None, sensor_runner None, required_sensors []) + quality APPROVED_WITH_MINOR (no new Critical/Important from fixes)
+- **Fix rounds:** 1 (Critical + 2 Important → fixed → re-reviewed ✅)
+- **Deferred Minor items (recorded for final review):** (a) ToolRiskRule returns ALLOW (not a non-verdict) for non-TOOL_CALL kinds, polluting rule_ids on conversation actions (rules.py:149-151); (b) `_register_standard_tools` silently swallows duplicate-registration ValueError (composition.py:265-272); (c) run_lint/run_typecheck tools always registered but their sensors only when `importlib.util.find_spec` succeeds — tool-vs-sensor asymmetry if ruff/mypy absent (fail-safe); (d) test-local `write_file.default_risk = "ALLOW"` overrides in test_integration_guardrail_feedback.py:365-367, 518-520 (commented, feedback-loop-scope, deliberate); (e) event_sink injection is Task 4 prep (benign extra scope).
+- **Resume note:** 电脑于 Task 3 执行期间异常关机；工作树未提交修改（7 改 + 2 新建）视为恢复现场，未 reset/restore/覆盖。对照 brief 核查后仅补齐 demo 隔离缺口（TDD：新增 `test_demo_avoids_real_dispatcher_and_sensors`，修复 `_wire_common` 使 demo 不创建真实 dispatcher）。全量 686 passed, 1 skipped（pre-review）。
 
 ### Task 4: Feed Tasks, Tool Results, and Validation Back into AgentLoop
 
-- **Status:** PENDING
-- **Implementer commit(s):**
+- **Status:** COMPLETED (2026-08-14, implementer 中断于 TDD RED 阶段后恢复补齐实现)
+- **Implementer commit(s):** `d37005c`（`feat: feed runtime results through the governed agent loop`）
 - **Spec review:** PENDING
 - **Quality review:** PENDING
-- **Fix rounds:**
+- **Fix rounds:** 0
+- **Resume note:** implementer 子代理在切换模型时被中断，现场保留了 RED 测试（9 个新测试，`start_task` 缺失）与 3 个未提交文件（mock.py received_contexts、composition.py project_id 注入、2 个测试文件）。恢复后未重制 RED，直接补齐 loop.py 实现 → GREEN 27 passed → 回归 60 passed → 全量 698 passed, 1 skipped。
 
 ### Task 5: Implement ChatSession and CLI Event Rendering
 

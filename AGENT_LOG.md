@@ -2632,3 +2632,28 @@
 
 **验证命令**: 目标 `pytest tests/test_context_runtime.py tests/test_loop.py -q`；回归 `pytest tests/test_loop.py tests/test_context_runtime.py tests/test_integration_guardrail_feedback.py tests/test_phase14_spec_compliance.py -q`；全量 `pytest -q -rs`
 
+
+**关键输出/修改**:
+- `codeguard/llm/mock.py`: `ScriptedMockLLM` 新增 `received_contexts: list[str]`，每次 `generate()` 精确记录上下文（原有脚本化响应行为不变）
+- `codeguard/composition.py`: `_wire_common` 注入 `loop.project_id = self.project_id`（Task 4 内存检索需要）
+- `codeguard/loop.py`:
+  - 新增 `start_task(task_id, request, conversation_summaries)`：校验 10 个必需组件（context_builder/tool_registry/action_normalizer/rule_engine/tool_dispatcher/sensor_runner/objective_verifier/stop_policy/secret_redactor/event_sink），缺失时 FAILED + 脱敏诊断（`SessionResult.error`）；重置 per-task 计数器/结果/transcript/latest_result 后驱动受治 loop
+  - 新增 `resume_with_user_input(text)`：要求 AWAITING_USER_INPUT 状态与非空文本，答案写入 `_latest_result` 进入下一轮上下文
+  - 新增 `cancel()`：活动/等待任务 → CANCELLED，`_cancelled` 标志使后续 run() 不再派发任何工具
+  - `run()` 循环：ASSISTANT_MESSAGE 记入 `_transcript`、发射事件、经 FEEDING_BACK → DECIDING 继续（消耗 LLM 调用但不消耗工具步骤）；REQUEST_USER_INPUT 设置 `pending_question`、发射事件、转 AWAITING_USER_INPUT 返回非终态结果；TOOL_CALL 执行时捕获 `ToolResult`（FAILURE/ERROR/TIMEOUT 记入反馈字段，绝不视为成功）、发射 TOOL_STARTED/TOOL_FINISHED 事件
+  - GOVERNING：BLOCK 原因、approval 请求、approval 拒绝均写入有界反馈字段；发射 APPROVAL_REQUESTED
+  - `_build_context()` 改用 `ContextBuilder.build_runtime`（系统约束/任务/摘要/内存(project_id 检索)/工具描述/最新结果/预算），`context_builder` 或 `_task_request` 缺失时回退旧行为（legacy `run()` 兼容）
+  - `_run_sensors` 记录最新验证结果到反馈字段并发射 VALIDATION_FINISHED；COMPLETED/CANCELLED 发射 TASK_FINISHED
+- `tests/test_context_runtime.py`: 新增 Task 4 集成区（`make_wired_test_loop` 辅助 + 2 个测试：工具结果进入下一轮上下文含 "needle"、首轮上下文含请求/工具描述/摘要）
+- `tests/test_loop.py`: 新增 6 个测试（start_task 重置计数器并运行、ASSISTANT_MESSAGE 消耗 LLM 调用不消耗步骤、REQUEST_USER_INPUT 暂停+恢复、恢复前置条件校验（状态/非空文本）、cancel 阻止后续工具执行、start_task 组件缺失 fail closed）
+
+**验证证据**:
+- RED（Step 2）: `pytest tests/test_context_runtime.py tests/test_loop.py -q` → 9 failed（`AgentLoop` 无 `start_task` 属性等，中断前 implementer 已取得 RED 证据，恢复后复核）
+- GREEN: 同上命令 → **27 passed**（原 18 + 新 9）
+- 回归（Step 7）: `pytest tests/test_loop.py tests/test_context_runtime.py tests/test_integration_guardrail_feedback.py tests/test_phase14_spec_compliance.py -q` → **60 passed**
+- 全量（Task 4 最高风险级）: `pytest -q -rs` → **698 passed, 1 skipped**（基线 689 + 新 9；skip 为文档化 Windows symlink 平台限制）
+- `git diff --check` → 无空白错误
+- `docs/superpowers/plans/2026-08-13-interactive-cli-agent.md`: Task 4 的 8 个步骤全部勾选
+
+**commit hash**: `d37005c`（`feat: feed runtime results through the governed agent loop`）
+
