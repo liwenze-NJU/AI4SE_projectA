@@ -2766,3 +2766,36 @@
 
 **验证命令**: 目标 `pytest tests/test_llm_deepseek.py tests/test_cli.py tests/test_scaffold.py -q`
 
+
+## Task 6: 更新 DeepSeek 协议与 CLI 元数据（Update DeepSeek Protocol and CLI Metadata）
+
+**log_id**: T6 | **task_id**: Task 6 Update DeepSeek Protocol and CLI Metadata | **状态**: COMPLETED
+**时间**: 2026-08-14
+**Superpowers 技能**: `superpowers:subagent-driven-development` + `superpowers:test-driven-development`
+**branch/worktree**: feature/interactive-cli-agent / `.worktrees/interactive-cli-agent`
+
+**目标**:
+1. 严格 DeepSeek 动作协议：system message 精确列出 tool_call/assistant_message/request_user_input/complete 四种动作；仅允许一个 JSON 对象；禁止 JSON 外散文；complete 需 summary 且仍经最终验证
+2. 解析委托共享 `ActionParser`；删除宽松的 invalid-JSON-to-complete 回退
+3. chat help 改为 "Start an interactive governed coding-agent session"；版本保持 0.1.1（0.2.0-interactive 属 Task 8）
+4. 风险分级：Task 6 MEDIUM（目标测试 + CLI 回归，不跑全量）
+
+**关键输出/修改**:
+- `codeguard/llm/deepseek.py`:
+  - 新增模块级 `ACTION_PROTOCOL_PROMPT`（system 提示词）：仅允许一个 JSON 对象、禁止 JSON 外散文、四种动作的必需字段（tool_call 需 tool+parameters、assistant_message 需 message、request_user_input 需 question、complete 需非空 summary）、complete 仍经最终验证
+  - `generate()` 请求体改为 `messages = [{"role": "system", "content": ACTION_PROTOCOL_PROMPT}, {"role": "user", "content": context}]`（原为单一 user 消息）
+  - 删除宽松的 `_parse_action`（invalid-JSON-to-complete 回退）；`_parse_action` 现在委托共享 `ActionParser().parse(content)`；空/空白 content 直接抛 "Empty message from DeepSeek API (no action JSON)"
+  - 解析失败时抛**已脱敏**的 ValueError：异常消息先经 `SecretRedactor.redact()` 再包裹为 "Invalid action response from DeepSeek: ..."，绝不回显原始 provider 文本/密钥；构造函数新增可选 `secret_redactor` 注入（默认 `SecretRedactor()`）
+- `codeguard/llm/client.py`: `LLMClient.generate` docstring 补充严格动作协议契约（system 消息、四动作、ActionParser 解析、malformed 抛脱敏 ValueError 不视为 complete）
+- `codeguard/__main__.py`: `chat` subparser `help=` 改为 "Start an interactive governed coding-agent session"，并新增同名 `description=` 使 `codeguard chat --help` 也显示该描述；版本 0.1.1 未动
+- `tests/test_llm_deepseek.py`: 新增 `test_adapter_success_assistant_message`、`test_adapter_success_request_user_input`、`test_adapter_request_has_system_protocol_message`（MockTransport 捕获请求体 JSON，断言 messages[0] 为 system 且 content 含全部四种动作字面量、messages[1] 为 {"role": "user", "content": <context>}，**无网络访问**）；原 `test_adapter_missing_content_field`/`test_adapter_malformed_json_content` 改为**抛 ValueError**（match "action"）；新增 `test_adapter_malformed_error_message_is_redacted`（provider 内容含 sk- 密钥时异常消息不含任何密钥片段）；其余 mock 响应的 `complete` 内容补上非空 summary 以匹配严格解析器（既有断言未弱化）
+- `tests/test_scaffold.py`: 新增 `test_codeguard_chat_help_describes_interactive_session`（`codeguard chat --help` 显示新帮助文字）与 `test_codeguard_version_is_011_during_development`（--version 含 0.1.1 且不含 0.2.0-interactive）
+
+**验证证据**:
+- RED（Step 2）: `pytest tests/test_llm_deepseek.py tests/test_scaffold.py -q` → **7 failed, 15 passed**（system 消息缺失、assistant_message/request_user_input 被当作 complete、malformed/空消息未抛错、chat help 未更新——全部符合计划预期）
+- GREEN: `pytest tests/test_llm_deepseek.py tests/test_scaffold.py -q` → **22 passed**
+- 回归（Step 5）: `pytest tests/test_llm_deepseek.py tests/test_cli.py tests/test_scaffold.py -q` → **43 passed**；所有 LLM 测试使用 `httpx.MockTransport`，**无网络访问**
+- `git diff --check` → 无空白错误
+- `docs/superpowers/plans/2026-08-13-interactive-cli-agent.md`: Task 6 的 6 个步骤全部勾选
+
+**commit hash**: `e5faebf`（`feat: enforce interactive DeepSeek action protocol`）

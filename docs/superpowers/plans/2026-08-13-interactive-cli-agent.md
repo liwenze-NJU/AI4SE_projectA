@@ -731,11 +731,11 @@ git commit -m "feat: add interactive chat session and CLI rendering"
 - Consumes: all `ActionKind` values and runtime context.
 - Produces: a strict provider prompt/response schema and CLI help describing an interactive session.
 
-- [ ] **Step 1: Write failing provider-protocol tests**
+- [x] **Step 1: Write failing provider-protocol tests**
 
 Assert that the HTTP request contains a system message which lists exactly `tool_call`, `assistant_message`, `request_user_input`, and `complete`; assert each response shape parses to the correct action. Add malformed/empty-message tests that raise a redacted `ValueError` instead of treating arbitrary text as completion.
 
-- [ ] **Step 2: Run provider tests to verify RED**
+- [x] **Step 2: Run provider tests to verify RED**
 
 ```powershell
 .\.venv\Scripts\python.exe -m pytest tests\test_llm_deepseek.py -q
@@ -743,7 +743,7 @@ Assert that the HTTP request contains a system message which lists exactly `tool
 
 Expected: FAIL because the current adapter sends only one user message and converts invalid JSON to completion.
 
-- [ ] **Step 3: Implement the strict DeepSeek action protocol**
+- [x] **Step 3: Implement the strict DeepSeek action protocol**
 
 Send:
 
@@ -756,11 +756,11 @@ messages = [
 
 The prompt must state that only one JSON object is permitted, show the required fields for all four action kinds, prohibit prose outside JSON, and explain that `complete` requires a summary and still undergoes final validation. Delegate parsing to the shared `ActionParser`; do not retain the permissive invalid-JSON-to-complete fallback.
 
-- [ ] **Step 4: Update CLI help and version only after behavior is implemented**
+- [x] **Step 4: Update CLI help and version only after behavior is implemented**
 
 Change chat help to `Start an interactive governed coding-agent session`. Keep package version `0.1.1` during development; version bump to `0.2.0-interactive` belongs to the final release task, not this task.
 
-- [ ] **Step 5: Run provider and CLI regressions**
+- [x] **Step 5: Run provider and CLI regressions**
 
 ```powershell
 .\.venv\Scripts\python.exe -m pytest tests\test_llm_deepseek.py tests\test_cli.py tests\test_scaffold.py -q
@@ -769,7 +769,7 @@ git diff --check
 
 Expected: all pass and no test performs network access.
 
-- [ ] **Step 6: Log and commit**
+- [x] **Step 6: Log and commit**
 
 ```powershell
 git add codeguard\llm\deepseek.py codeguard\llm\client.py codeguard\__main__.py tests\test_llm_deepseek.py tests\test_scaffold.py AGENT_LOG.md docs\superpowers\plans\2026-08-13-interactive-cli-agent.md
