@@ -2851,3 +2851,49 @@
 
 **验证命令**: 目标 `pytest tests/test_interactive_cli_e2e.py -q`；安全组 `pytest tests/test_guardrail_engine.py tests/test_guardrail_rules.py tests/test_approval_manager.py tests/test_web_mock_security.py -q`；全量 `pytest -q -rs`
 
+
+## Task 7: 确定性端到端交互式编码测试（Deterministic End-to-End Interactive Coding Test）
+
+**log_id**: T7 | **task_id**: Task 7 Deterministic End-to-End Interactive Coding Test | **状态**: COMPLETED
+**时间**: 2026-08-14
+**Superpowers 技能**: `superpowers:subagent-driven-development` + `superpowers:test-driven-development`
+**branch/worktree**: feature/interactive-cli-agent / `.worktrees/interactive-cli-agent`
+
+**目标**:
+1. 创建 `tests/test_interactive_cli_e2e.py`：ScriptedMockLLM 驱动完整 ChatSession + CompositionRoot(mode="test")，在一个 CLI 进程中安全修改并验证临时项目（两轮 REPL 任务）
+2. 负例：空批准拒绝、工作区逃逸 BLOCK、REQUEST_USER_INPUT 恢复、/cancel 与 Ctrl+C 阻止后续工具、重复非法 JSON → LIMIT_REACHED、最终传感器失败阻止 COMPLETED、/clear 不清结构化记忆、demo 组合无法修改临时项目
+3. 只做测试要求的集成修复；不添加 E2E 专用 flag；不绕过 Guardrail
+4. 风险分级：Task 7 HIGHEST（全量测试 + 安全组；opus reviewer）
+
+**关键输出/修改**:
+- `tests/test_interactive_cli_e2e.py`（新建，10 个测试）：真实 CompositionRoot(mode="test") loop + ChatSession REPL，ScriptedMockLLM 替换 loop.llm，FakeIO 排队 CLI 输入；临时项目（value.py + 真实 `test_value` 函数）
+  - 快乐路径：assistant_message → read_file → write_file（批准 y）→ run_tests → complete → 第二 REPL 任务；断言文件真被真实 handler 修改、`[validation] pytest: PASSED`、`[task] COMPLETED` ×2、approval prompt 含 tool/target/[y/N]、loop._feedback_results 记录 PASSED、7 次决策全部消费
+  - 负例 1 空批准：空行 → REJECT → CANCELLED、文件不变、无后续决策
+  - 负例 2 逃逸：`../escape.txt` BLOCK（workspace 规则）、无 handler 运行、BLOCK 反馈进入下一决策上下文
+  - 负例 3 REQUEST_USER_INPUT：答案 `config.py` 出现在下一决策上下文中
+  - 负例 4 `/cancel` 澄清时取消：CANCELLED、脚本化的后续 write_file 永不执行
+  - 负例 5 Ctrl+C 批准提示处（InterruptOnReadN 第 2 次读抛 KeyboardInterrupt）：视为拒绝、文件不变、无后续决策
+  - 负例 6 重复非法动作：`write_file ../`（BLOCK recoverable，同一 fingerprint）×4 → 真实 StopPolicy no-progress → LIMIT_REACHED
+  - 负例 7 必检最终传感器失败：`loop.objective_verifier.required_sensors = ["pytest"]`（测试级接线，同 test_integration_guardrail_feedback 的 ALLOW 覆盖同类）→ 真实失败套件 → 3 轮均未 COMPLETED、终态 LIMIT_REACHED、失败反馈进入下一决策
+  - 负例 8 `/clear`：ChatHistory 消息清空、summaries 保留、composition 注入的 memory_store 记录（loop.project_id）仍可 retrieve
+  - 负例 9 demo 隔离：CompositionRoot(mode="demo") loop 无 dispatcher/sensor → start_task 在**任何 LLM 调用前** FAILED（脱敏诊断含 tool_dispatcher/sensor_runner）、脚本化 write_file 永不触达 handler、文件不存在
+
+**集成决策记录**（任务要求逐项文档化）:
+1. 脚本响应直接写 loop 期望的 Action 对象（loop 消费 `next_action`，不解析 JSON）；write_file → ToolRiskRule REQUEST_APPROVAL → 会话消费恰好一行输入，`y` 在此时排队
+2. 测试模式 pytest sensor（required=False）真实运行 `pytest -q`（cwd=临时项目，每次数秒）；临时项目保持极小；**关键发现**：裸模块级 `assert` 不被 pytest 收集（"no tests ran"，exit 5）→ 临时项目测试必须是真实 `test_*` 函数（RED 根因，测试侧修复）
+3. "重复非法 JSON → LIMIT_REACHED"：ScriptedMockLLM 无 JSON 解析，采用最接近生产的诚实路径——脚本化被治理管线以相同 fingerprint 连续拒绝 ≥3 次的 Action（工作区逃逸 write_file，BLOCK+recoverable），驱动真实 StopPolicy no-progress 状态机到 LIMIT_REACHED（未选 ValueError 抛错路径：那是 T6 已覆盖的 [error] 处理）
+4. 必检传感器：测试级接线生产 verifier（`required_sensors = ["pytest"]`），配合临时项目真实失败套件
+5. demo 隔离：无 dispatcher/sensor → start_task fail-closed FAILED + 脱敏诊断（双层防线：ModeRestrictionRule + 缺失组件）；断言文件不变且终态 FAILED
+6. `/clear` vs 结构化记忆：直接经 loop.memory_store 以 loop.project_id 保存 ACTIVE 记录，/clear 后仍可 retrieve
+
+**验证证据**:
+- RED（Step 2）: `pytest tests/test_interactive_cli_e2e.py -q` → **3 failed, 7 passed**。首个失败（快乐路径）: `AssertionError: assert '[validation] pytest: PASSED' in ...`（输出为 `[validation] pytest: FAILED`）——真实 pytest sensor 对临时项目报 "no tests ran"（exit 5），根因是裸模块级 assert 不被 pytest 收集；另两个失败为测试自身缺陷（Ctrl+C 测试引用未定义变量、必检传感器测试在 loop 创建前接线 verifier），均按原断言修复
+- GREEN: `pytest tests/test_interactive_cli_e2e.py -q` → **10 passed**
+- 安全组（Step 5）: `pytest tests/test_guardrail_engine.py tests/test_guardrail_rules.py tests/test_approval_manager.py tests/test_web_mock_security.py -q` → **85 passed**
+- 全量（HIGHEST）: `pytest -q -rs` → **751 passed, 1 skipped**（skip 为既有 test_file_tools symlink 特权跳过，与本次改动无关）
+- `git diff --check` → 无空白错误
+- 生产代码零改动：无需集成修复，所有集成边界已由既有实现正确衔接
+- `docs/superpowers/plans/2026-08-13-interactive-cli-agent.md`: Task 7 的 6 个步骤全部勾选
+
+**commit hash**: `f7a40cf`（`test: cover interactive coding-agent workflow end to end`）
+

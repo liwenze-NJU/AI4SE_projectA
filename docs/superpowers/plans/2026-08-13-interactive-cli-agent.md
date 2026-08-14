@@ -788,7 +788,7 @@ git commit -m "feat: enforce interactive DeepSeek action protocol"
 - Consumes: complete `ChatSession`, wired `CompositionRoot(mode="test")`, ScriptedMockLLM, Guardrail, approval, tools, sensor runner.
 - Produces: reproducible proof that a temporary project is safely modified and verified across multiple LLM decisions and two REPL tasks.
 
-- [ ] **Step 1: Write the failing happy-path E2E test**
+- [x] **Step 1: Write the failing happy-path E2E test**
 
 Create a temporary project with `value.py` containing `VALUE = 1` and a small test expecting `VALUE == 2`. Script responses in this order:
 
@@ -800,7 +800,7 @@ Create a temporary project with `value.py` containing `VALUE = 1` and a small te
 
 Queue CLI inputs: the task, explicit approval `y`, a second harmless inspection task, and `/exit`. Assert the file changes, validation is recorded as passed, first task is `COMPLETED`, second task can start, and the output contains assistant/tool/approval/validation/task events.
 
-- [ ] **Step 2: Run the E2E test to verify RED**
+- [x] **Step 2: Run the E2E test to verify RED**
 
 ```powershell
 .\.venv\Scripts\python.exe -m pytest tests\test_interactive_cli_e2e.py::test_interactive_agent_edits_validates_and_accepts_second_task -v
@@ -808,11 +808,11 @@ Queue CLI inputs: the task, explicit approval `y`, a second harmless inspection 
 
 Expected: FAIL at the first missing or inconsistent integration behavior. Record the exact failure rather than weakening the assertion.
 
-- [ ] **Step 3: Make only integration fixes required by the test**
+- [x] **Step 3: Make only integration fixes required by the test**
 
 Do not add E2E-only flags or bypass Guardrail. Fix the production boundary responsible for the failure, rerun the targeted test, and keep each fix protected by the closest lower-level regression test when practical.
 
-- [ ] **Step 4: Add negative E2E cases**
+- [x] **Step 4: Add negative E2E cases**
 
 Add deterministic tests for:
 
@@ -825,7 +825,7 @@ Add deterministic tests for:
 - `/clear` removes chat messages but not structure-memory records;
 - demo composition cannot modify the temporary project even if scripted with `write_file`.
 
-- [ ] **Step 5: Run all E2E and safety tests**
+- [x] **Step 5: Run all E2E and safety tests**
 
 ```powershell
 .\.venv\Scripts\python.exe -m pytest tests\test_interactive_cli_e2e.py -q
@@ -835,7 +835,7 @@ git diff --check
 
 Expected: all pass.
 
-- [ ] **Step 6: Log and commit**
+- [x] **Step 6: Log and commit**
 
 ```powershell
 git add tests\test_interactive_cli_e2e.py codeguard AGENT_LOG.md docs\superpowers\plans\2026-08-13-interactive-cli-agent.md
