@@ -95,11 +95,13 @@
 
 ### Task 5: Implement ChatSession and CLI Event Rendering
 
-- **Status:** PENDING
-- **Implementer commit(s):**
-- **Spec review:** PENDING
-- **Quality review:** PENDING
-- **Fix rounds:**
+- **Status:** COMPLETED (2026-08-14)
+- **Implementer commit(s):** `c3877d0`（feat）, `13c0d45`（docs 回填）
+- **Spec review:** ✅ compliant（9 项全部满足；66 passed 目标组 + 44 passed sanity 复现；RED = 1 collection ImportError）
+- **Quality review:** ✅ APPROVED_WITH_MINOR（无 Critical/Important）
+- **Fix rounds:** 0
+- **Deferred Minor items (recorded for final review):** (1) 纯空白 ASSISTANT_MESSAGE 会使 `history.add_message` 抛 ValueError 崩掉 REPL（session.py:297 需 strip/guard）; (2) `CodeGuard asks:` 提示与 approval 提示字段（target/reason）绕过 sink 500 字符截断（session.py:327-336, 375）; (3) `/status` 打印 provider dict 值无界（session.py:233）; (4) `chat_command` 用 "cli-session" 而 ChatSession 自生成 uuid，事件/历史 ID 不一致（无绑定 bug）; (5) 成功任务的 TaskSummary.summary 为空串（loop TASK_FINISHED payload 仅 {"outcome"}，数据源薄）; (6) 非 BLOCK 的 FAILED 终态无任何终端渲染（历史有记录但用户看不到）; (7) 死参数（`_handle_user_input` 的 history/request、`_handle_approval` 的 history）与无注入 history 时 `/clear` 提示语误导。
+- **Implementer concerns (verified):** (a) `chat_command` 急切创建 loop 使缺 key 在提示前 fail fast——符合既有测试断言，lazy factory 在 session 测试中充分覆盖; (b) TaskSummary 占位可接受; (c) 用户输入路径 strip 保护确认，唯一崩溃路径在 assistant 侧（Minor 1）。
 
 ### Task 6: Update DeepSeek Protocol and CLI Metadata
 
