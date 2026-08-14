@@ -2992,3 +2992,36 @@
 - 未运行测试（纯文档改动，无代码变更）；未实现白名单
 
 **commit hash**: `7ab91f3`（`fix: correct run_process security claims in docs`）
+
+---
+
+## Task 8 修复二：4 个发布阻断问题（T8-FIX2）
+
+**log_id**: T8-FIX2 | **task_id**: Task 8 Documentation, Full Verification, and Enhanced Release Candidate（第二轮发布阻断修复）| **状态**: COMPLETED
+**时间**: 2026-08-14
+**Superpowers 技能**: `superpowers:test-driven-development` + `superpowers:verification-before-completion`
+**branch/worktree**: feature/interactive-cli-agent / `.worktrees/interactive-cli-agent`
+
+**目标**: 修复 4 个发布阻断问题：P1 重复 assistant_message 循环（真实 API 成本）、P2 跨任务上下文丢失、P3 冻结解释器解析（PyInstaller onefile 下 `codeguard.exe -m pytest` 无效）、P4 README 悬空「管道输入」引用。
+
+**关键输出/修改**:
+- **P1（循环防护）**: `codeguard/loop.py` 新增 `_MAX_CONSECUTIVE_CONVERSATION_ACTIONS=5` 与 `_count_conversation_action()`；assistant_message/request_user_input 写入确定性指纹（`_conversation_fingerprint`，sha256 of `kind:content`），使 StopPolicy no-progress 检查可见重复对话回复；`codeguard/llm/deepseek.py` ACTION_PROTOCOL_PROMPT 增加会话规则（回复 assistant_message 后下一条必须 complete；不重复相同文本）。`tests/test_loop.py` 新增 6 个用例（重复消息 ≤5 次 LLM 调用即 LIMIT_REACHED；正常 assistant→tool→complete 流不受影响；不同消息 5 连发同样限界）。
+- **P2（跨任务上下文）**: `codeguard/loop.py` `_task_finished_payload()` 输出有界摘要（最后一条 assistant 消息截断 500 字符 + outcome，失败含脱敏错误，绝不为空）；`codeguard/chat/session.py` CLIEventSink 捕获 task_summary、`_task_summary_text()` 生成非空摘要、`_summaries_for()` 每行携带 REQUEST（`[{request}] ({outcome}): {summary}`）。E2E 用例 `test_previous_task_request_and_summary_reach_next_task_context` 验证任务 1 请求内容（BLUE-731）进入任务 2 首次 LLM 上下文。
+- **P3（冻结解释器解析）**: 探针 exe 实证：PyInstaller onefile 下 `sys._base_executable == sys.executable == codeguard.exe 本身`（`frozen: True, executable: ...probe.exe, _base_executable: ...probe.exe`），旧设计（偏好 `_base_executable`）返回 exe → `codeguard.exe -m pytest` 必然失败，已整体废弃。新设计（`codeguard/composition.py` `_python_executable()`，新增 `import shutil`）：`CODEGUARD_PYTHON` 环境变量显式覆盖 → 非冻结时当前解释器（开发 venv，真实且带 pytest）→ 冻结时 PATH 外部 `python` → 兜底 `sys.executable`（冻结且无外部解释器时 fail-closed，传感器可见地 FAILED 而非冒充成功）。`tests/test_composition_production.py` 重写 4 个解析器用例 + 1 个工具接线用例，并修正 2 个 local 模式传感器用例（program 来自解析器）。
+- **P4（README 管道输入）**: 修复第 154 行悬空引用——新增「管道输入（非 TTY 场景）」小节（增强版已知限制之后），内容全部来自 EXE 实测（见验证证据）；更新该行措辞。
+
+**验证证据**:
+- P3 TDD RED（Step 1，对旧 `_base_executable` 设计）: `pytest tests/test_composition_production.py -q -k PythonExecutable` → **3 failed, 2 passed**（新设计断言 vs 旧实现）；GREEN 后 `pytest tests/test_composition_production.py -q` → **34 passed**
+- 4 个受影响测试文件: `pytest tests/test_composition_production.py tests/test_loop.py tests/test_chat_session.py tests/test_interactive_cli_e2e.py -q` → **107 passed**
+- 全量（Step 1）: `pytest -q -rs` → **764 passed, 1 skipped in 35.49s**（skip 为既有 test_file_tools symlink 特权跳过，与本次改动无关；基线 751+1，新增 13 个用例）
+- 构建（Step 2）: `.venv\Scripts\python.exe -m PyInstaller --clean --noconfirm codeguard.spec` → exit 0，`dist/codeguard.exe`（17,469,461 字节）重新生成；`codeguard.exe --help` → exit 0
+- EXE 实测（Step 3，临时目录 T1=通过测试 / T2=失败测试，`chat --mode test` 完全离线）:
+  - T1 + 无覆盖: `codeguard> [validation] pytest: FAILED` → `[task] COMPLETED: completed`，exit 0（PATH `python`=系统 Python 3.9 无 pytest，失败可见）
+  - T1 + `CODEGUARD_PYTHON=<venv python>`: `codeguard> [validation] pytest: PASSED` → `[task] COMPLETED: completed`，exit 0
+  - T2 + 覆盖: `codeguard> [validation] pytest: FAILED` → `[task] COMPLETED: completed`，exit 0
+  - 字面管道形式 `echo fix task | codeguard.exe chat --mode test`（T1+覆盖）→ 同样 `[validation] pytest: PASSED`，exit 0；管道 stdin 可驱动 REPL，EOF 自动退出
+  - 已确认 `codeguard/cli/chat.py` 以 `workspace_root=Path.cwd()` 构造 CompositionRoot，传感器 cwd=启动时所在目录（T1/T2 均生效）
+- 安全检查（Step 4）: `git diff --check` → 无空白错误；凭据扫描 `git grep -n -E "sk-[A-Za-z0-9_-]{12,}|api_key[[:space:]]*=" -- ':!tests/*'` → 命中均为 AGENT_LOG/PLAN 文档记录与脱敏实现/脚本（`scripts/deepseek_smoke_test.py` 从环境变量读取），**无真实凭据**；`dist/`、`build/` 仍被 .gitignore 覆盖
+- 未调用 local 模式（无真实 API 调用）；未创建 tag/Release；未合并 main
+
+**commit hash**: `132e0ed`（`fix: bound conversational loops, carry cross-task context, resolve frozen interpreter`）
