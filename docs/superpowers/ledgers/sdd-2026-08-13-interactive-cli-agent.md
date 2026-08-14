@@ -163,6 +163,17 @@
 - **验证:** RED 2 failed → GREEN 3 passed（+T8-FIX3 组 7 passed 复核）; 回归 86 passed; 全量 **771 passed, 1 skipped**; 重建 EXE + smoke（`[task] COMPLETED: Validation pytest: PASSED — Exit code: 0` 单状态词确认）; 未创建 tag/Release; main 仍 30581f0。
 - **Deferred Minor:** 无新增。
 
+### T8-FIX5: assistant_message 终态化协议重构（人工验收第四轮，发布阻断）
+
+- **Status:** COMPLETED (2026-08-14)
+- **Implementer commit(s):** `00cd767`（fix）, `a529ce8`（docs 回填）; 双远端 == HEAD
+- **验收复现:** 第二任务 `CodeGuard > BLUE-731` 后 `[task] LIMIT_REACHED: BLUE-731`——单次显示但终态错误且无最终验证。
+- **根因（用户确认）:** assistant_message 被当作非终态动作（显示 → FEEDING_BACK/DECIDING → 再次调用 LLM 等 complete）；真实 DeepSeek 不稳定遵守两次调用握手；前三轮的去重/上限只能隐藏重复，无法保证任务完成。
+- **新协议:** assistant_message = 最终用户可见回复 → 显示一次 → 立即最终验证 → COMPLETED/FAILED → 返回 REPL；不再为索取 complete 调用 LLM；该路径绝不 LIMIT_REACHED；complete 保留为无回复任务兼容路径；进度由工具/验证事件表达；终止语义由状态机确定性保证。
+- **修改:** loop.py ASSISTANT_MESSAGE 分支重写（transcript → emit → `_run_final_validation()` → COMPLETED/FAILED → break）；删除冗余补丁状态（`_delivered_assistant_messages`、`_assistant_displayed_since_progress`、`_count_conversation_action`、连续对话上限、assistant fingerprint、纠正提示）；保留澄清 fingerprint+StopPolicy 检查、全终态事件、outcome/summary 分离。deepseek.py 协议提示：assistant_message 改为 TERMINAL 描述，删除旧"必须 complete"对话规则。README 明确最终回复语义。测试：删除 15 个旧协议测试，重写 9 个 T8-FIX5 测试 + E2E happy/BLUE-731 更新 + prompt 断言增强。
+- **验证:** GREEN 28（loop）→ 5 文件组 99 → 全量 **765 passed, 1 skipped**; 凭据扫描 0 真实命中; 重建 EXE + smoke（version/help/demo a/frozen 传感器 PASSED）; 未创建 tag/Release; main 仍 30581f0。
+- **Deferred Minor:** 无新增。
+
 ## Final Acceptance (deferred to Task 8)
 
 - [x] `main` remains at course version v0.1.1 and contains none of the enhanced commits.
