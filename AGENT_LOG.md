@@ -3389,4 +3389,4 @@ context[4]: value.py=False, test_value.py=True
 
 **commit hash**: `05034e3`（`fix: harden CI SHA-256 generation and artifact verification`）
 
-**CI 待验证**: 推送后等待最新 run——unit-test、build-exe pytest、PyInstaller、smoke、Generate and verify SHA-256、Verify release assets、upload-artifact 全部 success；下载 artifact 确认两个文件齐全且哈希一致。结果回填本条目。
+**CI 最终结果**: run 31885671875（head `ce2b6c3`）——**全 workflow 绿色**：unit-test success；build-exe 全部 success（pytest、PyInstaller、smoke、**Generate and verify SHA-256**、**Verify release assets**、upload-artifact）。artifact 9247212840 下载核验：codeguard.exe（17,513,069 字节）+ codeguard.exe.sha256（65 字节纯 64-hex + LF）两个文件齐全；实际 SHA-256 = `002f3163bf3df20534e1dbfbb4f266ebb7bfac33f8d2ff33837a1cbf24d7b9b3`，与记录一致（MATCH: True）。未创建 tag/Release。

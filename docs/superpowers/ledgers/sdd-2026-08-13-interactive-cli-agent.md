@@ -238,7 +238,7 @@
 - **根因（本机证据）:** findstr 无匹配退出 1：bash 外壳 → 0 字节文件；pwsh 外壳 → 不传播原生退出码，步骤仍绿。**权威核验:** 下载两个 artifact 实测均包含 66 字节有效 sha256 且与 EXE 匹配（用户观察与下载证据不符），但流水线脆弱性成立，按方案加固。
 - **修复（无生产代码改动）:** ci.yml "Generate and verify SHA-256"（pwsh Get-FileHash 纯哈希 64 hex + LF、格式正则校验、与生成值比对）+ 独立 "Verify release assets"（缺/空/不匹配即 throw）+ upload-artifact `if-no-files-found: error`。
 - **Evidence:** PS 5.1 端到端模拟（真实 EXE）两步骤 exit 0、篡改/缺失 exit 1；YAML 解析通过；全量 **793 passed, 1 skipped**；`git diff --check` clean; 未创建 tag/Release; main 仍 30581f0。
-- **CI 待验证:** 推送后等待最新 run 全绿；下载 artifact 确认 codeguard.exe + codeguard.exe.sha256 齐全且哈希一致。结果回填本条。
+- **CI 最终结果:** run 31885671875（head `ce2b6c3`）——**全 workflow 绿色**：unit-test success；build-exe 全部 success（pytest、PyInstaller、smoke、Generate and verify SHA-256、Verify release assets、upload-artifact）。artifact 9247212840 下载核验：codeguard.exe + codeguard.exe.sha256（65 字节纯 64-hex + LF）齐全；实际 SHA-256 `002f3163bf3df20534e1dbfbb4f266ebb7bfac33f8d2ff33837a1cbf24d7b9b3` 与记录一致。未创建 tag/Release; main 仍 30581f0。
 
 ## Task 0 Detail Log
 
