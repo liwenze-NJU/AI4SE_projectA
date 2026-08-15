@@ -3270,3 +3270,30 @@ context[4]: value.py=False, test_value.py=True
 
 **commit hash**: `3f29122`（`feat: bounded per-task observation history for multi-file contexts`）
 
+
+---
+
+## T8-FIX7-FIX: 合并 reviewer 发现脱敏回归与审批路径失效失败（Critical+Important 修复条目）
+
+**log_id**: T8-FIX7-FIX | **状态**: COMPLETED
+**时间**: 2026-08-15
+**Superpowers 技能**: `superpowers:systematic-debugging`（根因追踪）+ `superpowers:test-driven-development`
+**branch/worktree**: feature/interactive-cli-agent / `.worktrees/interactive-cli-agent`
+
+**Critical 发现（F1）**: `secret.py` 的 `_VALUE` unquoted 分支 `[^"'\s,}]+` 允许反斜杠——repr()ed dict 中 escaped `\n`（字面反斜杠+n）被吞入值，`api_key = sk-***\npassword = hunter2\n` 整体成为 sk- 值被替换后残留 ` = hunter2`（实测泄漏）。且 quoted 值（`password = "hunter2"`）在新模式完全不匹配（引号阻断）。
+
+**修复**: `_VALUE = '("[^"\]*"|\'[^\'\]*\'|[^"\'\\s,}]+)'`——unquoted 分支排除反斜杠，escaped newline 正确终止值匹配；quoted 双/单引号分支完整覆盖。`_redact_generic_value` 剥离引号后判断 sk- 前缀。全部 7 个探针用例通过（含 quoted、repr-dict、escaped newline、false-positive 保留）。
+
+**Important 发现（F2）**: 写入失效比较原始字符串——read 观察存相对路径（raw Action）、审批恢复路径的 write 分发 NormalizedAction（绝对路径），`target in summary` 恒 False，陈旧读取在默认 REQUEST_APPROVAL 路径上幸存。
+
+**修复**: `_normalize_path_tail`（取尾文件名 + casefold）与 `_observation_path_tail`（从 `path=` 摘要提取）用于比较——跨相对/绝对表示一致，同时消除 F3 子串误伤（写 a.txt 不再误失效 aa.txt）。新增审批恢复测试：helper 强制 ALLOW 后显式恢复 REQUEST_APPROVAL → 暂停 → 批准 → 陈旧 OLD-CONTENT 不在最终上下文。
+
+**验证证据**:
+- RED: F1 2 failed（quoted 泄漏、repr-dict 泄漏）+ F2 1 failed（审批路径陈旧内容幸存）
+- GREEN: test_secret_redactor 全过（quoted/repr/escaped 新用例）+ test_context_runtime 18 passed
+- 全量: `pytest -q -rs` → **793 passed, 1 skipped**
+- `git diff --check` → clean
+- 未创建 tag/Release；未合并 main
+
+**commit hash**: `T8-FIX7-FIX-COMMIT`（提交后回填）
+

@@ -33,6 +33,8 @@ class SecretRedactor:
 
     def _redact_generic_value(self, match):
         value = match.group(2)
+        if len(value) >= 2 and value[0] in "\"'" and value[-1] == value[0]:
+            value = value[1:-1]
         if value.startswith("sk-"):
             return match.group(1) + "sk-***"
         return match.group(1) + "***"
@@ -48,13 +50,20 @@ class SecretRedactor:
             self._redact_sk_key,
             text,
         )
-        # Step 2: Generic credential patterns.
-        # The value class excludes backslashes and quotes so escaped
-        # newlines (\\n) inside repr()ed dicts terminate the value match
-        # instead of swallowing the rest of the string (T8-FIX7).
+        # Step 2: Generic credential patterns. The value may be
+        # double-quoted, single-quoted, or an unquoted token terminated by
+        # whitespace, a BACKSLASH (escaped newlines in repr()ed dicts
+        # would otherwise swallow the rest of the string), quotes, commas,
+        # or closing braces (T8-FIX7-FIX F1).
+        _VALUE = r'("[^"\\]*"|\'[^\'\\]*\'|[^"\'\\\s,}]+)'
         for field in ['api_key', 'password', 'secret', 'token']:
             text = re.sub(
-                rf'({field}\s*[=:]\s*)([^\\\'"]+)',
+                rf'({field}\s*[=:]\s*){_VALUE}',
+                self._redact_generic_value,
+                text,
+            )
+            text = re.sub(
+                rf'([\'"]{field}[\'"]\s*[=:]\s*){_VALUE}',
                 self._redact_generic_value,
                 text,
             )

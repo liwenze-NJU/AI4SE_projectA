@@ -67,3 +67,26 @@ def test_redact_idempotent():
     once = redactor.redact(text)
     twice = redactor.redact(once)
     assert once == twice
+
+# ── T8-FIX7-FIX: quoted credential values + repr-dict forms ──────────
+
+def test_redact_quoted_credential_values():
+    """Quoted credential values must be redacted fully (T8-FIX7-FIX F1):
+    both double- and single-quoted forms, nothing leaks."""
+    redactor = SecretRedactor()
+    out = redactor.redact('password = "hunter2"')
+    assert "hunter2" not in out
+    assert "***" in out
+    out = redactor.redact("token = 'abc123'")
+    assert "abc123" not in out
+    assert "***" in out
+
+
+def test_redact_repr_dict_credential_values():
+    """Credential values inside repr()ed dicts must be redacted, including
+    the escaped-newline form that motivated the T8-FIX7 change."""
+    redactor = SecretRedactor()
+    out = redactor.redact("cfg = {'password': 'hunter2\n', 'other': 'data'}")
+    assert "hunter2" not in out
+    out = redactor.redact("{'status': 'SUCCESS', 'content': 'password = hunter2\n', 'path': 'x'}")
+    assert "hunter2" not in out

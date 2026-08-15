@@ -547,18 +547,24 @@ class AgentLoop:
         status = tool_result.status
 
         # Invalidate stale reads for a file that was just written.
+        # Compare on NORMALIZED path tails: reads may have been recorded
+        # with a relative path (raw Action) while the write resumes with a
+        # normalized absolute path (approval path), and vice versa
+        # (T8-FIX7-FIX F2). Normalization avoids both the raw/absolute
+        # mismatch and substring false-invalidations (F3).
         if status == "SUCCESS" and tool_name in (
             "write_file", "apply_patch", "delete_file"
         ):
             target = str(params.get("path", ""))
-            self._observations = [
-                o for o in self._observations
-                if not (
-                    o.tool_name == "read_file"
-                    and str(o.safe_parameter_summary) and
-                    target and target in str(o.safe_parameter_summary)
-                )
-            ]
+            target_norm = self._normalize_path_tail(target)
+            if target_norm:
+                self._observations = [
+                    o for o in self._observations
+                    if not (
+                        o.tool_name == "read_file"
+                        and self._observation_path_tail(o) == target_norm
+                    )
+                ]
 
         # Dedup identical (tool, params, result) — move to the end.
         param_fp = hashlib.sha256(
@@ -594,6 +600,25 @@ class AgentLoop:
             dropped = self._observations.pop(0)
             total -= (len(dropped.redacted_output)
                       + len(dropped.safe_parameter_summary))
+
+    @staticmethod
+    def _normalize_path_tail(path: str) -> str:
+        """Normalize a path to its casefolded tail (file name) for
+        comparison across relative/absolute representations."""
+        import os as _os
+        norm = str(path).replace("\\", "/").rstrip("/")
+        tail = norm.rsplit("/", 1)[-1]
+        return tail.casefold() if tail else ""
+
+    @staticmethod
+    def _observation_path_tail(obs) -> str:
+        """Extract the normalized file tail from a read observation's
+        parameter summary (form: 'path=...')."""
+        summary = str(obs.safe_parameter_summary)
+        for part in summary.split(", "):
+            if part.startswith("path="):
+                return AgentLoop._normalize_path_tail(part[len("path="):])
+        return ""
 
     def _format_observations(self) -> list[str]:
         """Render the current observations as bounded context lines."""

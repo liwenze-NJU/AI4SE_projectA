@@ -372,3 +372,36 @@ def test_observation_budget_trims_deterministically(tmp_path):
     assert seqs[-1] == 15          # newest observation always kept
     assert seqs[0] > 1             # oldest ones were trimmed
     assert len(seqs) < 15
+
+
+def test_approval_resume_write_invalidates_stale_read(tmp_path):
+    """T8-FIX7-FIX F2: the production default path — write_file at
+    REQUEST_APPROVAL risk — must invalidate the stale read observation
+    after approval resume (raw relative path vs normalized absolute
+    path must both match)."""
+    (tmp_path / "b.txt").write_text("OLD-CONTENT", encoding="utf-8")
+    llm = ScriptedMockLLM([
+        _response_for(Action(ActionKind.TOOL_CALL, "read_file", {"path": "b.txt"}, raw="")),
+        _response_for(Action(ActionKind.TOOL_CALL, "write_file",
+                             {"path": "b.txt", "content": "NEW-CONTENT"}, raw="")),
+        _response_for(Action(ActionKind.COMPLETE_REQUEST, summary="done", raw="")),
+    ])
+    loop = make_wired_test_loop(tmp_path, llm)
+    # The helper sets ALLOW; restore the PRODUCTION default so the write
+    # genuinely pauses for approval.
+    loop.tool_registry.lookup("write_file").default_risk = "REQUEST_APPROVAL"
+    result = loop.start_task("t1", "Update b.txt", [])
+    assert result.terminal_state is AgentState.AWAITING_APPROVAL
+    from codeguard.guardrail.approval import ApprovalStatus
+    fp = loop.state.pending_action.action_fingerprint
+    loop.resume_with_approval(
+        request_id=loop.state.approval_request_id,
+        session_id=loop.state.session_id,
+        decision=ApprovalStatus.APPROVED,
+        action_fingerprint=fp,
+    )
+    result = loop.run()
+    assert result.terminal_state is AgentState.COMPLETED
+    ctx = llm.received_contexts[-1]
+    assert "OLD-CONTENT" not in ctx
+    assert "NEW-CONTENT" in ctx
