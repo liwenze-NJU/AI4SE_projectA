@@ -201,6 +201,16 @@
 - **Evidence:** RED（BOM 3 failed / stop 4 failed）→ GREEN 各组; 全量 **780 passed, 1 skipped**; 重建 EXE + frozen 传感器 smoke; 凭据扫描 0 真实命中; 未创建 tag/Release; main 仍 30581f0。
 - **Deferred Minor:** (a) 相同读取（period 1）会被既有 action-fingerprint 检查先行截停，两阶段纠正只对交替模式生效（pre-existing 行为）; (b) BOM-only 文件被整体替换为空串时的退化边界（不可达于 schema，arguably 正确）; 均记入最终评审。
 
+### T8-FIX7: 有界观察历史架构修复（人工验收第六轮，发布阻断）
+
+- **Status:** COMPLETED (2026-08-15; 1 Critical + 1 Important fix round)
+- **Implementer commit(s):** `3f29122`（feat）, `73de192`（docs 回填）, `652e3d2`（review fix）, `b486d41`（docs 回填）; 双远端 == HEAD
+- **根因（探针数据流证据）:** 连续 4 轮上下文 value.py/test_value.py 可见性交替 True/False——`_latest_result` 每次被覆盖且 `_build_context` 只传单个值；模型永远只能看到一个文件。
+- **架构修复:** `CurrentTaskObservation` dataclass + 每任务 `_observations`（条目 10 / 字符 4000 / 单条 800）；先脱敏再存储；相同 tool+参数+结果去重；写入成功失效同文件陈旧读取；确定性最旧优先裁剪；`build_runtime` 新增 "## Current Task Observations" 区段（裁剪顺序：摘要→记忆→工具→最旧观察）；审批/澄清暂停保留；StopPolicy 保留为最后防线。apply_patch 描述补充参数语义。
+- **Review:** 1st round spec_compliant NO——F1 Critical（secret.py `_VALUE` unquoted 分支允许反斜杠：repr 转义反斜杠-n 吞值导致 hunter2 泄漏；quoted 值完全不匹配）; F2 Important（审批恢复路径 write 分发 NormalizedAction 绝对路径 vs read 相对路径 → 陈旧读取幸存）。→ Fix round: `652e3d2`（unquoted 分支排除反斜杠 + quoted 双/单引号分支；路径比较按文件名尾 + casefold，同时消除子串误伤 F3）→ 复验 793 passed, 1 skipped。
+- **Evidence:** RED（双文件可见性 3 failed + 脱敏/预算 2 failed）→ GREEN; 探针复验修复后双文件同上下文可见; 全量 **793 passed, 1 skipped**; 重建 EXE + frozen 传感器 smoke; 凭据扫描 0 真实命中; 未创建 tag/Release; main 仍 30581f0。
+- **Deferred Minor:** (a) JSON 双引号键形式 `{"password": ...}` 的既有 gap; (b) 观察字符预算不含渲染头部（cosmetic）; (c) `_record_observation` 方法内局部 import（cosmetic）。均记入最终评审。
+
 ## Task 0 Detail Log
 
 ### 2026-08-13 — Baseline environment
