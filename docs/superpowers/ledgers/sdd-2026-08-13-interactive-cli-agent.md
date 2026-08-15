@@ -213,12 +213,22 @@
 
 ### T8-FIX8-CI: Ubuntu CI LOCALAPPDATA 隔离修复（GitHub Actions unit-test 6 失败）
 
-- **Status:** COMPLETED (2026-08-15); CI 结果待回填
-- **Implementer commit(s):** `66d5d98`（fix）, `b083fd8`（docs 回填）; 双远端 == HEAD
+- **Status:** COMPLETED (2026-08-15); CI 结果见 T8-FIX8-CI2 最终回填
+- **Implementer commit(s):** `66d5d98`（fix）, `b083fd8`（docs 回填）, `7676144`（docs 回填）, `eb87f43`（docs 回填）; 双远端 == HEAD
 - **根因:** unit-test 运行于 ubuntu-latest，Linux runner 无 LOCALAPPDATA；`CompositionRoot(mode="local")` 的 `_resolve_memory_base()`（composition.py:376-381）按 fail-closed 设计抛 ValueError。6 个测试验证传感器/组合装配而非缺失环境变量语义，未注入测试专用 LOCALAPPDATA → Windows 本地通过、Ubuntu CI 失败。附带发现：这些测试在 Windows 本地实际写入开发者真实 `%LOCALAPPDATA%\CodeGuard\memory`。
 - **修复:** `tests/test_composition_production.py` autouse fixture `isolated_localappdata`（tmp_path/LocalAppData，全文件每测试独立目录）。fail-closed 测试在此基础上再显式 delenv，语义保留。生产 fail-closed 行为零改动；未在 CI 全局伪造环境变量。
 - **Evidence:** RED（`env -u LOCALAPPDATA` 下 6 failed + fail-closed 1 passed，与 CI 一致）→ GREEN（同环境 7 passed）; 全文件 35 passed; 全量 **793 passed, 1 skipped**; 真实 AppData 无新写入（projects 下 3 目录均为修复前遗留）; `git diff --check` clean; diff 凭据扫描 0 命中; 未创建 tag/Release; main 仍 30581f0。
-- **CI 待验证:** 推送后等待新 run——Ubuntu unit-test success；Windows build-exe 真正运行（此前 needs: unit-test 被 skipped）且 success；artifact upload success。结果回填本条。
+- **CI 结果:** run 31883450438（head `eb87f43`）——Ubuntu unit-test **success**（6 个 LOCALAPPDATA 修复生效）；Windows build-exe 进入运行，在 pytest 阶段暴露新的跨平台失败（2 failed）→ 转入 T8-FIX8-CI2。
+
+### T8-FIX8-CI2: Windows build-exe 跨平台 Guardrail 集成测试修复（CI 第二轮阻断）
+
+- **Status:** COMPLETED (2026-08-15); CI 最终结果待回填
+- **Implementer commit(s):** `4850776`（fix）, `e56a14b`（docs 回填）; 双远端 == HEAD
+- **CI 证据:** run 31883450438（head `eb87f43`）Windows build-exe pytest 阶段 **2 failed, 792 passed**：`test_scenario_a_block_then_feedback_then_complete`（Expected ALLOW, got BLOCK）、`test_blocked_action_not_executed`（read_file 未 dispatch）。
+- **根因（本地复现证据）:** 测试硬编码 `WorkspaceBoundaryRule("/home/user/project")`，loop 用 `ActionNormalizer(workspace_root=<CompositionRoot 临时 sandbox>)` 规范化路径（normalizer.py:91-95）。Windows 上 `Path("/home/...").resolve()` 锚定 CWD 盘符，sandbox 锚定 TEMP 盘符；CI runner CWD=D: 而 TEMP=C: → 规则根 D:\home\user\project vs 安全路径 C:\...\sandbox\README.md → out_of_bounds。本机 CWD/TEMP 同盘故本地通过。复现：`TEMP='D:\cg-tmp'` → 2 failed，与 CI 一致。
+- **修复（生产代码零改动）:** 两个测试改 tmp_path 同一文件系统：workspace=tmp_path/"project"（含真实 README.md），CompositionRoot 与 WorkspaceBoundaryRule 共用该 workspace；危险路径 `str(workspace.parent / "outside.txt")`（Path 运算明确在外）；安全 read_file 相对路径 "README.md"。BLOCK 不得 dispatch / ALLOW 必须 dispatch / 终态 COMPLETED 断言原样保留。
+- **Evidence:** RED（跨盘符 2 failed）→ GREEN（本机 + 跨盘符均 2 passed）; 4 相关文件 74 passed; 全量（跨盘符 + 无 LOCALAPPDATA）**793 passed, 1 skipped**; `git diff --check` clean; diff 凭据扫描 0 命中; 未创建 tag/Release; main 仍 30581f0。
+- **CI 待验证:** 推送后等待最新 run——Ubuntu unit-test、Windows pytest、PyInstaller、EXE smoke、SHA-256、artifact upload 全部 success。结果回填本条。
 
 ## Task 0 Detail Log
 
