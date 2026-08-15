@@ -3358,3 +3358,35 @@ context[4]: value.py=False, test_value.py=True
 
 **CI 最终结果**: run 31884367527（head `7cc873c`）——**全 workflow 绿色**：unit-test (Ubuntu) success（pytest -v）; build-exe (Windows) success（pip install、pytest -v、PyInstaller、EXE smoke、SHA-256 generation、upload-artifact 全部 success）。未创建 tag/Release。
 **CI 最终确认**: 后续 docs 提交触发的最新 run 31884554346（head `cbd2317`）同样**全 workflow 绿色**（unit-test + build-exe 全部步骤 success）——发布阻断解除，最新 workflow 已全部通过。
+
+
+---
+
+## T8-FIX8-CI3: CI SHA-256 生成与 artifact 验证加固（发布阻断）
+
+**log_id**: T8-FIX8-CI3 | **状态**: COMPLETED
+**时间**: 2026-08-15
+**Superpowers 技能**: `superpowers:systematic-debugging`（根因证据）+ `superpowers:test-driven-development`
+**branch/worktree**: feature/interactive-cli-agent / `.worktrees/interactive-cli-agent`
+
+**问题**: 人工检查最新绿色 run 的 codeguard-exe artifact（run 31884554346 artifact 9246920813；run 31884367527 artifact 9246873380）报告缺少 codeguard.exe.sha256；原 ci.yml 用 `certutil -hashfile ... | findstr /v "hash" >` 生成哈希，upload-artifact 对声明但缺失的文件不失败 → 假绿风险。
+
+**根因（本机证据）**: (1) certutil 输出本地化人类可读格式（GBK 本机"hash"子串匹配导致头部行残留；en-US runner 上 findstr 无匹配退出 1——bash 外壳留下 0 字节文件，pwsh 外壳不传播原生退出码，步骤仍绿）；(2) upload-artifact 默认对缺失文件 warn 不失败。
+**权威核验**: 使用 git credential 下载两个 artifact 实测——两者实际**均包含** 66 字节 sha256 文件（64 hex + CRLF）且与各自 EXE 哈希匹配（run 31884554346: f87ecba0...；run 31884367527: 06316762...）。用户观察到的缺失与下载证据不符，但流水线脆弱性成立，按方案加固。
+
+**修复（ci.yml，无生产代码改动）**:
+- "Generate and verify SHA-256"（pwsh）: Get-FileHash 纯哈希 64 hex 小写 + LF 写入（UTF-8 无 BOM）；EXE 存在检查、SHA 文件创建检查、格式正则 `^[0-9a-f]{64}$` 校验、与生成哈希比对、列出 dist 目录。
+- "Verify release assets"（pwsh，独立上传前检查）: 两个资产必须存在且非空；实际哈希与记录哈希必须一致，否则 throw。
+- upload-artifact 增加 `if-no-files-found: error`。
+
+**验证证据**:
+- 本机 PS 5.1 端到端模拟（真实 PyInstaller EXE）: 两步骤 exit 0；SHA 文件 65 字节纯哈希+LF
+- 失败模式: 篡改文件 → exit 1；删除 SHA 文件 → exit 1（throw 正确传播）
+- ci.yml YAML 解析通过（jobs/steps/with 结构验证）
+- 全量: `TEMP='D:\cg-tmp' env -u LOCALAPPDATA` → **793 passed, 1 skipped**
+- `git diff --check` → clean
+- 未创建 tag/Release；未合并 main（main 仍 30581f0）
+
+**commit hash**: `05034e3`（`fix: harden CI SHA-256 generation and artifact verification`）
+
+**CI 待验证**: 推送后等待最新 run——unit-test、build-exe pytest、PyInstaller、smoke、Generate and verify SHA-256、Verify release assets、upload-artifact 全部 success；下载 artifact 确认两个文件齐全且哈希一致。结果回填本条目。
