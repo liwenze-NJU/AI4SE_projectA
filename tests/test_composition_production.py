@@ -18,6 +18,14 @@ from codeguard.guardrail import GuardrailDecision
 from codeguard.tool.dispatcher import ToolDispatcher
 
 
+@pytest.fixture(autouse=True)
+def isolated_localappdata(tmp_path, monkeypatch):
+    """Local-mode memory must never touch the developer's real AppData;
+    every test in this file gets a fresh per-test LOCALAPPDATA under
+    tmp_path.  Fail-closed tests explicitly delenv on top of this."""
+    monkeypatch.setenv("LOCALAPPDATA", str(tmp_path / "LocalAppData"))
+
+
 def test_test_composition_has_dispatcher_and_sensors(tmp_path):
     loop = CompositionRoot(mode="test", workspace_root=tmp_path).create_loop("s1")
     assert isinstance(loop.tool_dispatcher, ToolDispatcher)
