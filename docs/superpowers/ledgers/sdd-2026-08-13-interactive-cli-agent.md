@@ -228,7 +228,7 @@
 - **根因（本地复现证据）:** 测试硬编码 `WorkspaceBoundaryRule("/home/user/project")`，loop 用 `ActionNormalizer(workspace_root=<CompositionRoot 临时 sandbox>)` 规范化路径（normalizer.py:91-95）。Windows 上 `Path("/home/...").resolve()` 锚定 CWD 盘符，sandbox 锚定 TEMP 盘符；CI runner CWD=D: 而 TEMP=C: → 规则根 D:\home\user\project vs 安全路径 C:\...\sandbox\README.md → out_of_bounds。本机 CWD/TEMP 同盘故本地通过。复现：`TEMP='D:\cg-tmp'` → 2 failed，与 CI 一致。
 - **修复（生产代码零改动）:** 两个测试改 tmp_path 同一文件系统：workspace=tmp_path/"project"（含真实 README.md），CompositionRoot 与 WorkspaceBoundaryRule 共用该 workspace；危险路径 `str(workspace.parent / "outside.txt")`（Path 运算明确在外）；安全 read_file 相对路径 "README.md"。BLOCK 不得 dispatch / ALLOW 必须 dispatch / 终态 COMPLETED 断言原样保留。
 - **Evidence:** RED（跨盘符 2 failed）→ GREEN（本机 + 跨盘符均 2 passed）; 4 相关文件 74 passed; 全量（跨盘符 + 无 LOCALAPPDATA）**793 passed, 1 skipped**; `git diff --check` clean; diff 凭据扫描 0 命中; 未创建 tag/Release; main 仍 30581f0。
-- **CI 最终结果:** run 31884367527（head `7cc873c`）——**全 workflow 绿色**：unit-test (Ubuntu) success（pytest -v）；build-exe (Windows) success（pip install、pytest -v、PyInstaller、EXE smoke、SHA-256 generation、upload-artifact 全部 success）。未创建 tag/Release；main 仍 30581f0。
+- **CI 最终结果:** run 31884367527（head `7cc873c`）——**全 workflow 绿色**：unit-test (Ubuntu) success（pytest -v）；build-exe (Windows) success（pip install、pytest -v、PyInstaller、EXE smoke、SHA-256 generation、upload-artifact 全部 success）。未创建 tag/Release；main 仍 30581f0。后续 docs 提交触发的最新 run 31884554346（head `cbd2317`）同样全 workflow 绿色——发布阻断解除。
 
 ## Task 0 Detail Log
 
