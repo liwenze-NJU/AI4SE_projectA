@@ -3297,3 +3297,29 @@ context[4]: value.py=False, test_value.py=True
 
 **commit hash**: `652e3d2`（`fix: redact quoted/escaped credentials and invalidate stale reads across path normalization`）
 
+
+
+---
+
+## T8-FIX8-CI: Ubuntu CI LOCALAPPDATA 隔离修复（GitHub Actions unit-test 6 失败）
+
+**log_id**: T8-FIX8-CI | **状态**: COMPLETED
+**时间**: 2026-08-15
+**Superpowers 技能**: `superpowers:test-driven-development`（RED → GREEN → 全量回归）
+**branch/worktree**: feature/interactive-cli-agent / `.worktrees/interactive-cli-agent`
+
+**根因**: GitHub Actions unit-test 使用 ubuntu-latest，Linux runner 无 Windows 环境变量 LOCALAPPDATA。`CompositionRoot(mode="local")` 的 `_resolve_memory_base()`（composition.py:376-381）按 fail-closed 设计抛 ValueError。6 个测试要验证传感器/组合装配而非"缺 LOCALAPPDATA 失败"，却未注入测试专用 LOCALAPPDATA → Windows 本地通过、Ubuntu CI 失败。附带发现：这些测试在 Windows 本地实际写入开发者真实 `%LOCALAPPDATA%\CodeGuard\memory`（违反测试隔离）。
+
+**修复**: `tests/test_composition_production.py` 新增 autouse fixture `isolated_localappdata`（tmp_path/LocalAppData + monkeypatch.setenv），全文件每测试独立目录。fail-closed 测试 `test_local_mode_fails_closed_without_localappdata` 在其上再次显式 delenv，语义保留。生产 fail-closed 行为零改动。
+
+**验证证据**:
+- RED: `env -u LOCALAPPDATA` 下 6 个目标测试 failed（ValueError: LOCALAPPDATA is not set），fail-closed 测试 1 passed —— 与 CI 一致
+- GREEN: 同环境下 7 个测试全 passed（含 fail-closed）
+- 全文件: `env -u LOCALAPPDATA` → 35 passed
+- 全量: `env -u LOCALAPPDATA` → **793 passed, 1 skipped**（41.57s；CI 总数 794 一致，Ubuntu 差异为平台相关 skip + 6 失败）
+- 真实 AppData 检查: `%LOCALAPPDATA%\CodeGuard\memory\projects` 下 3 个目录均为 10:45 遗留物（本会话 19:57 起），修复后无新写入；仓库内无 .memory-* 目录
+- `git diff --check` → clean；diff 凭据扫描 0 命中
+
+**commit hash**: `66d5d98`（`fix: isolate LOCALAPPDATA per test for local-mode composition tests`）
+
+**CI 待验证**: 推送后等待 GitHub Actions 新 run——Ubuntu unit-test success；Windows build-exe 需真正运行（此前 needs: unit-test 被 skipped）且 success；artifact upload success。结果将回填本条目。
