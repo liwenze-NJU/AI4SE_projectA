@@ -31,7 +31,7 @@ def _make_response(action: Action, finish_reason: str = "stop") -> LLMResponse:
     )
 
 
-def test_scenario_a_block_then_feedback_then_complete():
+def test_scenario_a_block_then_feedback_then_complete(tmp_path):
     """BLOCK -> feedback -> change action -> COMPLETED.
 
     This is the core governance-driven test feedback loop scenario.
@@ -41,17 +41,29 @@ def test_scenario_a_block_then_feedback_then_complete():
     Phase 4: LLM proposes safe action
     Phase 5: Guardrail ALLOWs
     Phase 6: Action executes, COMPLETE_REQUEST -> FINAL_VALIDATION -> COMPLETED
+
+    The workspace and both paths live on the same filesystem so the
+    composition's ActionNormalizer and the WorkspaceBoundaryRule agree on
+    absolute paths on every platform (Windows maps POSIX-style absolute
+    strings like /home/... onto the current drive, which diverges from
+    the temp workspace on CI runners).
     """
-    root = CompositionRoot(mode="test")
+    workspace = tmp_path / "project"
+    workspace.mkdir()
+    (workspace / "README.md").write_text("safe", encoding="utf-8")
+
+    root = CompositionRoot(mode="test", workspace_root=workspace)
     loop = root.create_loop(session_id="scenario-a")
 
     # Replace the default RuleEngine with one that has a real workspace boundary rule
     engine = RuleEngine()
     engine.add_rule(
         "workspace",
-        WorkspaceBoundaryRule(workspace_root="/home/user/project").evaluate,
+        WorkspaceBoundaryRule(workspace_root=workspace).evaluate,
     )
     loop.rule_engine = engine
+
+    outside = workspace.parent / "outside.txt"
 
     # ScriptedMockLLM:
     # 1st call: dangerous action (delete_file outside workspace) -> BLOCKed
@@ -61,13 +73,13 @@ def test_scenario_a_block_then_feedback_then_complete():
         _make_response(Action(
             kind=ActionKind.TOOL_CALL,
             tool_name="delete_file",
-            parameters={"path": "/etc/passwd"},
+            parameters={"path": str(outside)},
             raw="",
         )),
         _make_response(Action(
             kind=ActionKind.TOOL_CALL,
             tool_name="read_file",
-            parameters={"path": "/home/user/project/README.md"},
+            parameters={"path": "README.md"},
             raw="",
         )),
         _make_response(Action(

@@ -319,17 +319,23 @@ class TestFinalValidation:
 class TestScenarioAPipelineAssertions:
     """Scenario A must verify the governance pipeline steps."""
 
-    def test_blocked_action_not_executed(self):
+    def test_blocked_action_not_executed(self, tmp_path):
         """BLOCKed action must never be dispatched to tool_dispatcher."""
-        root = CompositionRoot(mode="test")
+        workspace = tmp_path / "project"
+        workspace.mkdir()
+        (workspace / "README.md").write_text("safe", encoding="utf-8")
+
+        root = CompositionRoot(mode="test", workspace_root=workspace)
         loop = root.create_loop(session_id="pipeline-a")
 
         engine = RuleEngine()
         engine.add_rule(
             "workspace",
-            WorkspaceBoundaryRule(workspace_root="/home/user/project").evaluate,
+            WorkspaceBoundaryRule(workspace_root=workspace).evaluate,
         )
         loop.rule_engine = engine
+
+        outside = workspace.parent / "outside.txt"
 
         # Track dispatch calls
         dispatched = []
@@ -343,12 +349,12 @@ class TestScenarioAPipelineAssertions:
             _make_response(Action(
                 kind=ActionKind.TOOL_CALL,
                 tool_name="delete_file",
-                parameters={"path": "/etc/passwd"},
+                parameters={"path": str(outside)},
             )),
             _make_response(Action(
                 kind=ActionKind.TOOL_CALL,
                 tool_name="read_file",
-                parameters={"path": "/home/user/project/README.md"},
+                parameters={"path": "README.md"},
             )),
             _make_response(Action(
                 kind=ActionKind.COMPLETE_REQUEST, summary="done",
