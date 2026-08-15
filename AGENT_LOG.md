@@ -3323,3 +3323,4 @@ context[4]: value.py=False, test_value.py=True
 **commit hash**: `66d5d98`（`fix: isolate LOCALAPPDATA per test for local-mode composition tests`）
 
 **CI 待验证**: 推送后等待 GitHub Actions 新 run——Ubuntu unit-test success；Windows build-exe 需真正运行（此前 needs: unit-test 被 skipped）且 success；artifact upload success。结果将回填本条目。
+**补记 STARTED（任务完成后回填）**: task_id T8-FIX8-CI, branch feature/interactive-cli-agent, skill superpowers:test-driven-development, goal: 修复 Ubuntu CI 6 个 LOCALAPPDATA 失败, verification: `env -u LOCALAPPDATA pytest -q -rs`。CI run: https://github.com/liwenze-NJU/AI4SE_projectA/actions/runs/31883420863（in_progress，等待完成）。
