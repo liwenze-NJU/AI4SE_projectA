@@ -211,6 +211,15 @@
 - **Evidence:** RED（双文件可见性 3 failed + 脱敏/预算 2 failed）→ GREEN; 探针复验修复后双文件同上下文可见; 全量 **793 passed, 1 skipped**; 重建 EXE + frozen 传感器 smoke; 凭据扫描 0 真实命中; 未创建 tag/Release; main 仍 30581f0。
 - **Deferred Minor:** (a) JSON 双引号键形式 `{"password": ...}` 的既有 gap; (b) 观察字符预算不含渲染头部（cosmetic）; (c) `_record_observation` 方法内局部 import（cosmetic）。均记入最终评审。
 
+### T8-FIX8-CI: Ubuntu CI LOCALAPPDATA 隔离修复（GitHub Actions unit-test 6 失败）
+
+- **Status:** COMPLETED (2026-08-15); CI 结果待回填
+- **Implementer commit(s):** `66d5d98`（fix）, `b083fd8`（docs 回填）; 双远端 == HEAD
+- **根因:** unit-test 运行于 ubuntu-latest，Linux runner 无 LOCALAPPDATA；`CompositionRoot(mode="local")` 的 `_resolve_memory_base()`（composition.py:376-381）按 fail-closed 设计抛 ValueError。6 个测试验证传感器/组合装配而非缺失环境变量语义，未注入测试专用 LOCALAPPDATA → Windows 本地通过、Ubuntu CI 失败。附带发现：这些测试在 Windows 本地实际写入开发者真实 `%LOCALAPPDATA%\CodeGuard\memory`。
+- **修复:** `tests/test_composition_production.py` autouse fixture `isolated_localappdata`（tmp_path/LocalAppData，全文件每测试独立目录）。fail-closed 测试在此基础上再显式 delenv，语义保留。生产 fail-closed 行为零改动；未在 CI 全局伪造环境变量。
+- **Evidence:** RED（`env -u LOCALAPPDATA` 下 6 failed + fail-closed 1 passed，与 CI 一致）→ GREEN（同环境 7 passed）; 全文件 35 passed; 全量 **793 passed, 1 skipped**; 真实 AppData 无新写入（projects 下 3 目录均为修复前遗留）; `git diff --check` clean; diff 凭据扫描 0 命中; 未创建 tag/Release; main 仍 30581f0。
+- **CI 待验证:** 推送后等待新 run——Ubuntu unit-test success；Windows build-exe 真正运行（此前 needs: unit-test 被 skipped）且 success；artifact upload success。结果回填本条。
+
 ## Task 0 Detail Log
 
 ### 2026-08-13 — Baseline environment
