@@ -3295,5 +3295,5 @@ context[4]: value.py=False, test_value.py=True
 - `git diff --check` → clean
 - 未创建 tag/Release；未合并 main
 
-**commit hash**: `T8-FIX7-FIX-COMMIT`（提交后回填）
+**commit hash**: `652e3d2`（`fix: redact quoted/escaped credentials and invalidate stale reads across path normalization`）
 
