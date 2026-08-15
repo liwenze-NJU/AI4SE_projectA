@@ -3324,3 +3324,36 @@ context[4]: value.py=False, test_value.py=True
 
 **CI 待验证**: 推送后等待 GitHub Actions 新 run——Ubuntu unit-test success；Windows build-exe 需真正运行（此前 needs: unit-test 被 skipped）且 success；artifact upload success。结果将回填本条目。
 **补记 STARTED（任务完成后回填）**: task_id T8-FIX8-CI, branch feature/interactive-cli-agent, skill superpowers:test-driven-development, goal: 修复 Ubuntu CI 6 个 LOCALAPPDATA 失败, verification: `env -u LOCALAPPDATA pytest -q -rs`。CI run: https://github.com/liwenze-NJU/AI4SE_projectA/actions/runs/31883420863（in_progress，等待完成）。
+
+
+---
+
+## T8-FIX8-CI2: Windows build-exe 跨平台 Guardrail 集成测试修复（CI 第二轮阻断）
+
+**log_id**: T8-FIX8-CI2 | **状态**: COMPLETED
+**时间**: 2026-08-15
+**Superpowers 技能**: `superpowers:test-driven-development`（RED → GREEN → 回归 → 全量）+ `superpowers:systematic-debugging`（根因数据流证据）
+**branch/worktree**: feature/interactive-cli-agent / `.worktrees/interactive-cli-agent`
+
+**CI 证据**: run 31883450438（head `eb87f43`）——Ubuntu unit-test success；Windows build-exe 在 pytest -v 阶段 **2 failed, 792 passed**：
+- `test_scenario_a_block_then_feedback_then_complete`: Expected ALLOW, got GuardrailDecision.BLOCK
+- `test_blocked_action_not_executed`: AssertionError: ALLOWed action must be dispatched（assert "read_file" in []）
+
+**根因（本地复现证据）**: 两个测试硬编码 `WorkspaceBoundaryRule("/home/user/project")`，而 loop 用 `ActionNormalizer(workspace_root=<CompositionRoot 临时 sandbox>)` 规范化路径（normalizer.py:91-95 `root / path` 后 resolve）。Windows 上 `Path("/home/user/project").resolve()` 锚定 CWD 盘符；`CompositionRoot(mode="test")` 的 sandbox 由 tempfile.mkdtemp 锚定 TEMP 盘符。CI Windows runner CWD=D: 而 TEMP=C:（跨盘符）→ 规则根 D:\home\user\project，安全路径被规范化为 C:\...\sandbox\README.md → out_of_bounds BLOCK。本机 CWD/TEMP 同盘（C:）故本地通过。复现方法：`TEMP='D:\cg-tmp'` 下运行两个测试 → 2 failed，与 CI 完全一致。
+
+**修复（生产代码零改动）**:
+- `test_scenario_a_block_then_feedback_then_complete(tmp_path)`: workspace=tmp_path/"project"（mkdir + README.md 写入真实内容）；`CompositionRoot(mode="test", workspace_root=workspace)` 与 `WorkspaceBoundaryRule(workspace_root=workspace)` 同一 workspace；危险路径 `str(workspace.parent / "outside.txt")`（Path 运算明确在 workspace 外）；安全 read_file 用相对路径 "README.md"。
+- `test_blocked_action_not_executed(tmp_path)`: 同样结构；TrackingDispatcher 保留（BLOCK 不得 dispatch、ALLOW 必须 dispatch 的核心断言原样保留）。
+
+**验证证据**:
+- RED: `TEMP='D:\cg-tmp'` 下两个测试 2 failed（与 CI 断言一致）；正常环境下 2 passed（暴露旧测试的平台偶发性）
+- GREEN: 两种环境（本机 + 跨盘符模拟）2 passed
+- 相关文件: `TEMP='D:\cg-tmp'` 下 test_integration_guardrail_feedback + test_phase14_spec_compliance + test_guardrail_rules + test_guardrail_normalizer → 74 passed
+- 全量: `TEMP='D:\cg-tmp' env -u LOCALAPPDATA` → **793 passed, 1 skipped**（41.62s）
+- 断言核对: first decision=BLOCK、second decision=ALLOW、delete_file 未 dispatch、read_file 已 dispatch、终态 COMPLETED 均在测试内验证通过
+- `git diff --check` → clean；diff 凭据扫描 0 命中
+- 未创建 tag/Release；未合并 main（main 仍 30581f0）
+
+**commit hash**: `4850776`（`fix: use same-filesystem tmp_path workspaces in guardrail integration tests`）
+
+**CI 待验证**: 推送后等待最新 run——Ubuntu unit-test、Windows pytest、PyInstaller、EXE smoke、SHA-256、artifact upload 全部 success。结果回填本条目。
