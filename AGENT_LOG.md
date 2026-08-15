@@ -3167,5 +3167,5 @@
 - 全量: `pytest -q -rs` → **765 passed, 1 skipped**
 - `git diff --check` → clean
 
-**commit hash**: `T8-FIX5-FIX-COMMIT`（提交后回填）
+**commit hash**: `7d1f847`（`fix: remove shadowed duplicate assistant-message test`）
 
