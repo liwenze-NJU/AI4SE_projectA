@@ -44,46 +44,54 @@ class ContextBuilder:
         tool_descriptions: list[str],
         latest_result: str,
         budget_summary: str,
+        observations: list[str] | None = None,
     ) -> str:
         """Build a bounded runtime context for one agent decision.
 
         Named sections follow a fixed priority order: system constraints,
         current task, conversation summaries, trusted memory, tool
-        descriptions, latest result, and budget. Every external string is
-        redacted before inclusion.
+        descriptions, current-task observations, latest result, and
+        budget. Every external string is redacted before inclusion.
 
-        When the assembled context exceeds ``max_chars``, sections are cut
-        from the bottom up: oldest conversation summaries first, then
-        memory records, then tool descriptions. The system constraints,
-        current task, latest result, and budget are mandatory and never
-        dropped; if they alone exceed the limit the system constraints are
-        truncated first, and a ``ValueError`` is raised when even the
-        remaining mandatory fields cannot fit.
+        ``observations`` (T8-FIX7) carries several recent tool results of
+        the CURRENT task so multi-file workflows see all relevant content
+        in one decision. When the assembled context exceeds ``max_chars``,
+        sections are cut from the bottom up: oldest conversation summaries
+        first, then memory records, then tool descriptions, then the
+        OLDEST observations. The system constraints, current task, latest
+        result, and budget are mandatory and never dropped; if they alone
+        exceed the limit the system constraints are truncated first, and a
+        ``ValueError`` is raised when even the remaining mandatory fields
+        cannot fit.
         """
         red = self._redactor.redact
         summaries = [red(s) for s in conversation_summaries]
         records = list(memory_records)
         tools = [red(t) for t in tool_descriptions]
+        obs = [red(o) for o in (observations or [])]
 
-        while self._is_over(red(system_constraints), red(task_request),
-                            summaries, records, tools,
-                            red(latest_result), red(budget_summary)) and summaries:
+        def _over(cur_obs):
+            return self._is_over(red(system_constraints), red(task_request),
+                                 summaries, records, tools,
+                                 red(latest_result), red(budget_summary),
+                                 cur_obs)
+
+        while _over(obs) and summaries:
             del summaries[0]
-        while self._is_over(red(system_constraints), red(task_request),
-                            summaries, records, tools,
-                            red(latest_result), red(budget_summary)) and records:
+        while _over(obs) and records:
             del records[0]
-        while self._is_over(red(system_constraints), red(task_request),
-                            summaries, records, tools,
-                            red(latest_result), red(budget_summary)) and tools:
+        while _over(obs) and tools:
             if len(tools[0]) > 1:
                 tools[0] = tools[0][: len(tools[0]) // 2]
             else:
                 del tools[0]
+        # T8-FIX7: drop OLDEST observations first (newest kept).
+        while _over(obs) and obs:
+            del obs[0]
 
         context = self._assemble(red(system_constraints), red(task_request),
                                  summaries, records, tools,
-                                 red(latest_result), red(budget_summary))
+                                 red(latest_result), red(budget_summary), obs)
         if len(context) <= self._max_chars:
             return context
 
@@ -94,7 +102,7 @@ class ContextBuilder:
         constraints = constraints[: max(0, len(constraints) - slack)]
         context = self._assemble(constraints, red(task_request),
                                  [], [], [],
-                                 red(latest_result), red(budget_summary))
+                                 red(latest_result), red(budget_summary), [])
         if len(context) > self._max_chars:
             raise ValueError(
                 "Cannot fit mandatory runtime context (system constraints, "
@@ -104,13 +112,16 @@ class ContextBuilder:
 
     def _is_over(self, constraints: str, task: str, summaries: list[str],
                  records: list[MemoryRecord], tools: list[str],
-                 latest: str, budget: str) -> bool:
+                 latest: str, budget: str,
+                 observations: list[str] | None = None) -> bool:
         return len(self._assemble(constraints, task, summaries, records,
-                                  tools, latest, budget)) > self._max_chars
+                                  tools, latest, budget,
+                                  observations or [])) > self._max_chars
 
     def _assemble(self, constraints: str, task: str, summaries: list[str],
                   records: list[MemoryRecord], tools: list[str],
-                  latest: str, budget: str) -> str:
+                  latest: str, budget: str,
+                  observations: list[str] | None = None) -> str:
         parts = [
             f"## System Constraints\n{constraints}",
             f"## Task\n{task}",
@@ -126,6 +137,9 @@ class ContextBuilder:
         if tools:
             parts.append("## Available Tools")
             parts.extend(f"- {t}" for t in tools)
+        if observations:
+            parts.append("## Current Task Observations")
+            parts.extend(f"- {o}" for o in observations)
         parts.append(f"## Latest Result\n{latest}")
         parts.append(f"## Budget\n{budget}")
         return "\n".join(parts)

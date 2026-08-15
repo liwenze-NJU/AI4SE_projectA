@@ -272,7 +272,13 @@ def _make_standard_tools() -> list[ToolDefinition]:
     tools.append(_make_validation_tool_definition("run_lint", "ruff"))
     tools.append(_make_validation_tool_definition("run_typecheck", "mypy"))
     tools.append(ToolDefinition(
-        name="apply_patch", description="Apply a patch",
+        name="apply_patch",
+        description=(
+            "Apply a patch: replace old_string with new_string in the "
+            "target file. path = target file; old_string = text that must "
+            "exist exactly in the file (no UTF-8 BOM needed); "
+            "new_string = replacement text"
+        ),
         parameters_schema={
             "type": "object", "properties": patch_props,
             "required": patch_required,

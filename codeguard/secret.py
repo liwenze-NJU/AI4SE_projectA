@@ -48,10 +48,13 @@ class SecretRedactor:
             self._redact_sk_key,
             text,
         )
-        # Step 2: Generic credential patterns
+        # Step 2: Generic credential patterns.
+        # The value class excludes backslashes and quotes so escaped
+        # newlines (\\n) inside repr()ed dicts terminate the value match
+        # instead of swallowing the rest of the string (T8-FIX7).
         for field in ['api_key', 'password', 'secret', 'token']:
             text = re.sub(
-                rf'({field}\s*[=:]\s*)(\S+)',
+                rf'({field}\s*[=:]\s*)([^\\\'"]+)',
                 self._redact_generic_value,
                 text,
             )

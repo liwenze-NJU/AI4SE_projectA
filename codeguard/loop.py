@@ -63,6 +63,10 @@ class AgentLoop:
         self._started_at = datetime.now()
         self._iteration = 0
         self._task_finished_emitted = False
+        # T8-FIX7: bounded per-task observation history (multi-file tasks
+        # need several recent tool results in one context).
+        self._observations: list = []
+        self._observation_sequence = 0
 
         # Components to be injected via attributes
         self.tool_registry = None
@@ -188,6 +192,8 @@ class AgentLoop:
         self.state.action_fingerprint_history.clear()
         self.state.failure_fingerprint_history.clear()
         self.state.result_fingerprint_history.clear()
+        self._observations.clear()
+        self._observation_sequence = 0
         # T8-FIX6-FIX: the stop policy's one-shot correction flag is
         # per-task state — reset it so every task's first cycle detection
         # delivers a fresh correction message.
@@ -464,6 +470,11 @@ class AgentLoop:
     # Internal helpers
     # ------------------------------------------------------------------
 
+    # T8-FIX7: observation-history bounds.
+    _MAX_OBSERVATIONS = 10
+    _MAX_OBSERVATION_CHARS = 4000
+    _OBSERVATION_OUTPUT_CHARS = 800
+
     def _dispatch_tool(self, action) -> None:
         """Dispatch one governed tool call and record its bounded result.
 
@@ -501,6 +512,99 @@ class AgentLoop:
                 f"Tool {action.tool_name} result: "
                 f"{tool_result.output_summary[:800]}"
             )
+        self._record_observation(action, tool_result, result_fp)
+
+    # ------------------------------------------------------------------
+    # T8-FIX7 — bounded per-task observation history
+    # ------------------------------------------------------------------
+
+    def _record_observation(self, action, tool_result, result_fp: str) -> None:
+        """Append one structured observation (deduped, bounded, redacted).
+
+        Rules:
+        - identical tool + identical parameter fingerprint + identical
+          result fingerprint updates the existing entry's position instead
+          of duplicating (no unbounded repeats);
+        - different files are NEVER deduped against each other;
+        - a successful write/patch/delete invalidates prior read
+          observations for the same target file (stale content);
+        - the list is capped by entry count and total characters with
+          deterministic oldest-first trimming.
+        """
+        from codeguard.state import CurrentTaskObservation
+        from codeguard.secret import SecretRedactor
+
+        redactor = getattr(self, "secret_redactor", None) or SecretRedactor()
+        params = dict(getattr(action, "parameters", None)
+                      or getattr(action, "normalized_parameters", None) or {})
+        safe_params = redactor.redact(
+            ", ".join(f"{k}={v}" for k, v in sorted(params.items())[:8])
+        )[:200]
+        output = redactor.redact(tool_result.output_summary or "")[
+            :self._OBSERVATION_OUTPUT_CHARS
+        ]
+        tool_name = action.tool_name or ""
+        status = tool_result.status
+
+        # Invalidate stale reads for a file that was just written.
+        if status == "SUCCESS" and tool_name in (
+            "write_file", "apply_patch", "delete_file"
+        ):
+            target = str(params.get("path", ""))
+            self._observations = [
+                o for o in self._observations
+                if not (
+                    o.tool_name == "read_file"
+                    and str(o.safe_parameter_summary) and
+                    target and target in str(o.safe_parameter_summary)
+                )
+            ]
+
+        # Dedup identical (tool, params, result) — move to the end.
+        param_fp = hashlib.sha256(
+            f"{tool_name}:{sorted(params.items())}".encode("utf-8")
+        ).hexdigest()
+        self._observations = [
+            o for o in self._observations
+            if not (
+                o.tool_name == tool_name
+                and o.parameter_fingerprint == param_fp
+                and o.redacted_output == output
+            )
+        ]
+        self._observation_sequence += 1
+        self._observations.append(CurrentTaskObservation(
+            tool_name=tool_name,
+            parameter_fingerprint=param_fp,
+            safe_parameter_summary=safe_params,
+            status=status,
+            redacted_output=output,
+            sequence=self._observation_sequence,
+        ))
+        self._trim_observations()
+
+    def _trim_observations(self) -> None:
+        """Enforce entry-count and total-character budgets (oldest first)."""
+        while len(self._observations) > self._MAX_OBSERVATIONS:
+            self._observations.pop(0)
+        total = sum(len(o.redacted_output) + len(o.safe_parameter_summary)
+                    for o in self._observations)
+        while (self._observations
+               and total > self._MAX_OBSERVATION_CHARS):
+            dropped = self._observations.pop(0)
+            total -= (len(dropped.redacted_output)
+                      + len(dropped.safe_parameter_summary))
+
+    def _format_observations(self) -> list[str]:
+        """Render the current observations as bounded context lines."""
+        lines = []
+        for o in self._observations:
+            head = f"[{o.tool_name}] {o.safe_parameter_summary} -> {o.status}"
+            if o.redacted_output:
+                lines.append(f"{head}: {o.redacted_output}")
+            else:
+                lines.append(head)
+        return lines
 
     def _normalize(self, action) -> 'NormalizedAction | None':
         """Run the full governance pipeline (SPEC §3.2, §3.6).
@@ -710,6 +814,7 @@ class AgentLoop:
                     tool_descriptions=tool_descriptions,
                     latest_result=self._latest_result or "No previous result",
                     budget_summary=budget,
+                    observations=self._format_observations(),
                 )
             except ValueError:
                 # Bounded context impossible (extreme max_chars): fall back

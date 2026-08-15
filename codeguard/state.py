@@ -27,6 +27,19 @@ from codeguard.guardrail import GuardrailResult
 
 
 @dataclass
+class CurrentTaskObservation:
+    """One bounded, redacted tool observation for the current task
+    (T8-FIX7). Kept in a per-task history so multi-file workflows can see
+    several recent observations in one decision context."""
+    tool_name: str
+    parameter_fingerprint: str
+    safe_parameter_summary: str
+    status: str
+    redacted_output: str
+    sequence: int
+
+
+@dataclass
 class SessionState:
     session_id: str
     current_state: AgentState
@@ -45,7 +58,6 @@ class SessionState:
     # fingerprints alternate.
     result_fingerprint_history: list[str] = field(default_factory=list)
     started_at: datetime = field(default_factory=datetime.now)
-
 
 @dataclass
 class SessionResult:

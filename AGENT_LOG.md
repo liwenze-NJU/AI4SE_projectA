@@ -3229,3 +3229,44 @@
 
 **commit hash**: `abdb91b`（`fix: reset stop-policy correction flag per task`）
 
+
+---
+
+## T8-FIX7: 有界观察历史架构修复（人工验收第六轮，发布阻断）
+
+**log_id**: T8-FIX7 | **状态**: COMPLETED
+**时间**: 2026-08-15
+**Superpowers 技能**: `superpowers:systematic-debugging`（根因验证 + 上下文证据）+ `superpowers:test-driven-development`（RED → GREEN → 回归 → 全量 → 重建 EXE）
+**branch/worktree**: feature/interactive-cli-agent / `.worktrees/interactive-cli-agent`
+
+**根因验证（数据流证据，未改代码先行）**: 探针脚本驱动真实 loop 读取 value.py → test_value.py → value.py → test_value.py，连续 4 轮上下文的文件可见性：
+```
+context[1]: value.py=True,  test_value.py=False
+context[2]: value.py=False, test_value.py=True
+context[3]: value.py=True,  test_value.py=False
+context[4]: value.py=False, test_value.py=True
+```
+模型在任何一轮只能看到一个文件——`_dispatch_tool` 每次覆盖 `_latest_result`（loop.py:494-503），`_build_context` 只传单个 `latest_result`。多文件任务必然 A→B→A→B，T8-FIX6 只能终止循环而无法让模型同时获得两个文件内容。与人工验收完全一致。
+
+**架构修复（不靠 prompt/阈值）**:
+- `codeguard/state.py`: 新增 `CurrentTaskObservation` dataclass（tool_name/parameter_fingerprint/safe_parameter_summary/status/redacted_output/sequence）。
+- `codeguard/loop.py`: 每任务 `_observations` 历史（`_MAX_OBSERVATIONS=10`、`_MAX_OBSERVATION_CHARS=4000`、单条 output ≤800）；`_record_observation` 执行：先脱敏再存储（参数摘要经 SecretRedactor、output 截断 800）、相同 tool+参数+结果去重（更新位置不重复）、写入成功失效同文件旧读取观察（无陈旧内容）、确定性最旧优先裁剪；`_format_observations` 渲染 `[tool] params -> status: output` 行；`start_task` 重置历史；审批/澄清暂停恢复期间保留（不在暂停路径清空）。
+- `codeguard/context.py`: `build_runtime` 新增可选 `observations` 参数与 "## Current Task Observations" 区段（位于 Available Tools 与 Latest Result 之间）；裁剪顺序：最旧摘要 → 记忆 → 工具描述 → **最旧观察**（新观察保留）；强制字段（系统约束/任务/最新结果/预算）永不丢弃。
+- `_build_context` 传入 `observations=self._format_observations()`。
+- `codeguard/secret.py`: 修复通用凭据模式在 repr()ed dict 上的泄漏——`\S+` 会吞掉 `\n` 转义后的整串；值类改为 `[^\'"]+`（T8-FIX7 暴露的既有缺陷，实测 `hunter2` 曾泄漏）。
+- `codeguard/composition.py`: apply_patch 工具描述补充参数语义（path/old_string 无需 BOM/new_string）。
+
+**新增测试（tests/test_context_runtime.py, 14 项覆盖）**: 双文件同时可见、A→B→A 保留双观察、新任务重置、审批暂停保留、写入失效陈旧读取、失败与先前观察共存、脱敏（sk-/password 不泄漏）、确定性裁剪（条目+字符双预算）、多文件真实流程（read×2 → apply_patch×2 → COMPLETED）、正常多文件读取不被 StopPolicy 误判。
+
+**验证证据**:
+- RED: 3 failed（双文件可见性、A→B→A、审批保留）+ 脱敏/预算 2 failed（redactor 泄漏 hunter2、预算断言）
+- GREEN: test_context_runtime 14 passed + test_secret_redactor 全过（26 组合）
+- 探针复验: 修复后最终上下文 value.py=True 且 test_value.py=True（## Current Task Observations 区段两行均含内容）
+- 全量: `pytest -q -rs` → **790 passed, 1 skipped**（40.02s）
+- 凭据扫描: 仅代码变量赋值（store.get/api_key=api_key），无真实凭据
+- `git diff --check` → clean
+- 重建 EXE: PyInstaller exit 0; `--version` → 0.2.0-interactive; frozen 传感器 smoke PASSED
+- 未创建 tag/Release；未合并 main（main 仍 30581f0）
+
+**commit hash**: `T8-FIX7-COMMIT`（提交后回填）
+
