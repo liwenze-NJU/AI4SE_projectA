@@ -3268,5 +3268,5 @@ context[4]: value.py=False, test_value.py=True
 - 重建 EXE: PyInstaller exit 0; `--version` → 0.2.0-interactive; frozen 传感器 smoke PASSED
 - 未创建 tag/Release；未合并 main（main 仍 30581f0）
 
-**commit hash**: `T8-FIX7-COMMIT`（提交后回填）
+**commit hash**: `3f29122`（`feat: bounded per-task observation history for multi-file contexts`）
 
