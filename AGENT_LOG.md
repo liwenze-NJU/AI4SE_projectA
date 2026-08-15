@@ -3227,5 +3227,5 @@
 - 全量: `pytest -q -rs` → **780 passed, 1 skipped**
 - `git diff --check` → clean
 
-**commit hash**: `T8-FIX6-FIX-COMMIT`（提交后回填）
+**commit hash**: `abdb91b`（`fix: reset stop-policy correction flag per task`）
 
