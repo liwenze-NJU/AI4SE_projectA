@@ -190,6 +190,17 @@
 - [x] Full pytest, offline smoke, credential scan, PyInstaller build, and executable smoke tests have fresh passing evidence.
 - [x] Enhanced version is available from `feature/interactive-cli-agent` or `v0.2.0-interactive` without merging into `main`.
 
+### T8-FIX6: BOM 补丁、无进展循环与审批理由修复（人工验收第五轮，发布阻断）
+
+- **Status:** COMPLETED (2026-08-15; 1 Important fix round)
+- **Implementer commit(s):** `e791c9d`（fix）, `32c27d2`（docs 回填）, `abdb91b`（review fix）, `6b698a2`（docs 回填）; 双远端 == HEAD
+- **P1 BOM 补丁:** 根因=`read_text("utf-8")` 保留 BOM 首字符且 Windows write_text 转 CRLF。修复=字节层检测 EF BB BF → utf-8-sig 解码匹配（old_string 无需 BOM）→ BOM 被替换消耗时才重新添加（绝不双 BOM）→ 二进制原子写回保留 CRLF/LF 与正文 ﻿。失败时字节级不变。真实验收目录（EF BB BF + CRLF）验证 SUCCESS 且已还原。
+- **P2 无进展循环:** 根因=failure_fingerprint_history 从未写入（死代码）+ 连续检测无法识别 A→B→A→B 交替。修复=`result_fingerprint_history`（tool+params+status）+ `_run_sensors` 真正写入 failure fingerprint + StopPolicy `_max_cycle_repeat` 尾部周期检测（块长 1-5）+ 两阶段（首次纠正 → 二次 LIMIT_REACHED，周期打破重新武装）。
+- **P3 审批理由:** 根因=PriorityMerger 无条件收集全部 rule_ids 入消息。修复=`_deciding_rule_ids` 只收集决定最终决策的规则；rule_ids 保留完整审计集。协议提示明确 request_user_input 不得用于询问写入许可（Guardrail [y/N] 是唯一真实授权）。
+- **Review:** 1st round spec_compliant YES + APPROVED_WITH_MINOR + 1 Important（跨任务纠正标志泄漏）→ Fix round: `abdb91b`（start_task 重置 `_result_correction_given`/`pending_correction`；清理 2 Minor）→ 复验 780 passed, 1 skipped。
+- **Evidence:** RED（BOM 3 failed / stop 4 failed）→ GREEN 各组; 全量 **780 passed, 1 skipped**; 重建 EXE + frozen 传感器 smoke; 凭据扫描 0 真实命中; 未创建 tag/Release; main 仍 30581f0。
+- **Deferred Minor:** (a) 相同读取（period 1）会被既有 action-fingerprint 检查先行截停，两阶段纠正只对交替模式生效（pre-existing 行为）; (b) BOM-only 文件被整体替换为空串时的退化边界（不可达于 schema，arguably 正确）; 均记入最终评审。
+
 ## Task 0 Detail Log
 
 ### 2026-08-13 — Baseline environment
