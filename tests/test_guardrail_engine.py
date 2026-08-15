@@ -157,6 +157,26 @@ class TestRuleEngine:
         assert "Blocked" in result.human_readable_message
         assert "b1" in result.human_readable_message
 
+    def test_approval_message_excludes_allow_rules(self):
+        """T8-FIX6: ALLOW rules must NOT appear in the approval reason —
+        only the rules that decided REQUEST_APPROVAL are named."""
+        engine = RuleEngine()
+        engine.add_rule("workspace_boundary", lambda na: _allow("workspace_boundary"))
+        engine.add_rule("credential_leak", lambda na: _allow("credential_leak"))
+        engine.add_rule("unregistered_tool", lambda na: _allow("unregistered_tool"))
+        engine.add_rule("tool_risk", lambda na: _approval("tool_risk"))
+        result = engine.evaluate(_make_na())
+        assert result.decision == GuardrailDecision.REQUEST_APPROVAL
+        # Full audit set preserved…
+        assert {"workspace_boundary", "credential_leak",
+                "unregistered_tool", "tool_risk"} <= set(result.rule_ids)
+        # …but the message names only the deciding rule.
+        msg = result.human_readable_message
+        assert "tool_risk" in msg
+        assert "workspace_boundary" not in msg
+        assert "credential_leak" not in msg
+        assert "unregistered_tool" not in msg
+
     def test_recoverable_true_on_block(self):
         engine = RuleEngine()
         engine.add_rule("b1", lambda na: _block("b1"))

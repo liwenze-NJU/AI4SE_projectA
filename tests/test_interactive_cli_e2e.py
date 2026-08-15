@@ -351,7 +351,10 @@ def test_repeated_invalid_actions_reach_limit_reached(tmp_path):
 def test_failing_required_final_sensor_prevents_completed(tmp_path):
     """With the production verifier required on pytest (test-level wiring,
     integration decision 4), a failing suite keeps the terminal state away
-    from COMPLETED and the failure is fed back into the next decision."""
+    from COMPLETED and the failure is fed back into the next decision.
+    T8-FIX6: failure fingerprints are now recorded (previously never
+    written), so the failing cycle terminates at LIMIT_REACHED after two
+    approval rounds instead of running to the script's end."""
     _write_value_project(tmp_path)
     write = _resp(Action(ActionKind.TOOL_CALL, tool_name="write_file",
                          parameters={"path": "value.py", "content": "VALUE = 1\n"},
@@ -369,16 +372,20 @@ def test_failing_required_final_sensor_prevents_completed(tmp_path):
     loop.objective_verifier.required_sensors = ["pytest"]
     io = FakeIO()
     session = ChatSession(lambda sid: loop, io.read, io.write, history=history)
-    io.queue("make it pass", "y", "y", "y", "/exit")
+    io.queue("make it pass", "y", "y", "/exit")
     assert session.run() == 0
 
-    assert history.summaries[-1].outcome != "completed"
-    assert history.summaries[-1].outcome == "limit_reached"
+    # The single task never completes; the failing cycle ends LIMIT_REACHED.
+    assert len(history.summaries) == 1
+    assert history.summaries[0].outcome != "completed"
+    assert history.summaries[0].outcome == "limit_reached"
     assert "[validation] pytest: FAILED" in io.output
     # The failure was fed back into the next LLM decision.
     assert any("Validation pytest: FAILED" in c
                for c in loop.llm.received_contexts)
     assert any(r.status == "FAILED" for r in loop._feedback_results)
+    # T8-FIX6: failure fingerprints were actually recorded.
+    assert len(loop.state.failure_fingerprint_history) >= 3
 
 
 def test_clear_removes_messages_but_keeps_structured_memory(tmp_path):

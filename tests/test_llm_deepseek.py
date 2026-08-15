@@ -247,6 +247,11 @@ class TestDeepSeekAdapter:
         assert "TERMINAL" in content
         assert "final validation" in content.lower()
         assert "never use it for intermediate" in content.lower()
+        # T8-FIX6: request_user_input must not be used for write
+        # permission — the Guardrail approval prompt is the only real
+        # authorization channel.
+        assert "NEVER use it to ask permission" in content
+        assert "[y/N]" in content
 
     def test_adapter_api_key_not_in_repr(self):
         adapter = DeepSeekAdapter(api_key="sk-secret-key-12345")

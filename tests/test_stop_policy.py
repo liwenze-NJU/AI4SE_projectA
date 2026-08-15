@@ -5,7 +5,7 @@ from codeguard.state import AgentState, SessionState
 
 
 def _make_state(steps=0, llm_calls=0, token=0, cost=Decimal("0"),
-                action_fps=None, failure_fps=None):
+                action_fps=None, failure_fps=None, result_fps=None):
     return SessionState(
         session_id="s1", current_state=AgentState.DECIDING,
         pending_action=None, guardrail_decision=None, approval_request_id=None,
@@ -13,6 +13,7 @@ def _make_state(steps=0, llm_calls=0, token=0, cost=Decimal("0"),
         token_used=token, cost_used=cost,
         action_fingerprint_history=action_fps or [],
         failure_fingerprint_history=failure_fps or [],
+        result_fingerprint_history=result_fps or [],
         started_at=datetime.now(),
     )
 
@@ -145,6 +146,78 @@ class TestNoCondition:
         policy = StopPolicy(max_steps=10, max_llm_calls=10, token_budget=100, cost_budget=Decimal("1.0"))
         state = _make_state(steps=5, llm_calls=5, token=50, cost=Decimal("0.5"))
         assert policy.evaluate(state) is None
+
+
+# ── T8-FIX6: result-fingerprint no-progress (read A→B→A→B loops) ────
+
+def _state_with_result_fps(result_fps, **kw):
+    kw["result_fps"] = result_fps
+    return _make_state(steps=5, llm_calls=6, **kw)
+
+
+class TestResultFingerprintNoProgress:
+    def test_alternating_reads_first_detection_offers_correction(self):
+        """A→B→A→B read-only alternation: the FIRST detection offers one
+        correction (no stop); the SECOND consecutive detection stops."""
+        policy = StopPolicy(no_progress_threshold=3)
+        fps = ["r:a", "r:b", "r:a", "r:b", "r:a", "r:b"]
+        state = _state_with_result_fps(fps)
+        d = policy.evaluate(state)
+        assert d is None
+        assert policy.pending_correction is not None
+        # A second identical evaluation (same state = still stuck) stops.
+        d = policy.evaluate(state)
+        assert d is not None
+        assert d.terminal_state == AgentState.LIMIT_REACHED
+
+    def test_write_success_resets_result_progress(self):
+        """A successful write is real progress: the result-fingerprint run
+        must not trip when a distinct result intervenes."""
+        policy = StopPolicy(no_progress_threshold=3)
+        state = _state_with_result_fps(
+            ["r:a", "r:b", "w:1", "r:a", "r:b"],
+        )
+        assert policy.evaluate(state) is None
+
+    def test_patch_fail_then_correct_once_allowed(self):
+        """patch FAILURE → one corrective read/patch with new content →
+        success is the normal loop; it must NOT be stopped."""
+        policy = StopPolicy(no_progress_threshold=3)
+        state = _state_with_result_fps(
+            ["f:patch", "r:a", "s:patch"],
+        )
+        assert policy.evaluate(state) is None
+
+    def test_repeated_identical_reads_stop_after_correction(self):
+        """Same read tool + same params + same result: correction first,
+        then stop on the next detection."""
+        policy = StopPolicy(no_progress_threshold=3)
+        state = _state_with_result_fps(["r:a", "r:a", "r:a"])
+        assert policy.evaluate(state) is None
+        assert policy.pending_correction is not None
+        d = policy.evaluate(state)
+        assert d is not None
+        assert d.terminal_state == AgentState.LIMIT_REACHED
+
+    def test_correction_rearms_after_cycle_breaks(self):
+        """Once the cycle breaks (new result), a FUTURE cycle gets a fresh
+        correction before stopping — the one-shot flag must rearm."""
+        policy = StopPolicy(no_progress_threshold=3)
+        stuck = ["r:a", "r:b", "r:a", "r:b", "r:a", "r:b"]
+        assert policy.evaluate(_state_with_result_fps(stuck)) is None
+        assert policy.pending_correction is not None
+        # progress happened (distinct result appended), then a NEW cycle
+        assert policy.evaluate(_state_with_result_fps(stuck + ["w:9"])) is None
+        new_cycle = stuck + ["w:9", "r:c", "r:d", "r:c", "r:d", "r:c", "r:d"]
+        assert policy.evaluate(_state_with_result_fps(new_cycle)) is None
+        assert policy.pending_correction is not None
+        d = policy.evaluate(_state_with_result_fps(new_cycle))
+        assert d is not None
+
+    def test_missing_history_means_no_trigger(self):
+        """Old state without the new field never trips the new check."""
+        policy = StopPolicy(no_progress_threshold=3)
+        assert policy.evaluate(_make_state(steps=1)) is None
 
 
 # ── StopDecision structure ───────────────────────────────────────────

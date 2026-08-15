@@ -3169,3 +3169,42 @@
 
 **commit hash**: `7d1f847`（`fix: remove shadowed duplicate assistant-message test`）
 
+
+---
+
+## T8-FIX6: BOM 补丁、无进展循环与审批理由修复（人工验收第五轮，发布阻断）
+
+**log_id**: T8-FIX6 | **状态**: COMPLETED
+**时间**: 2026-08-15
+**Superpowers 技能**: `superpowers:systematic-debugging`（根因分析）+ `superpowers:test-driven-development`（RED → GREEN → 回归 → 全量 → 重建 EXE）
+**branch/worktree**: feature/interactive-cli-agent / `.worktrees/interactive-cli-agent`
+
+**根因分析（systematic-debugging Phase 1，未改代码先报告）**:
+1. **BOM 补丁失败**: `apply_patch` 用 `read_text(encoding="utf-8")`（file_tools.py 旧 208 行）——utf-8 codec 不剥离 BOM，首字符是 `﻿`；模型提供的 old_string 无 BOM → 精确匹配失败。真实复现（Desktop\codeguard-final-acceptance）: `EF BB BF` + `VALUE: int = 2\r\n`；`read_file` 返回 `﻿VALUE: int = 2\n`（BOM 保留 + CRLF 归一化为 LF），模型按显示构造 old_string（含 `\n` 或含 `﻿`）与字节错位。另 `write_text` 在 Windows 把 LF 转 CRLF，破坏换行风格。
+2. **无进展循环**: StopPolicy 只检测连续相同 action fingerprint，A→B→A→B 交替使 `_max_consecutive` 恒为 1；`failure_fingerprint_history` 在 loop 中从未写入（只有清空）；工具成功结果无任何指纹记录。
+3. **审批理由**: `PriorityMerger.merge`（engine.py 旧 49 行）无条件收集全部 rule_ids，`_format_message` 全量拼入——ALLOW 规则（workspace_boundary/credential_leak/unregistered_tool）被误显示为审批原因，实际只有 tool_risk 产生 REQUEST_APPROVAL。
+
+**修复**:
+- **file_tools.apply_patch**: 字节层读入；检测开头 `EF BB BF`；用 `utf-8-sig` 解码匹配（old_string 无需 BOM 即可匹配首行）；若仍不匹配再试含 BOM 的 raw 解码（模型可能回显 `﻿`）；替换后仅当 BOM 被替换消耗时重新添加（绝不双重 BOM）；原子二进制写回保留原换行（CRLF/LF）与正文合法 `﻿`。写回失败/old_string 不存在时原文件字节完全不变（字节级不变量测试）。
+- **无进展循环（复用现有机制，不叠加临时计数器）**: `SessionState` 新增 `result_fingerprint_history`；loop 在 `_dispatch_tool` 记录工具结果指纹（tool+params+status sha256）；`_run_sensors` 现在真正把 `failure_fingerprint` 写入 `failure_fingerprint_history`（此前从未写入）；StopPolicy 新增尾部周期检测 `_max_cycle_repeat`（块长 1-5，检测 A→B→A→B 交替）；两阶段语义——首次检测给出一次纠正反馈（`pending_correction` → 下一轮上下文），再次检测才 LIMIT_REACHED；周期打破后纠正标志重新武装。
+- **审批理由**: `PriorityMerger` 新增 `_deciding_rule_ids`（只收集 decision == 最终 decision 的规则）；`_format_message` 只用 deciding 规则——`Requires approval: tool_risk`；`rule_ids` 保留完整审计集合（既有测试不受影响）。
+- **协议提示**: request_user_input 明确"只用于缺少任务需求，NEVER 用于询问修改文件的许可——真实授权由 Guardrail [y/N] 审批负责"。
+
+**新增/更新测试**:
+- tests/test_file_tools.py: +7 个 BOM 测试（BOM 首行无 BOM old_string 匹配、BOM 保留无双 BOM、非 BOM 文件不新增、失败字节不变、CRLF 保留、BOM 前缀回显匹配、LF 保留、正文 `﻿` 不删）
+- tests/test_stop_policy.py: +6 个结果指纹测试（交替 A→B→A→B 首次纠正第二次停止、写成功重置、补丁失败后修正一次允许、相同读取停止、纠正重新武装、无历史不触发）
+- tests/test_guardrail_engine.py: +1（审批消息排除 ALLOW 规则）
+- tests/test_llm_deepseek.py: 提示断言新增 NEVER use it to ask permission / [y/N]
+- tests/test_interactive_cli_e2e.py: failing-required-sensor 测试更新（failure fingerprint 现在真实写入，2 轮后 LIMIT_REACHED）
+
+**验证证据**:
+- RED: BOM 测试 3 failed（CRLF 匹配、BOM 前缀、LF 保留）; stop policy 4 failed
+- GREEN: file_tools 34 passed + 1 skipped; stop_policy 30 passed; guardrail_engine 25 passed
+- 真实验收目录复现: `Desktop\codeguard-final-acceptance\value.py`（EF BB BF + CRLF）→ 无 BOM old_string 补丁 SUCCESS，BOM 保留、内容正确、已还原原文件
+- 全量: `pytest -q -rs` → **780 passed, 1 skipped**（36.94s）
+- `git diff --check` → clean; 凭据扫描 0 真实命中
+- 重建 EXE: PyInstaller exit 0; `--version` → 0.2.0-interactive; frozen 传感器 smoke PASSED
+- 未创建 tag/Release；未合并 main（main 仍 30581f0）
+
+**commit hash**: `T8-FIX6-COMMIT`（提交后回填）
+

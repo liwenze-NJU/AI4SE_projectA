@@ -187,6 +187,7 @@ class AgentLoop:
         self.state.cost_used = Decimal("0")
         self.state.action_fingerprint_history.clear()
         self.state.failure_fingerprint_history.clear()
+        self.state.result_fingerprint_history.clear()
         self.state.pending_question = None
         self.state.pending_action = None
         self.state.approval_request_id = None
@@ -472,6 +473,19 @@ class AgentLoop:
             "status": tool_result.status,
             "output": (tool_result.output_summary or "")[:500],
         })
+        # T8-FIX6: record the tool RESULT fingerprint so identical
+        # read-only loops (same tool, same params, same outcome) trip the
+        # StopPolicy result-fingerprint check even when action fingerprints
+        # alternate A→B→A→B. A write success is real progress and breaks
+        # the cycle naturally because its fingerprint differs.
+        params = dict(getattr(action, "parameters", None)
+                      or getattr(action, "normalized_parameters", None) or {})
+        import hashlib as _hashlib
+        result_fp = _hashlib.sha256(
+            f"{action.tool_name}:{sorted(params.items())}:{tool_result.status}"
+            .encode("utf-8")
+        ).hexdigest()
+        self.state.result_fingerprint_history.append(result_fp)
         if tool_result.status in ("FAILURE", "ERROR", "TIMEOUT"):
             self._latest_result = (
                 f"Tool {action.tool_name} failed: "
@@ -561,6 +575,12 @@ class AgentLoop:
                 "status": latest.status,
                 "type": validation_type,
             })
+            # T8-FIX6: failures feed the existing failure-fingerprint
+            # no-progress check (previously never written).
+            if latest.failure_fingerprint:
+                self.state.failure_fingerprint_history.append(
+                    latest.failure_fingerprint
+                )
 
     def _run_final_validation(self) -> bool:
         """Run FINAL_VALIDATION: execute final sensors, classify, verify.
@@ -737,6 +757,13 @@ class AgentLoop:
             return False
         decision = self.stop_policy.evaluate(self.state)
         if decision is None:
+            # T8-FIX6: the policy may offer a one-shot correction instead
+            # of stopping (first result-cycle detection); carry it into the
+            # next decision context.
+            correction = getattr(self.stop_policy, "pending_correction", None)
+            if correction:
+                self.stop_policy.pending_correction = None
+                self._latest_result = correction
             return False
         if decision.terminal_state == AgentState.LIMIT_REACHED:
             self._transition(AgentState.LIMIT_REACHED)

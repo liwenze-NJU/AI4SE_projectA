@@ -25,6 +25,11 @@ class StopPolicy:
         self._token_budget = token_budget
         self._cost_budget = cost_budget
         self._no_progress_threshold = no_progress_threshold
+        # T8-FIX6: two-phase result-cycle handling — the first detection
+        # yields a correction message (continue), a second consecutive
+        # detection terminates.
+        self._result_correction_given = False
+        self.pending_correction: str | None = None
 
     def evaluate(self, state: SessionState) -> StopDecision | None:
         if state.steps_used >= self._max_steps:
@@ -47,8 +52,50 @@ class StopPolicy:
             if self._max_consecutive(state.failure_fingerprint_history) >= self._no_progress_threshold:
                 return StopDecision(True, AgentState.LIMIT_REACHED,
                                    "Repeated failure fingerprint — no progress")
+            # T8-FIX6: same tool result repeating — including A→B→A→B
+            # alternation — is no progress. Tail-cycle detection finds
+            # periodic repeats of any block length up to 5. First detection
+            # offers one correction; a second consecutive detection stops.
+            if self._max_cycle_repeat(
+                getattr(state, "result_fingerprint_history", [])
+            ) >= self._no_progress_threshold:
+                if not self._result_correction_given:
+                    self._result_correction_given = True
+                    self.pending_correction = (
+                        "Your recent tool calls repeat the same results "
+                        "without progress. Change parameters, take a "
+                        "different action, or complete the task; further "
+                        "repetition will terminate the task."
+                    )
+                    return None
+                return StopDecision(True, AgentState.LIMIT_REACHED,
+                                   "Repeated tool result fingerprint — no progress")
+            else:
+                # The cycle broke (real progress happened): arm the
+                # correction for any future cycle.
+                self._result_correction_given = False
 
         return None
+
+    @staticmethod
+    def _max_cycle_repeat(history: list[str], max_period: int = 5) -> int:
+        """Max number of consecutive identical length-L blocks at the tail.
+
+        L=1 is the classic consecutive-repeat run; larger L detects
+        A→B→A→B-style alternation cycles.
+        """
+        if not history:
+            return 0
+        best = 1
+        for length in range(1, min(max_period, len(history) // 2) + 1):
+            block = history[-length:]
+            run = 1
+            idx = len(history) - length
+            while idx - length >= 0 and history[idx - length:idx] == block:
+                run += 1
+                idx -= length
+            best = max(best, run)
+        return best
 
     @staticmethod
     def _max_consecutive(history: list[str]) -> int:

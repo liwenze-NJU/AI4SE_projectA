@@ -51,6 +51,13 @@ class PriorityMerger:
             if d == "BLOCK" and r.get("recoverable") is False:
                 any_non_recoverable_block = True
 
+        # T8-FIX6: only the rules that actually decided the merged decision
+        # drive the human-readable message — an ALLOW rule must not appear
+        # as an approval/block reason. (rule_ids keeps the full audit set.)
+        merged["_deciding_rule_ids"] = [
+            r.get("rule_id", "unknown") for r in results
+            if r.get("decision", "") == merged["decision"]
+        ]
         if any_non_recoverable_block:
             merged["recoverable"] = False
         return merged
@@ -119,8 +126,10 @@ class RuleEngine:
         return r
 
     def _format_message(self, merged: dict) -> str:
+        # T8-FIX6: only deciding rules are named in the message.
+        deciding = merged.get("_deciding_rule_ids") or merged["rule_ids"]
         if merged["decision"] == "BLOCK":
-            return f"Blocked by rules: {', '.join(merged['rule_ids'])}"
+            return f"Blocked by rules: {', '.join(deciding)}"
         elif merged["decision"] == "REQUEST_APPROVAL":
-            return f"Requires approval: {', '.join(merged['rule_ids'])}"
+            return f"Requires approval: {', '.join(deciding)}"
         return "Allowed"

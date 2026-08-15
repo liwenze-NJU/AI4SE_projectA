@@ -40,6 +40,10 @@ class SessionState:
     cost_used: Decimal = Decimal("0")
     action_fingerprint_history: list[str] = field(default_factory=list)
     failure_fingerprint_history: list[str] = field(default_factory=list)
+    # T8-FIX6: fingerprints of tool RESULTS (tool name + params + outcome)
+    # so read-only loops like A→B→A→B are detected even when action
+    # fingerprints alternate.
+    result_fingerprint_history: list[str] = field(default_factory=list)
     started_at: datetime = field(default_factory=datetime.now)
 
 

@@ -32,8 +32,14 @@ ACTION_PROTOCOL_PROMPT = (
     '"tool_call" or "request_user_input" instead. Never send more than '
     "one assistant_message per task, and never use it for intermediate "
     "progress — tool/validation events already show progress.\n"
-    '3. "request_user_input" — ask the user a question. Required field: '
-    '"question" (non-empty string).\n'
+    '3. "request_user_input" — ask the user ONLY for missing task '
+    'requirements (e.g. an unspecified target value). Required field: '
+    '"question" (non-empty string). NEVER use it to ask permission to '
+    "modify files: for side-effect tools (write_file, apply_patch, "
+    "delete_file, run_process) simply return the tool_call — the Harness "
+    "Guardrail will ask the user for real authorization with a [y/N] "
+    "approval prompt. Natural-language confirmation cannot replace that "
+    "approval.\n"
     '4. "complete" — declare the task done without a final user-facing '
     'reply. Required field: "summary" (non-empty string describing the '
     "outcome). A complete response still undergoes final validation; if "

@@ -205,13 +205,41 @@ def apply_patch(params: dict, workspace_root: str = "") -> dict:
     if _is_sensitive_file(path):
         raise PermissionError(f"Cannot patch sensitive file: {path}")
 
-    content = path.read_text(encoding="utf-8")
+    raw = path.read_bytes()
+    had_bom = raw.startswith(b"\xef\xbb\xbf")
+
+    # T8-FIX6: strip the LEADING UTF-8 BOM before matching (the model sees
+    # the file without it via read_file's utf-8 decode, so old_string never
+    # needs to contain \ufeff); body characters are untouched. newline=""
+    # preserves the original line endings instead of normalizing them.
+    content = raw.decode("utf-8-sig")
     old = params["old_string"]
     new = params["new_string"]
     if old not in content:
-        raise ValueError(f"old_string not found in {path}")
-    content = content.replace(old, new, 1)
-    path.write_text(content, encoding="utf-8")
+        # Match against the raw-BOM variant too (the model may echo the
+        # \ufeff it saw in read_file output as the first character).
+        content = raw.decode("utf-8")
+        if old not in content:
+            raise ValueError(f"old_string not found in {path}")
+
+    patched = content.replace(old, new, 1)
+    if had_bom and not patched.startswith("\ufeff"):
+        # Re-add the BOM only when the replacement consumed it (matching
+        # against the BOM-inclusive variant) — never double it.
+        patched = "\ufeff" + patched
+    out = patched.encode("utf-8")
+    # Atomic write preserving the byte-exact result.
+    fd, tmp_path = tempfile.mkstemp(dir=path.parent, suffix=".tmp")
+    try:
+        with os.fdopen(fd, "wb") as f:
+            f.write(out)
+        os.replace(tmp_path, str(path))
+    except Exception:
+        try:
+            os.unlink(tmp_path)
+        except Exception:
+            pass
+        raise
     return {"status": "SUCCESS", "path": str(path)}
 
 

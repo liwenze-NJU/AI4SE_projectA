@@ -263,6 +263,130 @@ def test_apply_patch(temp_workspace):
     assert result["status"] == "SUCCESS"
     assert "return 42" in path.read_text()
 
+
+def test_apply_patch_bom_file_first_line(temp_workspace):
+    """T8-FIX6: a UTF-8 BOM file's first line matches an old_string WITHOUT
+    ﻿; the BOM is preserved on write-back (no double BOM)."""
+    from codeguard.tool.file_tools import apply_patch
+    path = temp_workspace / "value.py"
+    path.write_bytes(b"\xef\xbb\xbf" + "VALUE: int = 2\n".encode("utf-8"))
+    result = apply_patch({"path": str(path),
+                          "old_string": "VALUE: int = 2",
+                          "new_string": "VALUE: int = 3"},
+                         workspace_root=str(temp_workspace))
+    assert result["status"] == "SUCCESS"
+    raw = path.read_bytes()
+    assert raw.startswith(b"\xef\xbb\xbf")            # BOM preserved
+    assert not raw.startswith(b"\xef\xbb\xbf\xef\xbb\xbf")  # no double BOM
+    text = path.read_text(encoding="utf-8-sig")
+    assert "VALUE: int = 3" in text
+
+
+def test_apply_patch_no_bom_file_stays_no_bom(temp_workspace):
+    """T8-FIX6: a non-BOM file gains NO BOM after a successful patch."""
+    from codeguard.tool.file_tools import apply_patch
+    path = temp_workspace / "plain.py"
+    path.write_bytes("VALUE = 1\n".encode("utf-8"))
+    result = apply_patch({"path": str(path),
+                          "old_string": "VALUE = 1",
+                          "new_string": "VALUE = 2"},
+                         workspace_root=str(temp_workspace))
+    assert result["status"] == "SUCCESS"
+    assert not path.read_bytes().startswith(b"\xef\xbb\xbf")
+
+
+def test_apply_patch_bom_mismatch_preserves_bytes(temp_workspace):
+    """T8-FIX6: a failed patch leaves the original bytes completely
+    unchanged (BOM included)."""
+    from codeguard.tool.file_tools import apply_patch
+    import pytest
+    path = temp_workspace / "value.py"
+    original = b"\xef\xbb\xbf" + "VALUE: int = 2\n".encode("utf-8")
+    path.write_bytes(original)
+    with pytest.raises(ValueError, match="not found"):
+        apply_patch({"path": str(path),
+                     "old_string": "NOT PRESENT",
+                     "new_string": "x"},
+                    workspace_root=str(temp_workspace))
+    assert path.read_bytes() == original
+
+
+def test_apply_patch_bom_crlf_preserved(temp_workspace):
+    """T8-FIX6: CRLF line endings survive a patch on a BOM file."""
+    from codeguard.tool.file_tools import apply_patch
+    path = temp_workspace / "crlf.py"
+    path.write_bytes(b"\xef\xbb\xbf" + "VALUE = 1\r\nNEXT = 2\r\n".encode("utf-8"))
+    result = apply_patch({"path": str(path),
+                          "old_string": "VALUE = 1",
+                          "new_string": "VALUE = 9"},
+                         workspace_root=str(temp_workspace))
+    assert result["status"] == "SUCCESS"
+    raw = path.read_bytes()
+    assert b"\xef\xbb\xbf" in raw
+    assert b"VALUE = 9\r\n" in raw
+    assert raw.count(b"\r\n") == 2  # both lines keep CRLF
+
+
+def test_apply_patch_bom_body_preserved(temp_workspace):
+    """T8-FIX6: ﻿ characters in the BODY are NOT stripped (only the
+    leading BOM is handled); legal content survives."""
+    from codeguard.tool.file_tools import apply_patch
+    path = temp_workspace / "body.py"
+    body = 'TEXT = "﻿keep"\nTAIL = 1\n'
+    path.write_bytes(b"\xef\xbb\xbf" + body.encode("utf-8"))
+    result = apply_patch({"path": str(path),
+                          "old_string": "TAIL = 1",
+                          "new_string": "TAIL = 2"},
+                         workspace_root=str(temp_workspace))
+    assert result["status"] == "SUCCESS"
+    text = path.read_text(encoding="utf-8-sig")
+    assert "﻿keep" in text
+
+
+def test_apply_patch_bom_crlf_old_string_with_newline(temp_workspace):
+    """T8-FIX6 acceptance scenario: BOM + CRLF file, old_string WITHOUT BOM
+    but WITH the CRLF newline must match the first line."""
+    from codeguard.tool.file_tools import apply_patch
+    path = temp_workspace / "value.py"
+    path.write_bytes(b"\xef\xbb\xbf" + "VALUE: int = 2\r\n".encode("utf-8"))
+    result = apply_patch({"path": str(path),
+                          "old_string": "VALUE: int = 2\r\n",
+                          "new_string": "VALUE: int = 3\r\n"},
+                         workspace_root=str(temp_workspace))
+    assert result["status"] == "SUCCESS"
+    raw = path.read_bytes()
+    assert raw == b"\xef\xbb\xbf" + "VALUE: int = 3\r\n".encode("utf-8")
+
+
+def test_apply_patch_bom_old_string_with_bom_prefix(temp_workspace):
+    """T8-FIX6: an old_string that echoes the BOM character the model saw
+    in read_file output still matches, and the BOM survives the write."""
+    from codeguard.tool.file_tools import apply_patch
+    path = temp_workspace / "value.py"
+    path.write_bytes(b"\xef\xbb\xbf" + "VALUE: int = 2\n".encode("utf-8"))
+    result = apply_patch({"path": str(path),
+                          "old_string": "﻿VALUE: int = 2",
+                          "new_string": "VALUE: int = 3"},
+                         workspace_root=str(temp_workspace))
+    assert result["status"] == "SUCCESS"
+    raw = path.read_bytes()
+    assert raw == b"\xef\xbb\xbf" + "VALUE: int = 3\n".encode("utf-8")
+
+
+def test_apply_patch_no_bom_lf_line_endings_preserved(temp_workspace):
+    """T8-FIX6: LF-only files stay LF-only after a patch (no CRLF
+    conversion on Windows)."""
+    from codeguard.tool.file_tools import apply_patch
+    path = temp_workspace / "lf.py"
+    path.write_bytes("VALUE = 1\nTAIL = 2\n".encode("utf-8"))
+    result = apply_patch({"path": str(path),
+                          "old_string": "VALUE = 1",
+                          "new_string": "VALUE = 9"},
+                         workspace_root=str(temp_workspace))
+    assert result["status"] == "SUCCESS"
+    raw = path.read_bytes()
+    assert raw == "VALUE = 9\nTAIL = 2\n".encode("utf-8")
+
 def test_apply_patch_context_mismatch(temp_workspace):
     from codeguard.tool.file_tools import apply_patch
     import pytest
