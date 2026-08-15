@@ -230,6 +230,16 @@
 - **Evidence:** RED（跨盘符 2 failed）→ GREEN（本机 + 跨盘符均 2 passed）; 4 相关文件 74 passed; 全量（跨盘符 + 无 LOCALAPPDATA）**793 passed, 1 skipped**; `git diff --check` clean; diff 凭据扫描 0 命中; 未创建 tag/Release; main 仍 30581f0。
 - **CI 最终结果:** run 31884367527（head `7cc873c`）——**全 workflow 绿色**：unit-test (Ubuntu) success（pytest -v）；build-exe (Windows) success（pip install、pytest -v、PyInstaller、EXE smoke、SHA-256 generation、upload-artifact 全部 success）。未创建 tag/Release；main 仍 30581f0。后续 docs 提交触发的最新 run 31884554346（head `cbd2317`）同样全 workflow 绿色——发布阻断解除。
 
+### T8-FIX8-CI3: CI SHA-256 生成与 artifact 验证加固（发布阻断）
+
+- **Status:** COMPLETED (2026-08-15); CI 最终结果待回填
+- **Implementer commit(s):** `05034e3`（fix）, `5c53a83`（docs 回填）; 双远端 == HEAD
+- **问题:** 人工检查报告两个绿色 run 的 codeguard-exe artifact 缺少 codeguard.exe.sha256；原 certutil/findstr 流水线解析本地化人类可读输出且 upload-artifact 缺文件不失败 → 假绿风险。
+- **根因（本机证据）:** findstr 无匹配退出 1：bash 外壳 → 0 字节文件；pwsh 外壳 → 不传播原生退出码，步骤仍绿。**权威核验:** 下载两个 artifact 实测均包含 66 字节有效 sha256 且与 EXE 匹配（用户观察与下载证据不符），但流水线脆弱性成立，按方案加固。
+- **修复（无生产代码改动）:** ci.yml "Generate and verify SHA-256"（pwsh Get-FileHash 纯哈希 64 hex + LF、格式正则校验、与生成值比对）+ 独立 "Verify release assets"（缺/空/不匹配即 throw）+ upload-artifact `if-no-files-found: error`。
+- **Evidence:** PS 5.1 端到端模拟（真实 EXE）两步骤 exit 0、篡改/缺失 exit 1；YAML 解析通过；全量 **793 passed, 1 skipped**；`git diff --check` clean; 未创建 tag/Release; main 仍 30581f0。
+- **CI 待验证:** 推送后等待最新 run 全绿；下载 artifact 确认 codeguard.exe + codeguard.exe.sha256 齐全且哈希一致。结果回填本条。
+
 ## Task 0 Detail Log
 
 ### 2026-08-13 — Baseline environment
