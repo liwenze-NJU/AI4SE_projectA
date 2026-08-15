@@ -172,7 +172,8 @@
 - **新协议:** assistant_message = 最终用户可见回复 → 显示一次 → 立即最终验证 → COMPLETED/FAILED → 返回 REPL；不再为索取 complete 调用 LLM；该路径绝不 LIMIT_REACHED；complete 保留为无回复任务兼容路径；进度由工具/验证事件表达；终止语义由状态机确定性保证。
 - **修改:** loop.py ASSISTANT_MESSAGE 分支重写（transcript → emit → `_run_final_validation()` → COMPLETED/FAILED → break）；删除冗余补丁状态（`_delivered_assistant_messages`、`_assistant_displayed_since_progress`、`_count_conversation_action`、连续对话上限、assistant fingerprint、纠正提示）；保留澄清 fingerprint+StopPolicy 检查、全终态事件、outcome/summary 分离。deepseek.py 协议提示：assistant_message 改为 TERMINAL 描述，删除旧"必须 complete"对话规则。README 明确最终回复语义。测试：删除 15 个旧协议测试，重写 9 个 T8-FIX5 测试 + E2E happy/BLUE-731 更新 + prompt 断言增强。
 - **验证:** GREEN 28（loop）→ 5 文件组 99 → 全量 **765 passed, 1 skipped**; 凭据扫描 0 真实命中; 重建 EXE + smoke（version/help/demo a/frozen 传感器 PASSED）; 未创建 tag/Release; main 仍 30581f0。
-- **Deferred Minor:** 无新增。
+- **Review:** 1st round protocol_compliant YES + APPROVED_WITH_MINOR + 1 Important（重复测试定义遮蔽）→ Fix round: `7d1f847`（删除被遮蔽副本，保留强断言版本；实际强弱与 reviewer 描述相反——保留副本已含 summary 分离断言）→ 复验 28 passed + 全量 765 passed, 1 skipped。
+- **Deferred Minor:** (a) FAILED summary 以验证反馈替代回复文本（符合 brief item 3，待产品验收确认）; (b) 最终回复跨任务仅经 500 字符 summary 可见（协议设计后果）; (c) frozen-EXE smoke 事后不可复核（临时目录已清理，全量测试覆盖同路径）。
 
 ## Final Acceptance (deferred to Task 8)
 
