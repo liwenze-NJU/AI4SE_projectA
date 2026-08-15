@@ -3356,4 +3356,4 @@ context[4]: value.py=False, test_value.py=True
 
 **commit hash**: `4850776`（`fix: use same-filesystem tmp_path workspaces in guardrail integration tests`）
 
-**CI 待验证**: 推送后等待最新 run——Ubuntu unit-test、Windows pytest、PyInstaller、EXE smoke、SHA-256、artifact upload 全部 success。结果回填本条目。
+**CI 最终结果**: run 31884367527（head `7cc873c`）——**全 workflow 绿色**：unit-test (Ubuntu) success（pytest -v）; build-exe (Windows) success（pip install、pytest -v、PyInstaller、EXE smoke、SHA-256 generation、upload-artifact 全部 success）。未创建 tag/Release。
