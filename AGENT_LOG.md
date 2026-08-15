@@ -3206,5 +3206,5 @@
 - 重建 EXE: PyInstaller exit 0; `--version` → 0.2.0-interactive; frozen 传感器 smoke PASSED
 - 未创建 tag/Release；未合并 main（main 仍 30581f0）
 
-**commit hash**: `T8-FIX6-COMMIT`（提交后回填）
+**commit hash**: `e791c9d`（`fix: BOM-aware patch, result-cycle stop detection, deciding-rule approval reasons`）
 
