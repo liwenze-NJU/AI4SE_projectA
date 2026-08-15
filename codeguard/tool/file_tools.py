@@ -210,8 +210,8 @@ def apply_patch(params: dict, workspace_root: str = "") -> dict:
 
     # T8-FIX6: strip the LEADING UTF-8 BOM before matching (the model sees
     # the file without it via read_file's utf-8 decode, so old_string never
-    # needs to contain \ufeff); body characters are untouched. newline=""
-    # preserves the original line endings instead of normalizing them.
+    # needs to contain \ufeff); body characters are untouched. The binary
+    # write below preserves the original line endings byte-for-byte.
     content = raw.decode("utf-8-sig")
     old = params["old_string"]
     new = params["new_string"]

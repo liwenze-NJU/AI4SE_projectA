@@ -3208,3 +3208,24 @@
 
 **commit hash**: `e791c9d`（`fix: BOM-aware patch, result-cycle stop detection, deciding-rule approval reasons`）
 
+
+---
+
+## T8-FIX6-FIX: 合并 reviewer 发现跨任务纠正标志泄漏（Important 修复条目）
+
+**log_id**: T8-FIX6-FIX | **状态**: COMPLETED
+**时间**: 2026-08-15
+**Superpowers 技能**: `superpowers:test-driven-development`
+**branch/worktree**: feature/interactive-cli-agent / `.worktrees/interactive-cli-agent`
+
+**Important 发现（merge review）**: `StopPolicy._result_correction_given` 标志只在周期打破时重置；CLI 复用同一 loop 跨任务，`start_task` 清空指纹历史但不清标志——任务 1 触发过纠正后，任务 2 的首次周期检测直接 LIMIT_REACHED 无纠正消息，违反"先给一次纠正反馈"要求。
+
+**修复**: `start_task` 在清空指纹历史的同时重置 `stop_policy._result_correction_given = False` 与 `pending_correction = None`（per-task 状态）。同时清理 2 个 Minor：file_tools.py 过期 `newline=""` 注释（实际由二进制写保留换行）；loop.py 冗余内联 `import hashlib`（改用模块级 import）。
+
+**验证证据**:
+- 回归: loop/stop_policy/file_tools/e2e 组 → **103 passed, 1 skipped**
+- 全量: `pytest -q -rs` → **780 passed, 1 skipped**
+- `git diff --check` → clean
+
+**commit hash**: `T8-FIX6-FIX-COMMIT`（提交后回填）
+

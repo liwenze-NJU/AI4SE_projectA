@@ -188,6 +188,12 @@ class AgentLoop:
         self.state.action_fingerprint_history.clear()
         self.state.failure_fingerprint_history.clear()
         self.state.result_fingerprint_history.clear()
+        # T8-FIX6-FIX: the stop policy's one-shot correction flag is
+        # per-task state — reset it so every task's first cycle detection
+        # delivers a fresh correction message.
+        if self.stop_policy is not None:
+            self.stop_policy._result_correction_given = False
+            self.stop_policy.pending_correction = None
         self.state.pending_question = None
         self.state.pending_action = None
         self.state.approval_request_id = None
@@ -480,8 +486,7 @@ class AgentLoop:
         # the cycle naturally because its fingerprint differs.
         params = dict(getattr(action, "parameters", None)
                       or getattr(action, "normalized_parameters", None) or {})
-        import hashlib as _hashlib
-        result_fp = _hashlib.sha256(
+        result_fp = hashlib.sha256(
             f"{action.tool_name}:{sorted(params.items())}:{tool_result.status}"
             .encode("utf-8")
         ).hexdigest()
