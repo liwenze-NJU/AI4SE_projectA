@@ -3148,3 +3148,24 @@
 
 **commit hash**: `00cd767`（`fix: make assistant_message the terminal final reply`）
 
+
+---
+
+## T8-FIX5-FIX: 合并 reviewer 发现重复测试定义（Important 修复条目）
+
+**log_id**: T8-FIX5-FIX | **状态**: COMPLETED
+**时间**: 2026-08-15
+**Superpowers 技能**: `superpowers:test-driven-development`
+**branch/worktree**: feature/interactive-cli-agent / `.worktrees/interactive-cli-agent`
+
+**Important 发现（merge review）**: `tests/test_loop.py` 中 `test_assistant_message_is_final_reply_and_completes` 定义两次（536 行 Task 4 区域副本被 650 行 T8-FIX5 区域副本遮蔽）。检查实际内容：保留副本（650）已含强断言（summary 分离 `completed:` 检查 + "Hello there" 检查 + trace 终态检查）；被遮蔽副本（536）是较弱版本——与 reviewer 描述的强弱相反，但删除被遮蔽副本的结论一致。
+
+**修复**: 删除 536-570 被遮蔽的较弱副本；保留 T8-FIX5 区域的完整强断言版本。当前唯一一份定义包含全部断言（1 次 LLM 调用、emit 一次、transcript 一次、FINAL 验证一次、1 次 TASK_FINISHED、trace 以 FINAL_VALIDATION→COMPLETED 结尾、summary 无双状态词且含回复文本）。
+
+**验证证据**:
+- GREEN: `pytest tests/test_loop.py -q` → **28 passed**（grep 确认仅 1 处定义）
+- 全量: `pytest -q -rs` → **765 passed, 1 skipped**
+- `git diff --check` → clean
+
+**commit hash**: `T8-FIX5-FIX-COMMIT`（提交后回填）
+

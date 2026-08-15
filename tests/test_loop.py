@@ -533,43 +533,6 @@ def test_start_task_resets_counters_and_runs():
     assert result.llm_calls_total == 2
 
 
-def test_assistant_message_is_final_reply_and_completes():
-    """T8-FIX5: ASSISTANT_MESSAGE is the FINAL user-visible reply. It is
-    emitted once, recorded once, triggers final validation once, and the
-    task terminates — exactly one LLM call, no DECIDING round-trip, no
-    LIMIT_REACHED."""
-    sink = CollectingEventSink()
-    responses = [
-        _r(Action(kind=ActionKind.ASSISTANT_MESSAGE, message="Hello there", raw="")),
-    ]
-    loop = _make_task_loop(responses=responses, event_sink=sink)
-    result = loop.start_task("t1", "Do the work", [])
-    assert result.terminal_state == AgentState.COMPLETED
-    assert result.steps_total == 0
-    # Exactly ONE LLM call: no second call to ask for complete.
-    assert result.llm_calls_total == 1
-    assert loop._transcript == ["Hello there"]
-    assistant_events = [
-        e for e in sink.events
-        if e.kind == HarnessEventKind.ASSISTANT_MESSAGE
-    ]
-    assert [e.payload["message"] for e in assistant_events] == ["Hello there"]
-    # Final validation ran once (FINAL-typed results exist, exactly one run).
-    final_runs = [r for r in loop._feedback_results
-                  if r.validation_type == "FINAL"]
-    assert len(final_runs) >= 1
-    # One TASK_FINISHED with COMPLETED; never LIMIT_REACHED.
-    finished = [
-        e for e in sink.events if e.kind == HarnessEventKind.TASK_FINISHED
-    ]
-    assert len(finished) == 1
-    assert finished[0].payload["outcome"] == "completed"
-    # No DECIDING round-trip after the message: the trace's last states are
-    # FINAL_VALIDATION → COMPLETED.
-    states = [t["to"] for t in loop._trace]
-    assert states[-2:] == [AgentState.FINAL_VALIDATION, AgentState.COMPLETED]
-
-
 def test_request_user_input_pauses_and_resume_continues():
     """REQUEST_USER_INPUT → AWAITING_USER_INPUT; resume_with_user_input
     feeds the answer into the next context and completes."""
